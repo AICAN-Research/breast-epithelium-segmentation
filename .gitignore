@@ -1,6 +1,8 @@
 .idea/
+deep_learning_tools/
 *.tif
 *.tiff
 *.vsi
 *.ndpi
 *.png
+*.jpg

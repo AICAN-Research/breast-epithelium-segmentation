@@ -4,11 +4,17 @@ import numpy as np
 import cv2
 import scipy.ndimage.morphology as morph
 
+import utils
+from utils import alignImages
+
+
 #  Import IHC and HE image:
 importer = fast.WholeSlideImageImporter.create(
     '/data/Maren_P1/TMA/TP02  pan CK AE1-AE3_01_plane_0_cm_lzw_jpeg_Q_85.tif')
 importer_HE = fast.WholeSlideImageImporter.create(
     '/data/Maren_P1/TMA/H2 TP02 HE helsnittscan_plane_0_cm_lzw_jpeg_Q_85.tif')
+
+#extractor = fast.TissueMicroArrayExtractor.create(level=0).connect(importer)
 
 # Want only one segmentation, otherwise the patches will not match for HE and IHC, that is why tissueSegmentation_HE is commented out
 tissueSegmentation = fast.TissueSegmentation.create().connect(importer)
@@ -25,11 +31,16 @@ patchGenerator_HE = fast.PatchGenerator.create(3000, 3000, level=0) \
     .connect(0, importer_HE) \
     .connect(1, tissueSegmentation)
 
+
+
 # Create subplots of patches with different preprocessing
 patch_list = []  # list of patches to display in figure with subplots
 for patch, patch_HE in zip(fast.DataStream(patchGenerator), fast.DataStream(patchGenerator_HE)):
     patch = np.asarray(patch)  # original IHC patch
     patch_HE = np.asarray(patch_HE)  # original HE patch
+
+    im1Reg, h = utils.alignImages(patch, patch_HE)
+
     patch_list.append(patch)  # patch list
     patch_list.append(patch_HE)
     # print(patch.shape)
