@@ -5,8 +5,6 @@ import cv2
 import scipy.ndimage.morphology as morph
 
 import utils
-from utils import alignImages
-
 
 #  Import IHC and HE image:
 importer = fast.WholeSlideImageImporter.create(
@@ -20,14 +18,18 @@ importer_HE = fast.WholeSlideImageImporter.create(
 tissueSegmentation = fast.TissueSegmentation.create().connect(importer)
 # tissueSegmentation_HE = fast.TissueSegmentation.create().connect(importer_HE)
 
+img_size = 512  # 3000
+patch_level = 2  # 0
+
+
 #  Patch generators, one for IHC and one for HE:
 #  Level 0 is the whole image, and level 1 has lower resolution etc..
 #  It is possible to add overlap in generator for edges (check FAST website)
-patchGenerator = fast.PatchGenerator.create(3000, 3000, level=0) \
+patchGenerator = fast.PatchGenerator.create(img_size, img_size, level=patch_level) \
     .connect(0, importer) \
     .connect(1, tissueSegmentation)
 
-patchGenerator_HE = fast.PatchGenerator.create(3000, 3000, level=0) \
+patchGenerator_HE = fast.PatchGenerator.create(img_size, img_size, level=patch_level) \
     .connect(0, importer_HE) \
     .connect(1, tissueSegmentation)
 
@@ -39,7 +41,7 @@ for patch, patch_HE in zip(fast.DataStream(patchGenerator), fast.DataStream(patc
     patch = np.asarray(patch)  # original IHC patch
     patch_HE = np.asarray(patch_HE)  # original HE patch
 
-    im1Reg, h = utils.alignImages(patch, patch_HE)
+    ret, h = utils.alignImages(patch_HE, patch)
 
     patch_list.append(patch)  # patch list
     patch_list.append(patch_HE)
@@ -76,10 +78,11 @@ for patch, patch_HE in zip(fast.DataStream(patchGenerator), fast.DataStream(patc
     cmaps4 = ["viridis", "gray", "gray"]
 
     # Make subplots for different processing
-    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+    fig, axes = plt.subplots(2, 3, figsize=(10, 10))
     for i, cmap in zip(range(2), cmaps1):
         for j, cmap in zip(range(2), cmaps1):
             axes[i, j].imshow(patch_list[i + j * 2], cmap=cmap, interpolation='none')
+    axes[0, 2].imshow(ret, interpolation='none')
     plt.show()
     patch_list.clear()
 

@@ -1,12 +1,22 @@
 import cv2
 import numpy as np
 
+def alignImagesNew(im1, im2):
+
+    return 1
+
+
+
+
 
   # from: https://learnopencv.com/image-alignment-feature-based-using-opencv-c-python/
-def alignImages(im1, im2, max_features=500, good_match_percent=0.15):
+def alignImages(im1, im2, max_features=1000, good_match_percent=0.05):
     # Convert images to grayscale
-    im1Gray = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
-    im2Gray = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
+    #im1Gray = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
+    #im2Gray = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
+
+    im1Gray = im1[..., 0]
+    im2Gray = im2[..., 2]
 
     # Detect ORB features and compute descriptors.
     orb = cv2.ORB_create(max_features)
@@ -17,9 +27,13 @@ def alignImages(im1, im2, max_features=500, good_match_percent=0.15):
     matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
     matches = matcher.match(descriptors1, descriptors2, None)
 
+    print("---")
+
     # Sort matches by score
+    matches = list(matches)
     matches.sort(key=lambda x: x.distance, reverse=False)
 
+    print(len(matches))
     # Remove not so good matches
     numGoodMatches = int(len(matches) * good_match_percent)
     matches = matches[:numGoodMatches]
@@ -37,6 +51,6 @@ def alignImages(im1, im2, max_features=500, good_match_percent=0.15):
 
     # Use homography
     height, width, channels = im2.shape
-    im1Reg = cv2.warpPerspective(im1, h, (width, height))
+    im1Reg = cv2.warpPerspective(im1Gray, h, (width, height))
 
     return im1Reg, h
