@@ -6,3 +6,4 @@ deep_learning_tools/
 *.ndpi
 *.png
 *.jpg
+*.whl
