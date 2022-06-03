@@ -91,7 +91,7 @@ while True:   # Use this, HE_counter < 4 just for testing
         tma_padded_shifted = ndi.shift(IHC_TMA_padded, tmp)
 
         # Threshold TMA (IHC)
-        tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
+        #tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
 
         print(HE_TMA_padded.shape, tma_padded_shifted.shape)
 
@@ -102,8 +102,10 @@ while True:   # Use this, HE_counter < 4 just for testing
         print()
 
         # Threshold TMA (IHC)
-        tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
-
+        #tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
+        y_hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # rgb to hsv color space
+        y_hsv = y_hsv[:, :, 1]  # hue, saturation, value
+        y = (y_hsv > 60).astype('uint8')  # threshold
 
         # resize both to fixed size ex: (512, 512), image bilinear, gt nearest
         x = cv2.resize(x, (512, 512), interpolation=cv2.INTER_LINEAR)

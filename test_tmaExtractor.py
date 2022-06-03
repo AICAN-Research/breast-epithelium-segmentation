@@ -77,15 +77,15 @@ while True:   # Use this, HE_counter < 4 just for testing
         TMA_pairs.append((HE_TMA, IHC_TMA))
         HE_counter += 1
         IHC_counter += 1
-        f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
-        axes[0].imshow(np.asarray(HE_TMA))
-        axes[1].imshow(np.asarray(IHC_TMA))
-        plt.show()
+        #f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
+        #axes[0].imshow(np.asarray(HE_TMA))
+        #axes[1].imshow(np.asarray(IHC_TMA))
+        #plt.show()
 
-        fig, ax = plt.subplots(1, 1)  # Figure of the two TMAs on top of each other
-        ax.imshow(HE_TMA)
-        ax.imshow(IHC_TMA, alpha=0.5)  # Add opacity
-        plt.show()  # Show the two images on top of each other
+        #fig, ax = plt.subplots(1, 1)  # Figure of the two TMAs on top of each other
+        #ax.imshow(HE_TMA)
+        #ax.imshow(IHC_TMA, alpha=0.5)  # Add opacity
+        #plt.show()  # Show the two images on top of each other
 
         IHC_TMA = np.asarray(IHC_TMA)
         HE_TMA = np.asarray(HE_TMA)
@@ -101,15 +101,55 @@ while True:   # Use this, HE_counter < 4 just for testing
 
         shifts.append(detected_shift)
 
-        tmp = detected_shift[0]
-        tmp[2] = 0
+        tmp = detected_shift[0]  # x,y,z coordinate
+        tmp[2] = 0  # set z coordinate to zero
 
-        tma_padded_shifted = ndi.shift(IHC_TMA, tmp)
+        tma_padded_shifted = ndi.shift(IHC_TMA, tmp)  # shift IHC tma in the x,y direction given by the shift
 
-        fig, ax = plt.subplots(1, 1)  # Figure of the two TMAs on top of each other
-        ax.imshow(HE_TMA)
-        ax.imshow(tma_padded_shifted.astype("uint8"), alpha=0.5)  # Add opacity
-        plt.show()  # Show the two images on top of each other
+        x = HE_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]  # HE back to original shape
+        y = tma_padded_shifted[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]  # IHC back to original shape
+
+        #fig, ax = plt.subplots(1, 1)  # Figure of the two TMAs on top of each other
+        #ax.imshow(x)
+        #ax.imshow(y.astype("uint8"), alpha=0.5)  # Add opacity
+        #plt.show()  # Show the two images on top of each other
+
+        print("y shape", y.shape)
+        y_thresh = (y[..., 2] > 127.5).astype(np.uint8)  # Threshold TMA (IHC)
+        print("y thresh shape", y_thresh.shape)
+        print("y thresh min max", np.amin(y_thresh), np.amax(y_thresh))
+
+        f, axes = plt.subplots(1, 2)  # Figure of IHC with and without thresholding
+        axes[0].imshow(y.astype("uint8"))  # IHC without thresholding
+        axes[1].imshow(y_thresh, cmap="gray")  # IHC with thresholding
+        plt.show()
+
+        y_hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # rgb to hsv color space
+        print("y hsv shape", y_hsv.shape)
+        y_hsv = y_hsv[:, :, 1]  # hue, saturation, value
+        print("y hsv min max",np.amin(y_hsv), np.amax(y_hsv))
+        y_hsv_temp = (y_hsv > 60).astype('uint8')  # threshold
+        print(np.amin(y_hsv_temp), np.amax(y_hsv_temp))
+        print("y hsv temp shape",y_hsv_temp.shape)
+
+        f, axes = plt.subplots(1, 2)  # Figure of IHC with and without threshold
+        axes[0].imshow(y.astype("uint8"))
+        axes[1].imshow(y_hsv_temp, cmap="gray")
+        plt.show()
+
+        # resize both to fixed size ex: (512, 512), image bilinear, gt nearest
+        x = cv2.resize(x, (512, 512), interpolation=cv2.INTER_LINEAR)
+        y = cv2.resize(y, (512, 512), interpolation=cv2.INTER_NEAREST)
+
+        # One-hot TMA (IHC) binary, 01
+        y = np.stack([1 - y, y], axis=-1)  # shape (512,512,3) -> shape (512,512,3,
+        # 2)
+
+        print(x.shape)
+        print(y.shape)
+
+        input("Press ENTER To go next:")
+        #exit()
 
     elif dist_x > dist_limit and dist_y < dist_limit:  # if HE position has passed IHC position
         IHC_counter += 1
