@@ -32,9 +32,9 @@ curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 # disable GPU
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-bs = 2
+bs = 4
 N_train = 50
-lr = 1e-3
+lr = 1e-4
 
 name = curr_date + "_" + curr_time + "_" + "unet"
 
@@ -42,6 +42,7 @@ name = curr_date + "_" + curr_time + "_" + "unet"
 dataset_path = './datasets/TMASegmentation020622/'  # path to directory
 history_path = './output/history/'  # path to directory
 model_path = './output/models/'  # path to directory
+save_ds_path = './output/datasets/dataset_' + name + '/' #inni her først en med name, så ds_train og test inni der
 
 paths = np.array([dataset_path + x for x in os.listdir(dataset_path)]).astype("U400")  # make list of elements in
 
@@ -56,6 +57,16 @@ ds_all = ds_all.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
 N = 68
 ds_train = ds_all.take(50)
 ds_test = ds_all.skip(50)
+
+os.makedirs(save_ds_path, exist_ok=True)  # check if exist, then create, otherwise not
+
+tf.data.experimental.save(
+   ds_train, save_ds_path + 'ds_train', compression=None, shard_func=None
+)
+
+tf.data.experimental.save(
+    ds_test, save_ds_path + 'ds_test', compression=None, shard_func=None
+)
 
 ds_train = ds_train.shuffle(buffer_size=4)
 ds_train = ds_train.batch(bs)
@@ -87,7 +98,7 @@ save_best = ModelCheckpoint(
             verbose=2,  #
             save_best_only=True,
             save_weights_only=False,
-            mode="auto",  # use "auto" with "f1_score", "auto" with "val_loss" (or "min")
+            mode="min",  # use "auto" with "f1_score", "auto" with "val_loss" (or "min")
             save_freq="epoch"
         )
 
@@ -128,7 +139,4 @@ print(model.summary())
 
 # Predict on new data, not the case here:
 # loop over all elements in test set, run model prediction, save pred -> after loop, compute metrics (Dice)
-#model.predict(
-#    ds_test
-#)
-
+# from tensorflow tutorial:
