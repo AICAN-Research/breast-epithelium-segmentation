@@ -8,8 +8,7 @@ from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
 from datetime import datetime, date
 from tensorflow.keras.models import load_model
-
-
+from augment import random_brightness, random_rot90, random_fliplr, random_flipud
 
 # from tensorflow example, modified
 def normalize_img(image, label):
@@ -49,7 +48,6 @@ paths = np.array([dataset_path + x for x in os.listdir(dataset_path)]).astype("U
 
 ds_all = tf.data.Dataset.from_tensor_slices(paths)  # list of paths to tensor in data.Dataset format
 ds_all = ds_all.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=tf.data.AUTOTUNE)
-ds_all = ds_all.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
 
 #ds_train = ds_train.cache()
 
@@ -57,6 +55,23 @@ ds_all = ds_all.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
 N = 68
 ds_train = ds_all.take(50)
 ds_test = ds_all.skip(50)
+
+# hsv augmentation next
+ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)  # remove this when not testing
+image, mask  = next(iter(ds_train))
+
+f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
+axes[0].imshow(image)
+axes[1].imshow(mask[:,:,1], cmap="gray")
+plt.show()
+
+image_aug, mask_aug = random_rot90(image, mask)
+f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
+axes[0].imshow(image_aug)
+axes[1].imshow(mask_aug[:,:,1], cmap="gray")
+plt.show()
+
+exit()
 
 os.makedirs(save_ds_path, exist_ok=True)  # check if exist, then create, otherwise not
 
@@ -77,6 +92,15 @@ ds_test = ds_test.shuffle(buffer_size=4)
 ds_test = ds_test.batch(bs)
 ds_test = ds_test.prefetch(tf.data.AUTOTUNE)
 ds_test = ds_test.repeat(-1)
+
+# only augment train data
+ds_train = ds_train.map(lambda x, y: random_fliplr(x, y))
+ds_train = ds_train.map(lambda x, y: random_flipud(x, y))
+ds_train = ds_train.map(lambda x, y: (random_brightness(x), y))
+
+# normalize intensities
+ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
+ds_test = ds_test.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
 
 convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
 convs = convs + convs[:-1][::-1]
