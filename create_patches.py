@@ -33,7 +33,39 @@ def patches(image, gt, size): #size = patch size
 
     return image_patches, gt_patches
 
-#test = np.zeros((8,8))
-#test[1,2] = 4
-#print(test)
-#patches(test, test, 4)
+# Fix edges
+def patches_overlap(image, gt, size): #size = patch size
+    image_patches = []
+    gt_patches = []
+
+    row = image.shape[0]
+    col = image.shape[1]
+
+    r = np.floor(row / size).astype("uint8")*2
+    c = np.floor(col / size).astype("uint8")*2
+    print("r", r)
+    print("c", c)
+    step = np.floor(size/2).astype("uint8")
+
+    # patches without overlap, make them with overlap also (50 percent?)
+    for i in range(r):
+        for j in range(c):
+            #print(image[i*size:(i+1)*size, j*size:(j+1)*size])
+            image_patch = image[i * step:(i * step) + size, j * step:(j * step) + size]
+            gt_patch = gt[i * step:(i * step) + size, j * step:(j * step) + size]
+
+            image_patches.append(image_patch)
+            gt_patches.append(gt_patch)
+            print(image_patch)
+            print("----")
+
+
+    return image_patches, gt_patches
+
+test = np.zeros((8,8))
+test[1,2] = 4
+test[2,3] = 2
+test[1,1] = 9
+test[7,7] = 3
+print(test)
+patches_overlap(test, test, 4)
