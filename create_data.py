@@ -1,5 +1,4 @@
 import os
-
 import fast
 import matplotlib.pyplot as plt
 import utils
@@ -11,6 +10,8 @@ import h5py
 import scipy.ndimage.morphology as morph
 from skimage.transform import rescale
 from tqdm import tqdm
+from skimage.morphology import binary_dilation, binary_erosion, disk, \
+    remove_small_objects, remove_small_holes
 
 #  Import IHC and HE image:
 importerIHC = fast.WholeSlideImageImporter.create(
@@ -19,24 +20,33 @@ importerHE = fast.WholeSlideImageImporter.create(
     '/data/Maren_P1/TMA/H2 TP02 HE helsnittscan.vsi')
 
 # --- HYPER PARAMS FOR PATCH GEN
-plot_flag = True
+plot_flag = False
 patch_size = 512
-level = 2  # used to be 4, changed to 2 050822
-curr_tma_size = int(16384 / 2 ** level)
+downsample_factor = 8
+level = 0  # used to be 4, changed to 2 050822
+dist_limit = 2000 / 2 ** level  # distance shift between HE and IHC TMA allowed
+# curr_tma_size = int(16384 / 2 ** level)
 TMA_pairs = []
 # ---
 
 # get HE TMA
 extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerHE)
 HE_TMAs = []
-for TMA in tqdm(fast.DataStream(extractor), "HE TMA"):
+for i, TMA in tqdm(enumerate(fast.DataStream(extractor)), "HE TMA"):
     HE_TMAs.append(TMA)
+    #if i == 5:
+    #    break
 
 # Get IHC TMA
 extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerIHC)
 IHC_TMAs = []
-for TMA in tqdm(fast.DataStream(extractor), "IHC TMA:"):
+for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "IHC TMA:"):
     IHC_TMAs.append(TMA)
+    #if j == 5:
+    #    break
+
+#HE_TMAs = HE_TMAs[53:]
+#IHC_TMAs = IHC_TMAs[53:]
 
 print("IHC_TMAs length", len(IHC_TMAs))
 print("HE_TMAs length", len(HE_TMAs))
@@ -45,17 +55,25 @@ HE_counter = 0
 IHC_counter = 0
 shifts = []
 
+# init tqdm
+pbar = tqdm(total=max([len(IHC_TMAs), len(HE_TMAs)]))
+
 #
-dataset_path = './datasets/TMASegmentation050822/'
+dataset_path = "./datasets/TMASegmentation070922_level_" + str(level) + "_psize_" + str(patch_size) + \
+               "_ds_" + str(downsample_factor) + "/"
 os.makedirs(dataset_path, exist_ok=True)  # creates if not exists already
-cnt = 1
+wsi_idx = 0
+tma_idx = 0
 some_counter = 0
 while True:   # Use this, HE_counter < 4 just for testing
 #while HE_counter < 4:
     some_counter += 1
-    print(some_counter)
     if HE_counter == len(HE_TMAs) or IHC_counter == len(IHC_TMAs):
         break
+
+    # update tqdm
+    pbar.update(1)
+
     HE_TMA = HE_TMAs[HE_counter]  # HE TMA at place HE_counter in HE_TMAs. HE_TMA and IHC_TMA are Image objects
     IHC_TMA = IHC_TMAs[IHC_counter]  # IHC TMA at place IHC_counter in IHC_TMAs
 
@@ -73,15 +91,19 @@ while True:   # Use this, HE_counter < 4 just for testing
     dist_x = position_HE_x - position_IHC_x
     dist_y = position_HE_y - position_IHC_y
 
-    dist_limit = 500  # distance shift between HE and IHC TMA allowed
-
     if np.abs(dist_x) < dist_limit and np.abs(dist_y) < dist_limit:  # if positions are close we have a pair
-        TMA_pairs.append((HE_TMA, IHC_TMA))
+        TMA_pairs.append((position_HE, position_IHC))
         HE_counter += 1
         IHC_counter += 1
 
         IHC_TMA = np.asarray(IHC_TMA)
         HE_TMA = np.asarray(HE_TMA)
+
+        if (IHC_TMA.dtype == "object") or (HE_TMA.dtype == "object"):
+            print("TMA was 'corrupt', either HE or CK")
+            continue
+
+        print("\n---Counter:")
         print(IHC_TMA.shape, IHC_TMA.dtype)
         print(HE_TMA.shape, HE_TMA.dtype)
         #exit()
@@ -89,31 +111,49 @@ while True:   # Use this, HE_counter < 4 just for testing
         #when level = 4, use:
         #IHC_TMA_padded = np.zeros((1200, 1200, 3), dtype=IHC_TMA.dtype).copy()
         #when level = 2, use:
-        IHC_TMA_padded = np.zeros((curr_tma_size, curr_tma_size, 3), dtype=IHC_TMA.dtype).copy()
+        #IHC_TMA_padded = np.zeros((curr_tma_size, curr_tma_size, 3), dtype=IHC_TMA.dtype).copy()
+        #HE_TMA_padded = IHC_TMA_padded.copy()
+
+        #IHC_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]] = IHC_TMA
+        #HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
+
+        shapes_IHC_TMA = IHC_TMA.shape
+        shapes_HE_TMA = HE_TMA.shape
+
+        longest_height = max([shapes_IHC_TMA[0], shapes_HE_TMA[0]])
+        longest_width = max([shapes_IHC_TMA[1], shapes_HE_TMA[1]])
+
+        IHC_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
         HE_TMA_padded = IHC_TMA_padded.copy()
 
         IHC_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]] = IHC_TMA
         HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
 
-        detected_shift = phase_cross_correlation(HE_TMA_padded, IHC_TMA_padded)  # detect shift between IHC and HE
+        # downsample image before registration
+        curr_shape = IHC_TMA_padded.shape[:2]
 
-        shifts.append(detected_shift)
+        IHC_TMA_padded_ds = cv2.resize(IHC_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"), interpolation=cv2.INTER_NEAREST)
+        HE_TMA_padded_ds = cv2.resize(HE_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"), interpolation=cv2.INTER_NEAREST)
 
-        tmp = detected_shift[0]
-        tmp[2] = 0
+        detected_shift = phase_cross_correlation(HE_TMA_padded_ds, IHC_TMA_padded_ds)  # detect shift between IHC and HE
 
-        tma_padded_shifted = ndi.shift(IHC_TMA_padded, tmp)
+        # shifts.append(detected_shift)
+
+        # print(detected_shift)
+
+        shifts = detected_shift[0]
+        shifts[2] = 0
+
+        # scale shifts back and apply to original resolution
+        shifts = (np.round(downsample_factor * shifts)).astype("int32")
+
+        tma_padded_shifted = ndi.shift(IHC_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
         # Threshold TMA (IHC)
         #tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
 
-        print(HE_TMA_padded.shape, tma_padded_shifted.shape)
-
         x = HE_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]
         y = tma_padded_shifted[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]
-
-        print(x.shape, y.shape)
-        print()
 
         if plot_flag:
             fig, ax = plt.subplots(1, 1)  # Figure of the two TMAs on top of each other
@@ -131,9 +171,6 @@ while True:   # Use this, HE_counter < 4 just for testing
         #x = cv2.resize(x, (512, 512), interpolation=cv2.INTER_LINEAR)
         #y = cv2.resize(y, (512, 512), interpolation=cv2.INTER_NEAREST)
 
-        # One-hot TMA (IHC) binary, 01
-        y = np.stack([1 - y, y], axis=-1)
-
         # Visualize TMAs:
         if plot_flag:
             f, axes = plt.subplots(1, 3)  # Figure of TMAs
@@ -146,21 +183,30 @@ while True:   # Use this, HE_counter < 4 just for testing
         x = fast.Image.createFromArray(np.asarray(x))
         y = fast.Image.createFromArray(np.asarray(y))
 
-        generator_x = fast.PatchGenerator.create(patch_size, patch_size).connect(x) # try adding overlap
-        generator_y = fast.PatchGenerator.create(patch_size, patch_size).connect(y)  # get error when adding level
+        # tissue_HE = fast.TissueSegmentation.create().connect(x)
 
-        for patch_HE, patch_CK in zip(fast.DataStream(generator_x), fast.DataStream(generator_y)):
-            print("HEI")
-            print("shape patch", np.array(patch_HE).shape)
-            print("shape patch CK", np.array(patch_CK).shape)
+        generator_x = fast.PatchGenerator.create(patch_size, patch_size).connect(0, x)  # .connect(1, tissue_HE)  # try adding overlap
+        generator_y = fast.PatchGenerator.create(patch_size, patch_size).connect(0, y)  # .connect(1, tissue_HE)  # get error when adding level
+
+        for patch_idx, (patch_HE, patch_CK) in enumerate(zip(fast.DataStream(generator_x), fast.DataStream(generator_y))):
+            # fast to np array
+            patch_HE = np.array(patch_HE)
+            patch_CK = np.array(patch_CK)
+
+            # check if either of the shapes are empty, if yes, continue
+            if (len(patch_HE) == 0) or (len(patch_CK) == 0):
+                print("shape patch", np.array(patch_HE).shape)
+                print("shape patch CK", np.array(patch_CK).shape)
+                print("Patch was empty in either HE or CK:")
+                continue
+
+            # remove redundant channel axis on GT
+            patch_CK = np.squeeze(patch_CK, axis=-1)
 
             #pad patches with incorrect shape
             if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
                 patch_HE_padded = np.zeros((patch_size, patch_size, 3),dtype="uint8")
-                patch_CK_padded = np.zeros((patch_size, patch_size, 2),dtype="uint8")
-
-                patch_HE = np.asarray(patch_HE)
-                patch_CK = np.asarray(patch_CK)
+                patch_CK_padded = np.zeros((patch_size, patch_size),dtype="uint8")
 
                 patch_HE_padded[:patch_HE.shape[0], :patch_HE.shape[1]] = patch_HE.astype("uint8")
                 patch_CK_padded[:patch_CK.shape[0], :patch_CK.shape[1]] = patch_CK.astype("uint8")
@@ -169,14 +215,14 @@ while True:   # Use this, HE_counter < 4 just for testing
                 patch_CK = patch_CK_padded
 
             # attempting to fix mask -> create human-esque annotations
-            from skimage.morphology import binary_dilation, binary_erosion, disk,\
-                remove_small_objects, remove_small_holes
-
-            curr_annotation = np.array(patch_CK)[:,:,1]
+            curr_annotation = np.array(patch_CK)
             result = binary_dilation(curr_annotation, disk(radius=1))
             result1 = remove_small_holes(result, area_threshold=200)
             result2 = remove_small_objects(result1, min_size=300)
             result3 = binary_erosion(result2, disk(radius=1))
+
+            # One-hot TMA (IHC) binary, 01
+            final_gt = np.stack([1 - result3, result3], axis=-1)
 
             if plot_flag:
                 f, axes = plt.subplots(2, 3)  # Figure of patches
@@ -207,19 +253,20 @@ while True:   # Use this, HE_counter < 4 just for testing
             plt.show()  # Show the two images on top of each other
             """
             #insert saving patches as hdf5 (h5py) here
-            #with h5py.File(dataset_path + str(cnt) + ".h5", "w") as f:
-            #    f.create_dataset(name="input", data=patch_HE)
-            #    f.create_dataset(name="output", data=patch_CK)
+            with h5py.File(dataset_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                f.create_dataset(name="input", data=patch_HE.astype("uint8"))
+                f.create_dataset(name="output", data=final_gt.astype("uint8"))
+                f.create_dataset(name="orig_CK", data=patch_CK.astype("uint8"))
             
-            #cnt += 1
+            tma_idx += 1
 
         # add stupid first dim
         #x = np.expand_dims(x, axis=0)
         #y = np.expand_dims(y, axis=0)
-        exit()
-        print(x.shape)
-        print(y.shape)
-        exit()
+        #exit()
+        #print(x.shape)
+        #print(y.shape)
+        #exit()
         # save TMAs on disk
         """ Comment out 050822
         #with h5py.File(dataset_path + str(cnt) + ".h5", "w") as f:
@@ -228,8 +275,8 @@ while True:   # Use this, HE_counter < 4 just for testing
         
         # cnt += 1
         """
-        print(cnt)
-        print()
+        #print(cnt)
+        #print()
 
         # done writing for current patch
 
@@ -243,6 +290,8 @@ while True:   # Use this, HE_counter < 4 just for testing
         HE_counter += 1
     else:
         raise ValueError("Logical error in distance calculation")
+
+pbar.close()
 
 print(len(TMA_pairs))
 print()
