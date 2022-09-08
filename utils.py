@@ -1,5 +1,45 @@
 import cv2
 import numpy as np
+import logging as log
+import tensorflow as tf
+import tensorflow_datasets as tfds
+import h5py
+
+# from tensorflow example, modified
+def normalize_img(image, label):
+    """Normalizes images: `uint8` -> `float32`."""
+    return tf.cast(image, tf.float32) / 255., label
+
+
+# Get image and gt from hdf5
+def patchReader(path):
+    path = tfds.as_numpy(path).decode("utf-8")
+
+    with h5py.File(path, "r") as f:
+        image = np.asarray(f["input"]).astype("float32")
+        gt = np.asarray(f["output"]).astype("float32")
+    return image, gt
+
+def define_logger(verbose=1):
+    """
+    method which sets the verbose handler
+    """
+    if verbose == 0:
+        level = None
+    elif verbose == 1:
+        level = log.INFO
+    elif verbose == 2:
+        level = log.DEBUG
+    elif verbose == 3:
+        level = log.WARNING
+    else:
+        raise ValueError("Unknown verbose was set. 0 to disable verbose, 1 for INFO, 2 for DEBUG, 3 for WARNING.")
+
+    log.basicConfig(
+        format="%(levelname)s %(filename)s %(lineno)s %(message)s",
+        level=level
+        )
+
 
 def alignImagesNew(im1, im2):
 
