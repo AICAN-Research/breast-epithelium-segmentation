@@ -11,7 +11,22 @@ from tensorflow.keras.models import load_model
 from augment import random_brightness, random_rot90, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift
 from utils import normalize_img, patchReader
+from argparse import ArgumentParser
+import sys
 
+
+parser = ArgumentParser()
+parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=8,
+                    help="set which batch size to use for training.")
+parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.001,
+                    help="set which learning rate to use for training.")
+parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
+                    help="number of epochs to train.")
+parser.add_argument('--patience', metavar='--pa', type=int, nargs='?', default=10,
+                    help="number of epochs to wait (patience) for early stopping.")
+ret = parser.parse_known_args(sys.argv[1:])[0]
+
+print(ret)
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # due to this: https://github.com/tensorflow/tensorflow/issues/35029
 
@@ -21,13 +36,13 @@ curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 # disable GPU
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-bs = 4
+# bs = 16
 lr = 1e-4
 img_size = 512
 nb_classes = 2
-epochs = 10
+epochs = 100
 
-name = curr_date + "_" + curr_time + "_" + "unet"
+name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size) # + "_eps_" + str(ret.epochs)
 
 # paths
 dataset_path = './datasets/TMASegmentation070922_level_0_psize_512/'  # path to directory
@@ -92,12 +107,12 @@ tf.data.experimental.save(
 )
 
 ds_train = ds_train.shuffle(buffer_size=4)
-ds_train = ds_train.batch(bs)
+ds_train = ds_train.batch(ret.batch_size)
 ds_train = ds_train.prefetch(tf.data.AUTOTUNE)
 ds_train = ds_train.repeat(-1)
 
 ds_test = ds_test.shuffle(buffer_size=4)
-ds_test = ds_test.batch(bs)
+ds_test = ds_test.batch(ret.batch_size)
 ds_test = ds_test.prefetch(tf.data.AUTOTUNE)
 ds_test = ds_test.repeat(-1)
 
@@ -147,10 +162,10 @@ model.compile(
 
 history = model.fit(
     ds_train,
-    steps_per_epoch=N_train // bs,
+    steps_per_epoch=N_train // ret.batch_size,
     epochs=epochs,
     validation_data=ds_test,
-    validation_steps=N_test // bs,
+    validation_steps=N_test // ret.batch_size,
     callbacks=[save_best, history],
     verbose=1,
 )
