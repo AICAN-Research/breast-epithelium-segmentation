@@ -8,22 +8,12 @@ from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
 from datetime import datetime, date
 from tensorflow.keras.models import load_model
-from augment import random_brightness, random_rot90, random_fliplr, random_flipud
-
-# from tensorflow example, modified
-def normalize_img(image, label):
-    """Normalizes images: `uint8` -> `float32`."""
-    return tf.cast(image, tf.float32) / 255., label
+from augment import random_brightness, random_rot90, random_fliplr, random_flipud, \
+    random_hue, random_saturation, random_shift
+from utils import normalize_img, patchReader
 
 
-# Get image and gt from hdf5
-def patchReader(path):
-    path = tfds.as_numpy(path).decode("utf-8")
-
-    with h5py.File(path, "r") as f:
-        image = np.asarray(f["input"]).astype("float32")
-        gt = np.asarray(f["output"]).astype("float32")
-    return image, gt
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # due to this: https://github.com/tensorflow/tensorflow/issues/35029
 
 curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
 curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
@@ -32,18 +22,21 @@ curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 bs = 4
-N_train = 50
 lr = 1e-4
+img_size = 512
+nb_classes = 2
+epochs = 10
 
 name = curr_date + "_" + curr_time + "_" + "unet"
 
 # paths
-dataset_path = './datasets/TMASegmentation020622/'  # path to directory
+dataset_path = './datasets/TMASegmentation070922_level_0_psize_512/'  # path to directory
 history_path = './output/history/'  # path to directory
 model_path = './output/models/'  # path to directory
 save_ds_path = './output/datasets/dataset_' + name + '/' #inni her først en med name, så ds_train og test inni der
 
-paths = np.array([dataset_path + x for x in os.listdir(dataset_path)]).astype("U400")  # make list of elements in
+patches = os.listdir(dataset_path)
+paths = np.array([dataset_path + x for x in patches]).astype("U400")  # make list of elements in
 
 
 ds_all = tf.data.Dataset.from_tensor_slices(paths)  # list of paths to tensor in data.Dataset format
@@ -52,26 +45,41 @@ ds_all = ds_all.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.f
 #ds_train = ds_train.cache()
 
 # create test set
-N = 68
-ds_train = ds_all.take(50)
-ds_test = ds_all.skip(50)
+N = len(patches)
+N_train = int(np.round(N * 0.8))
+N_test = N - N_train
+ds_train = ds_all.take(N_train)
+ds_test = ds_all.skip(N_train)
 
+
+
+"""
 # hsv augmentation next
-ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)  # remove this when not testing
+#ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)  # remove this when not testing
 image, mask  = next(iter(ds_train))
+image = np.asarray(image)
+image = image.astype("uint8")
 
 f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
 axes[0].imshow(image)
 axes[1].imshow(mask[:,:,1], cmap="gray")
 plt.show()
 
-image_aug, mask_aug = random_rot90(image, mask)
-f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
-axes[0].imshow(image_aug)
-axes[1].imshow(mask_aug[:,:,1], cmap="gray")
+#image_aug = random_saturation(image, saturation=0.5)
+#image_aug = np.asarray(image_aug)
+mask = np.asarray(mask)
+#image, mask = random_shift(image, mask)  # how does this work, or does it? It is a keras layer? does it just work during training?
+image, mask = random_rot90(image, mask)
+image = np.asarray(image)
+mask = np.asarray(mask)
+f, axes = plt.subplots(1, 3)  # Figure of the two corresponding TMAs
+axes[0].imshow(image.astype("uint8"))
+axes[1].imshow(mask[:, :, 0].astype("uint8"), cmap="gray")
+axes[2].imshow(mask[:, :, 1].astype("uint8"), cmap="gray")
 plt.show()
 
 exit()
+"""
 
 os.makedirs(save_ds_path, exist_ok=True)  # check if exist, then create, otherwise not
 
@@ -94,9 +102,14 @@ ds_test = ds_test.prefetch(tf.data.AUTOTUNE)
 ds_test = ds_test.repeat(-1)
 
 # only augment train data
+# shift last
 ds_train = ds_train.map(lambda x, y: random_fliplr(x, y))
 ds_train = ds_train.map(lambda x, y: random_flipud(x, y))
-ds_train = ds_train.map(lambda x, y: (random_brightness(x), y))
+ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=25), y))
+ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.1), y))  # look at best value for max_delta
+ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y))  # look at best value for saturation
+ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50))
+# shift last
 
 # normalize intensities
 ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
@@ -105,7 +118,7 @@ ds_test = ds_test.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
 convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
 convs = convs + convs[:-1][::-1]
 
-network = Unet(input_shape=(512, 512, 3), nb_classes=2)  # binary = 2
+network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # binary = 2
 network.set_convolutions(convs)
 model = network.create()
 
@@ -132,14 +145,12 @@ model.compile(
     # metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
 )
 
-epochs = 100
-
 history = model.fit(
     ds_train,
     steps_per_epoch=N_train // bs,
     epochs=epochs,
     validation_data=ds_test,
-    validation_steps=N_train // bs,
+    validation_steps=N_test // bs,
     callbacks=[save_best, history],
     verbose=1,
 )
