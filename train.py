@@ -14,7 +14,6 @@ from utils import normalize_img, patchReader
 from argparse import ArgumentParser
 import sys
 
-
 parser = ArgumentParser()
 parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=8,
                     help="set which batch size to use for training.")
@@ -37,27 +36,27 @@ curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 # bs = 16
-lr = 1e-4
+# lr = 1e-4
 img_size = 512
 nb_classes = 2
-epochs = 100
+# epochs = 100
 
-name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size) # + "_eps_" + str(ret.epochs)
+name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
 # paths
-dataset_path = './datasets/TMASegmentation070922_level_0_psize_512/'  # path to directory
+dataset_path = './datasets/210922_145759_TMASegmentation_level_2_psize_512_ds_4/'  # path to directory
 history_path = './output/history/'  # path to directory
 model_path = './output/models/'  # path to directory
-save_ds_path = './output/datasets/dataset_' + name + '/' #inni her først en med name, så ds_train og test inni der
+save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
 
 patches = os.listdir(dataset_path)
 paths = np.array([dataset_path + x for x in patches]).astype("U400")  # make list of elements in
 
-
 ds_all = tf.data.Dataset.from_tensor_slices(paths)  # list of paths to tensor in data.Dataset format
-ds_all = ds_all.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=tf.data.AUTOTUNE)
+ds_all = ds_all.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]),
+                    num_parallel_calls=tf.data.AUTOTUNE)
 
-#ds_train = ds_train.cache()
+# ds_train = ds_train.cache()
 
 # create test set
 N = len(patches)
@@ -66,32 +65,48 @@ N_test = N - N_train
 ds_train = ds_all.take(N_train)
 ds_test = ds_all.skip(N_train)
 
-
-
 """
+ds_train = ds_train.map(normalize_img)
 # hsv augmentation next
-#ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)  # remove this when not testing
-image, mask  = next(iter(ds_train))
-image = np.asarray(image)
-image = image.astype("uint8")
+# ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)  # remove this when not testing
 
-f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
-axes[0].imshow(image)
-axes[1].imshow(mask[:,:,1], cmap="gray")
-plt.show()
+for image, mask in ds_train:
+    # image, mask = next(iter(ds_train))
 
-#image_aug = random_saturation(image, saturation=0.5)
-#image_aug = np.asarray(image_aug)
-mask = np.asarray(mask)
-#image, mask = random_shift(image, mask)  # how does this work, or does it? It is a keras layer? does it just work during training?
-image, mask = random_rot90(image, mask)
-image = np.asarray(image)
-mask = np.asarray(mask)
-f, axes = plt.subplots(1, 3)  # Figure of the two corresponding TMAs
-axes[0].imshow(image.astype("uint8"))
-axes[1].imshow(mask[:, :, 0].astype("uint8"), cmap="gray")
-axes[2].imshow(mask[:, :, 1].astype("uint8"), cmap="gray")
-plt.show()
+    img_orig = tf.identity(image)
+    mask_orig = tf.identity(mask)
+
+    #f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
+    #axes[0].imshow(image)
+    #axes[1].imshow(mask[:, :, 1], cmap="gray")
+    #plt.show()
+
+    # image_aug = random_saturation(image, saturation=0.5)
+    # image_aug = np.asarray(image_aug)
+    # mask = np.asarray(mask)
+    # image, mask = random_shift(image, mask)  # how does this work, or does it? It is a keras layer? does it just work during training?
+    image, mask = random_rot90(image, mask)
+    image, mask = random_brightness(image, brightness=0.2), mask
+    image, mask = random_hue(image, max_delta=0.1), mask
+    image, mask = random_saturation(image, saturation=0.5), mask  # @TODO: MULTIPLICATIVE??
+    image, mask = random_shift(image, mask, translate=50)
+
+    image = np.asarray(image).astype("float32")
+    mask = np.asarray(mask).astype("float32")
+
+    img_orig = np.asarray(img_orig).astype("float32")
+    mask_orig = np.asarray(mask_orig).astype("float32")
+
+    f, axes = plt.subplots(2, 3)  # Figure of the two corresponding TMAs
+    axes[0, 0].imshow(img_orig)
+    axes[0, 1].imshow(mask_orig[:, :, 0], cmap="gray")
+    axes[0, 2].imshow(mask_orig[:, :, 1], cmap="gray")
+
+    axes[1, 0].imshow(image)
+    axes[1, 1].imshow(mask[:, :, 0], cmap="gray")
+    axes[1, 2].imshow(mask[:, :, 1], cmap="gray")
+
+    plt.show()
 
 exit()
 """
@@ -99,36 +114,36 @@ exit()
 os.makedirs(save_ds_path, exist_ok=True)  # check if exist, then create, otherwise not
 
 tf.data.experimental.save(
-   ds_train, save_ds_path + 'ds_train', compression=None, shard_func=None
+    ds_train, save_ds_path + 'ds_train', compression=None, shard_func=None
 )
 
 tf.data.experimental.save(
     ds_test, save_ds_path + 'ds_test', compression=None, shard_func=None
 )
 
-ds_train = ds_train.shuffle(buffer_size=4)
+ds_train = ds_train.shuffle(buffer_size=256)
 ds_train = ds_train.batch(ret.batch_size)
-ds_train = ds_train.prefetch(tf.data.AUTOTUNE)
+ds_train = ds_train.prefetch(1)  # @TODO: Use prefetch(1) for better GPU utilization?
 ds_train = ds_train.repeat(-1)
 
-ds_test = ds_test.shuffle(buffer_size=4)
+ds_test = ds_test.shuffle(buffer_size=256)
 ds_test = ds_test.batch(ret.batch_size)
-ds_test = ds_test.prefetch(tf.data.AUTOTUNE)
+ds_test = ds_test.prefetch(1)  # tf.data.AUTOTUNE)
 ds_test = ds_test.repeat(-1)
+
+# normalize intensities
+ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
+ds_test = ds_test.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
 
 # only augment train data
 # shift last
 ds_train = ds_train.map(lambda x, y: random_fliplr(x, y))
 ds_train = ds_train.map(lambda x, y: random_flipud(x, y))
-ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=25), y))
-ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.1), y))  # look at best value for max_delta
-ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y))  # look at best value for saturation
+ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y))  # ADDITIVE
+ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.1), y))  # ADDITIVE
+ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y))  # @TODO: MULTIPLICATIVE?
 ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50))
 # shift last
-
-# normalize intensities
-ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
-ds_test = ds_test.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
 
 convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
 convs = convs + convs[:-1][::-1]
@@ -137,7 +152,7 @@ network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # bi
 network.set_convolutions(convs)
 model = network.create()
 
-#print(model.summary())
+# print(model.summary())
 
 history = CSVLogger(
     history_path + "history_" + name + ".csv",
@@ -145,17 +160,17 @@ history = CSVLogger(
 )
 
 save_best = ModelCheckpoint(
-            model_path + "model_" + name,
-            monitor="val_loss",
-            verbose=2,  #
-            save_best_only=True,
-            save_weights_only=False,
-            mode="min",  # use "auto" with "f1_score", "auto" with "val_loss" (or "min")
-            save_freq="epoch"
-        )
+    model_path + "model_" + name,
+    monitor="val_loss",
+    verbose=2,  #
+    save_best_only=True,
+    save_weights_only=False,
+    mode="min",  # use "auto" with "f1_score", "auto" with "val_loss" (or "min")
+    save_freq="epoch"
+)
 
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(lr),
+    optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
     loss=network.get_dice_loss(),
     # metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
 )
@@ -163,7 +178,7 @@ model.compile(
 history = model.fit(
     ds_train,
     steps_per_epoch=N_train // ret.batch_size,
-    epochs=epochs,
+    epochs=ret.epochs,
     validation_data=ds_test,
     validation_steps=N_test // ret.batch_size,
     callbacks=[save_best, history],
@@ -174,8 +189,8 @@ loss = history.history['loss']
 val_loss = history.history['val_loss']
 
 epochs = range(1, epochs + 1)
-plt.plot(epochs, loss, '-', label = 'Training loss')
-plt.plot(epochs, val_loss, '-', label = 'Validation loss')
+plt.plot(epochs, loss, '-', label='Training loss')
+plt.plot(epochs, val_loss, '-', label='Validation loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.legend()
