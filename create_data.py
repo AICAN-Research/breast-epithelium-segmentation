@@ -12,6 +12,8 @@ from skimage.transform import rescale
 from tqdm import tqdm
 from skimage.morphology import binary_dilation, binary_erosion, disk, \
     remove_small_objects, remove_small_holes
+from datetime import datetime, date
+
 
 #  Import IHC and HE image:
 importerIHC = fast.WholeSlideImageImporter.create(
@@ -20,21 +22,28 @@ importerHE = fast.WholeSlideImageImporter.create(
     '/data/Maren_P1/TMA/H2 TP02 HE helsnittscan.vsi')
 
 # --- HYPER PARAMS FOR PATCH GEN
-plot_flag = False
+plot_flag = True
 patch_size = 512
-downsample_factor = 8
-level = 0  # used to be 4, changed to 2 050822
+downsample_factor = 4  # tested with 8, but not sure if better
+level = 2  # used to be 4, changed to 2 050822
 dist_limit = 2000 / 2 ** level  # distance shift between HE and IHC TMA allowed
 # curr_tma_size = int(16384 / 2 ** level)
 TMA_pairs = []
 # ---
+
+# level 2 - optimal values
+dilation_radius = 5  # 1 for level 3
+area_threshold = 700  # 200 for level 3  # remove_small_holes
+min_size = 3000  # 300 for level 3  # remove_small_objects
+erosion_radius = 5  # 1 for level 3
+hsv_th = 50
 
 # get HE TMA
 extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerHE)
 HE_TMAs = []
 for i, TMA in tqdm(enumerate(fast.DataStream(extractor)), "HE TMA"):
     HE_TMAs.append(TMA)
-    #if i == 5:
+    #if i == 20:
     #    break
 
 # Get IHC TMA
@@ -42,11 +51,11 @@ extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerI
 IHC_TMAs = []
 for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "IHC TMA:"):
     IHC_TMAs.append(TMA)
-    #if j == 5:
+    #if j == 20:
     #    break
 
-#HE_TMAs = HE_TMAs[53:]
-#IHC_TMAs = IHC_TMAs[53:]
+# HE_TMAs = HE_TMAs[53:]
+# IHC_TMAs = IHC_TMAs[53:]
 
 print("IHC_TMAs length", len(IHC_TMAs))
 print("HE_TMAs length", len(HE_TMAs))
@@ -58,15 +67,21 @@ shifts = []
 # init tqdm
 pbar = tqdm(total=max([len(IHC_TMAs), len(HE_TMAs)]))
 
-#
-dataset_path = "./datasets/TMASegmentation070922_level_" + str(level) + "_psize_" + str(patch_size) + \
+curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
+curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
+
+# dataset path name
+dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
+               "_TMASegmentation_level_" + str(level) + \
+               "_psize_" + str(patch_size) + \
                "_ds_" + str(downsample_factor) + "/"
+
 os.makedirs(dataset_path, exist_ok=True)  # creates if not exists already
 wsi_idx = 0
 tma_idx = 0
 some_counter = 0
-while True:   # Use this, HE_counter < 4 just for testing
-#while HE_counter < 4:
+while True:  # Use this, HE_counter < 4 just for testing
+    # while HE_counter < 4:
     some_counter += 1
     if HE_counter == len(HE_TMAs) or IHC_counter == len(IHC_TMAs):
         break
@@ -106,16 +121,16 @@ while True:   # Use this, HE_counter < 4 just for testing
         print("\n---Counter:")
         print(IHC_TMA.shape, IHC_TMA.dtype)
         print(HE_TMA.shape, HE_TMA.dtype)
-        #exit()
+        # exit()
         # THIS NEXT PART, until tma_padded_shifted = ndi... is VERY time consuming at level 0
-        #when level = 4, use:
-        #IHC_TMA_padded = np.zeros((1200, 1200, 3), dtype=IHC_TMA.dtype).copy()
-        #when level = 2, use:
-        #IHC_TMA_padded = np.zeros((curr_tma_size, curr_tma_size, 3), dtype=IHC_TMA.dtype).copy()
-        #HE_TMA_padded = IHC_TMA_padded.copy()
+        # when level = 4, use:
+        # IHC_TMA_padded = np.zeros((1200, 1200, 3), dtype=IHC_TMA.dtype).copy()
+        # when level = 2, use:
+        # IHC_TMA_padded = np.zeros((curr_tma_size, curr_tma_size, 3), dtype=IHC_TMA.dtype).copy()
+        # HE_TMA_padded = IHC_TMA_padded.copy()
 
-        #IHC_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]] = IHC_TMA
-        #HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
+        # IHC_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]] = IHC_TMA
+        # HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
 
         shapes_IHC_TMA = IHC_TMA.shape
         shapes_HE_TMA = HE_TMA.shape
@@ -132,8 +147,11 @@ while True:   # Use this, HE_counter < 4 just for testing
         # downsample image before registration
         curr_shape = IHC_TMA_padded.shape[:2]
 
-        IHC_TMA_padded_ds = cv2.resize(IHC_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"), interpolation=cv2.INTER_NEAREST)
-        HE_TMA_padded_ds = cv2.resize(HE_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"), interpolation=cv2.INTER_NEAREST)
+        IHC_TMA_padded_ds = cv2.resize(IHC_TMA_padded,
+                                       np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
+                                       interpolation=cv2.INTER_NEAREST)
+        HE_TMA_padded_ds = cv2.resize(HE_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
+                                      interpolation=cv2.INTER_NEAREST)
 
         detected_shift = phase_cross_correlation(HE_TMA_padded_ds, IHC_TMA_padded_ds)  # detect shift between IHC and HE
 
@@ -150,34 +168,75 @@ while True:   # Use this, HE_counter < 4 just for testing
         tma_padded_shifted = ndi.shift(IHC_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
         # Threshold TMA (IHC)
-        #tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
+        # tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
 
         x = HE_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]
         y = tma_padded_shifted[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]
+        y_ck = y.copy()  # to plot ck image
 
-        if plot_flag:
-            fig, ax = plt.subplots(1, 1)  # Figure of the two TMAs on top of each other
-            ax.imshow(x)
-            ax.imshow(y, alpha=0.5)  # Add opacity
-            plt.show()  # Show the two images on top of each other
+        #if plot_flag:
+        #    fig, ax = plt.subplots(1, 1)  # Figure of the two TMAs on top of each other
+        #    ax.imshow(x)
+        #    ax.imshow(y, alpha=0.5)  # Add opacity
+        #    plt.show()  # Show the two images on top of each other
 
+        # exit()
         # Threshold TMA (IHC)
-        #tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
+        # tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
         y_hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # rgb to hsv color space
         y_hsv = y_hsv[:, :, 1]  # hue, saturation, value
-        y = (y_hsv > 60).astype('uint8')  # threshold, but which channel?
+        y = (y_hsv > hsv_th).astype('uint8')  # threshold, but which channel?
+        # - hsv = 60
+
+        # post-process thresholded CK to generate annotation
+        curr_annotation = np.array(y)
+        result = binary_dilation(curr_annotation, disk(radius=dilation_radius))
+        result1 = remove_small_holes(result, area_threshold=area_threshold)
+        result2 = remove_small_objects(result1, min_size=min_size)
+        y = binary_erosion(result2, disk(radius=erosion_radius)).astype("uint8")
+
+        print(x.dtype, y.dtype, x.shape, y.shape)
+        print(np.unique(y))
+
+        if plot_flag:
+            plt.rcParams.update({'font.size': 28})
+
+            f, axes = plt.subplots(2, 3, figsize=(30, 30))  # Figure of patches
+            # print(np.unique(patch_HE))
+            # print(np.unique(np.array(patch_CK)[:,:,1]))
+            titles = ["HE Patch", "IHC thresholded", "dilation",
+                      "fill holes", "remove small obj.", "erosion"]
+            #axes[0, 0].imshow(x, interpolation='none')  # patch 1
+            axes[0, 0].imshow(y_ck, interpolation='none')  # patch 1
+            axes[0, 1].imshow(curr_annotation, cmap="gray", interpolation='none')  # patch 2
+            axes[0, 2].imshow(result, cmap="gray", interpolation='none')  # post-procssed segmentation
+            axes[1, 0].imshow(result1, cmap="gray", interpolation='none')  #
+            axes[1, 1].imshow(result2, cmap="gray", interpolation='none')  #
+            axes[1, 2].imshow(y, cmap="gray", interpolation='none')  #
+
+            cnts = 0
+            for i in range(2):
+                for j in range(3):
+                    axes[i, j].set_title(titles[cnts])
+                    cnts += 1
+
+            plt.tight_layout()
+            plt.show()
+
+            # @TODO: use fig.savefig() instead to save figures on disk (set dpi=900 maybe?)
+            # exit()
 
         # resize both to fixed size ex: (512, 512), image bilinear, gt nearest
-        #x = cv2.resize(x, (512, 512), interpolation=cv2.INTER_LINEAR)
-        #y = cv2.resize(y, (512, 512), interpolation=cv2.INTER_NEAREST)
+        # x = cv2.resize(x, (512, 512), interpolation=cv2.INTER_LINEAR)
+        # y = cv2.resize(y, (512, 512), interpolation=cv2.INTER_NEAREST)
 
         # Visualize TMAs:
-        if plot_flag:
-            f, axes = plt.subplots(1, 3)  # Figure of TMAs
-            axes[0].imshow(HE_TMA)
-            axes[1].imshow(IHC_TMA)
-            axes[2].imshow(np.array(y)[:,:,1],cmap="gray")
-            plt.show()
+        # if plot_flag:
+        #    f, axes = plt.subplots(1, 3)  # Figure of TMAs
+        #    axes[0].imshow(HE_TMA)
+        #    axes[1].imshow(IHC_TMA)
+        #    axes[2].imshow(np.array(y)[:,:,1],cmap="gray")
+        #    plt.show()
 
         # patch generator
         x = fast.Image.createFromArray(np.asarray(x))
@@ -185,10 +244,13 @@ while True:   # Use this, HE_counter < 4 just for testing
 
         # tissue_HE = fast.TissueSegmentation.create().connect(x)
 
-        generator_x = fast.PatchGenerator.create(patch_size, patch_size).connect(0, x)  # .connect(1, tissue_HE)  # try adding overlap
-        generator_y = fast.PatchGenerator.create(patch_size, patch_size).connect(0, y)  # .connect(1, tissue_HE)  # get error when adding level
+        generator_x = fast.PatchGenerator.create(patch_size, patch_size)\
+            .connect(0, x)  # .connect(1, tissue_HE)  # try adding overlap
+        generator_y = fast.PatchGenerator.create(patch_size, patch_size)\
+            .connect(0, y)  # .connect(1, tissue_HE)  # get error when adding level
 
-        for patch_idx, (patch_HE, patch_CK) in enumerate(zip(fast.DataStream(generator_x), fast.DataStream(generator_y))):
+        for patch_idx, (patch_HE, patch_CK) in enumerate(
+                zip(fast.DataStream(generator_x), fast.DataStream(generator_y))):
             # fast to np array
             patch_HE = np.array(patch_HE)
             patch_CK = np.array(patch_CK)
@@ -203,10 +265,10 @@ while True:   # Use this, HE_counter < 4 just for testing
             # remove redundant channel axis on GT
             patch_CK = np.squeeze(patch_CK, axis=-1)
 
-            #pad patches with incorrect shape
+            # pad patches with incorrect shape
             if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
-                patch_HE_padded = np.zeros((patch_size, patch_size, 3),dtype="uint8")
-                patch_CK_padded = np.zeros((patch_size, patch_size),dtype="uint8")
+                patch_HE_padded = np.zeros((patch_size, patch_size, 3), dtype="uint8")
+                patch_CK_padded = np.zeros((patch_size, patch_size), dtype="uint8")
 
                 patch_HE_padded[:patch_HE.shape[0], :patch_HE.shape[1]] = patch_HE.astype("uint8")
                 patch_CK_padded[:patch_CK.shape[0], :patch_CK.shape[1]] = patch_CK.astype("uint8")
@@ -214,59 +276,48 @@ while True:   # Use this, HE_counter < 4 just for testing
                 patch_HE = patch_HE_padded
                 patch_CK = patch_CK_padded
 
+            # exit()
+
             # attempting to fix mask -> create human-esque annotations
             curr_annotation = np.array(patch_CK)
-            result = binary_dilation(curr_annotation, disk(radius=1))
-            result1 = remove_small_holes(result, area_threshold=200)
-            result2 = remove_small_objects(result1, min_size=300)
-            result3 = binary_erosion(result2, disk(radius=1))
+            #result = binary_dilation(curr_annotation, disk(radius=dilation_radius))
+            #result1 = remove_small_holes(result, area_threshold=area_threshold)
+            #result2 = remove_small_objects(result1, min_size=min_size)
+            #result3 = binary_erosion(result2, disk(radius=erosion_radius))
 
             # One-hot TMA (IHC) binary, 01
-            final_gt = np.stack([1 - result3, result3], axis=-1)
+            final_gt = np.stack([1 - curr_annotation, curr_annotation], axis=-1)
 
+            """
             if plot_flag:
-                f, axes = plt.subplots(2, 3)  # Figure of patches
-                #print(np.unique(patch_HE))
-                #print(np.unique(np.array(patch_CK)[:,:,1]))
-                titles = ["HE Patch", "IHC thresholded", "dilation",
-                          "fill holes", "remove small obj.", "erosion"]
-                axes[0, 0].imshow(patch_HE)  # patch 1
-                axes[0, 1].imshow(curr_annotation, cmap="gray")  # patch 2
-                axes[0, 2].imshow(result, cmap="gray")  # post-procssed segmentation
-                axes[1, 0].imshow(result1, cmap="gray")  #
-                axes[1, 1].imshow(result2, cmap="gray")  #
-                axes[1, 2].imshow(result3, cmap="gray")  #
+                fig, ax = plt.subplots(1, 1)  # Figure of the two patches on top of each other
+                ax.imshow(patch_HE)
+                ax.imshow(curr_annotation, cmap="gray", alpha=0.5)  # Add opacity
+                plt.show()  # Show the two images on top of each other
+            """
 
-                cnts = 0
-                for i in range(2):
-                    for j in range(3):
-                        axes[i, j].set_title(titles[cnts])
-                        cnts += 1
-
-                plt.tight_layout()
-                plt.show()
-                #exit()
             """
             fig, ax = plt.subplots(1, 1)  # Figure of the two patches on top of each other
             ax.imshow(patch_HE)
             ax.imshow(np.array(patch_CK)[:,:,1],cmap="gray", alpha=0.5)  # Add opacity
             plt.show()  # Show the two images on top of each other
             """
-            #insert saving patches as hdf5 (h5py) here
+            # insert saving patches as hdf5 (h5py) here
+            # commented out 210922
             with h5py.File(dataset_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                 f.create_dataset(name="input", data=patch_HE.astype("uint8"))
                 f.create_dataset(name="output", data=final_gt.astype("uint8"))
                 f.create_dataset(name="orig_CK", data=patch_CK.astype("uint8"))
-            
+
             tma_idx += 1
 
         # add stupid first dim
-        #x = np.expand_dims(x, axis=0)
-        #y = np.expand_dims(y, axis=0)
-        #exit()
-        #print(x.shape)
-        #print(y.shape)
-        #exit()
+        # x = np.expand_dims(x, axis=0)
+        # y = np.expand_dims(y, axis=0)
+        # exit()
+        # print(x.shape)
+        # print(y.shape)
+        # exit()
         # save TMAs on disk
         """ Comment out 050822
         #with h5py.File(dataset_path + str(cnt) + ".h5", "w") as f:
@@ -275,8 +326,8 @@ while True:   # Use this, HE_counter < 4 just for testing
         
         # cnt += 1
         """
-        #print(cnt)
-        #print()
+        # print(cnt)
+        # print()
 
         # done writing for current patch
 
@@ -296,7 +347,3 @@ pbar.close()
 print(len(TMA_pairs))
 print()
 print(shifts)
-
-
-
-
