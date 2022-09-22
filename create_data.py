@@ -54,6 +54,8 @@ for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "IHC TMA:"):
     #if j == 20:
     #    break
 
+# HE_TMAs = HE_TMAS[3:]  # <- do this to remove silly three redundant TMAs at the top of the WSI
+
 # HE_TMAs = HE_TMAs[53:]
 # IHC_TMAs = IHC_TMAs[53:]
 
@@ -121,16 +123,6 @@ while True:  # Use this, HE_counter < 4 just for testing
         print("\n---Counter:")
         print(IHC_TMA.shape, IHC_TMA.dtype)
         print(HE_TMA.shape, HE_TMA.dtype)
-        # exit()
-        # THIS NEXT PART, until tma_padded_shifted = ndi... is VERY time consuming at level 0
-        # when level = 4, use:
-        # IHC_TMA_padded = np.zeros((1200, 1200, 3), dtype=IHC_TMA.dtype).copy()
-        # when level = 2, use:
-        # IHC_TMA_padded = np.zeros((curr_tma_size, curr_tma_size, 3), dtype=IHC_TMA.dtype).copy()
-        # HE_TMA_padded = IHC_TMA_padded.copy()
-
-        # IHC_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]] = IHC_TMA
-        # HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
 
         shapes_IHC_TMA = IHC_TMA.shape
         shapes_HE_TMA = HE_TMA.shape
@@ -155,10 +147,7 @@ while True:  # Use this, HE_counter < 4 just for testing
 
         detected_shift = phase_cross_correlation(HE_TMA_padded_ds, IHC_TMA_padded_ds)  # detect shift between IHC and HE
 
-        # shifts.append(detected_shift)
-
         # print(detected_shift)
-
         shifts = detected_shift[0]
         shifts[2] = 0
 
@@ -167,9 +156,7 @@ while True:  # Use this, HE_counter < 4 just for testing
 
         tma_padded_shifted = ndi.shift(IHC_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
-        # Threshold TMA (IHC)
-        # tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
-
+        # Pad TMAs:
         x = HE_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]
         y = tma_padded_shifted[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]
         y_ck = y.copy()  # to plot ck image
@@ -182,7 +169,6 @@ while True:  # Use this, HE_counter < 4 just for testing
 
         # exit()
         # Threshold TMA (IHC)
-        # tma_padded_shifted = (tma_padded_shifted[..., 2] > 127.5).astype(np.uint8)
         y_hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # rgb to hsv color space
         y_hsv = y_hsv[:, :, 1]  # hue, saturation, value
         y = (y_hsv > hsv_th).astype('uint8')  # threshold, but which channel?
@@ -224,11 +210,6 @@ while True:  # Use this, HE_counter < 4 just for testing
             plt.show()
 
             # @TODO: use fig.savefig() instead to save figures on disk (set dpi=900 maybe?)
-            # exit()
-
-        # resize both to fixed size ex: (512, 512), image bilinear, gt nearest
-        # x = cv2.resize(x, (512, 512), interpolation=cv2.INTER_LINEAR)
-        # y = cv2.resize(y, (512, 512), interpolation=cv2.INTER_NEAREST)
 
         # Visualize TMAs:
         # if plot_flag:
@@ -276,14 +257,7 @@ while True:  # Use this, HE_counter < 4 just for testing
                 patch_HE = patch_HE_padded
                 patch_CK = patch_CK_padded
 
-            # exit()
-
-            # attempting to fix mask -> create human-esque annotations
             curr_annotation = np.array(patch_CK)
-            #result = binary_dilation(curr_annotation, disk(radius=dilation_radius))
-            #result1 = remove_small_holes(result, area_threshold=area_threshold)
-            #result2 = remove_small_objects(result1, min_size=min_size)
-            #result3 = binary_erosion(result2, disk(radius=erosion_radius))
 
             # One-hot TMA (IHC) binary, 01
             final_gt = np.stack([1 - curr_annotation, curr_annotation], axis=-1)
@@ -302,32 +276,17 @@ while True:  # Use this, HE_counter < 4 just for testing
             ax.imshow(np.array(patch_CK)[:,:,1],cmap="gray", alpha=0.5)  # Add opacity
             plt.show()  # Show the two images on top of each other
             """
-            # insert saving patches as hdf5 (h5py) here
-            # commented out 210922
+            # insert saving patches as hdf5 (h5py) here:
             with h5py.File(dataset_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                 f.create_dataset(name="input", data=patch_HE.astype("uint8"))
                 f.create_dataset(name="output", data=final_gt.astype("uint8"))
                 f.create_dataset(name="orig_CK", data=patch_CK.astype("uint8"))
 
-            tma_idx += 1
+        tma_idx += 1
 
         # add stupid first dim
         # x = np.expand_dims(x, axis=0)
         # y = np.expand_dims(y, axis=0)
-        # exit()
-        # print(x.shape)
-        # print(y.shape)
-        # exit()
-        # save TMAs on disk
-        """ Comment out 050822
-        #with h5py.File(dataset_path + str(cnt) + ".h5", "w") as f:
-        #    f.create_dataset(name="input", data=x)
-        #     f.create_dataset(name="output", data=y)
-        
-        # cnt += 1
-        """
-        # print(cnt)
-        # print()
 
         # done writing for current patch
 
