@@ -35,11 +35,8 @@ curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 # disable GPU
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-# bs = 16
-# lr = 1e-4
 img_size = 512
 nb_classes = 2
-# epochs = 100
 
 name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
@@ -53,8 +50,10 @@ patches = os.listdir(dataset_path)
 paths = np.array([dataset_path + x for x in patches]).astype("U400")  # make list of elements in
 
 ds_all = tf.data.Dataset.from_tensor_slices(paths)  # list of paths to tensor in data.Dataset format
-ds_all = ds_all.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]),
-                    num_parallel_calls=tf.data.AUTOTUNE)
+ds_all = ds_all.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=4)
+
+# for train/val/test, split on patient-level (ideally) or TMA-level. You have information on this in the filenames
+
 
 # ds_train = ds_train.cache()
 
@@ -121,14 +120,14 @@ tf.data.experimental.save(
     ds_test, save_ds_path + 'ds_test', compression=None, shard_func=None
 )
 
-ds_train = ds_train.shuffle(buffer_size=256)
+ds_train = ds_train.shuffle(buffer_size=1)
 ds_train = ds_train.batch(ret.batch_size)
-ds_train = ds_train.prefetch(1)  # @TODO: Use prefetch(1) for better GPU utilization?
+ds_train = ds_train.prefetch(2)  # @TODO: Use prefetch(1) for better GPU utilization?
 ds_train = ds_train.repeat(-1)
 
-ds_test = ds_test.shuffle(buffer_size=256)
+ds_test = ds_test.shuffle(buffer_size=1)
 ds_test = ds_test.batch(ret.batch_size)
-ds_test = ds_test.prefetch(1)  # tf.data.AUTOTUNE)
+ds_test = ds_test.prefetch(2)  # tf.data.AUTOTUNE)
 ds_test = ds_test.repeat(-1)
 
 # normalize intensities
@@ -137,12 +136,12 @@ ds_test = ds_test.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
 
 # only augment train data
 # shift last
-ds_train = ds_train.map(lambda x, y: random_fliplr(x, y))
-ds_train = ds_train.map(lambda x, y: random_flipud(x, y))
-ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y))  # ADDITIVE
-ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.1), y))  # ADDITIVE
-ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y))  # @TODO: MULTIPLICATIVE?
-ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50))
+ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=4)
+ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=4)
+ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=4)  # ADDITIVE
+ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.1), y), num_parallel_calls=4)  # ADDITIVE
+ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y), num_parallel_calls=4)  # @TODO: MULTIPLICATIVE?
+ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=4)
 # shift last
 
 convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
@@ -184,24 +183,3 @@ history = model.fit(
     callbacks=[save_best, history],
     verbose=1,
 )
-
-loss = history.history['loss']
-val_loss = history.history['val_loss']
-
-epochs = range(1, epochs + 1)
-plt.plot(epochs, loss, '-', label='Training loss')
-plt.plot(epochs, val_loss, '-', label='Validation loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
-plt.legend()
-plt.show()
-
-# load best model from disk
-del model
-model = load_model(model_path + "model_" + name, compile=False)
-
-print(model.summary())
-
-# Predict on new data, not the case here:
-# loop over all elements in test set, run model prediction, save pred -> after loop, compute metrics (Dice)
-# from tensorflow tutorial:
