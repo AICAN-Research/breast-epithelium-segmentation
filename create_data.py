@@ -22,7 +22,8 @@ importerHE = fast.WholeSlideImageImporter.create(
     '/data/Maren_P1/TMA/H2 TP02 HE helsnittscan.vsi')
 
 # --- HYPER PARAMS FOR PATCH GEN
-plot_flag = True
+plot_flag = False
+plot_flag_check_overlap = True
 patch_size = 512
 downsample_factor = 4  # tested with 8, but not sure if better
 level = 2  # used to be 4, changed to 2 050822
@@ -43,16 +44,16 @@ extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerH
 HE_TMAs = []
 for i, TMA in tqdm(enumerate(fast.DataStream(extractor)), "HE TMA"):
     HE_TMAs.append(TMA)
-    #if i == 20:
-    #    break
+    if i == 20:
+        break
 
 # Get IHC TMA
 extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerIHC)
 IHC_TMAs = []
 for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "IHC TMA:"):
     IHC_TMAs.append(TMA)
-    #if j == 20:
-    #    break
+    if j == 20:
+        break
 
 # HE_TMAs = HE_TMAS[3:]  # <- do this to remove silly three redundant TMAs at the top of the WSI
 
@@ -170,6 +171,7 @@ while True:  # Use this, HE_counter < 4 just for testing
         # exit()
         # Threshold TMA (IHC)
         y_hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # rgb to hsv color space
+        print("y_hsv shape", y_hsv.shape)
         y_hsv = y_hsv[:, :, 1]  # hue, saturation, value
         y = (y_hsv > hsv_th).astype('uint8')  # threshold, but which channel?
         # - hsv = 60
@@ -210,7 +212,7 @@ while True:  # Use this, HE_counter < 4 just for testing
             plt.show()
 
             # @TODO: use fig.savefig() instead to save figures on disk (set dpi=900 maybe?)
-
+        #exit()
         # Visualize TMAs:
         # if plot_flag:
         #    f, axes = plt.subplots(1, 3)  # Figure of TMAs
@@ -225,11 +227,16 @@ while True:  # Use this, HE_counter < 4 just for testing
 
         # tissue_HE = fast.TissueSegmentation.create().connect(x)
 
+        # Use overlap for test, not train
+        # Add overlap in .create(, overlapPercent=0.25)
         generator_x = fast.PatchGenerator.create(patch_size, patch_size)\
             .connect(0, x)  # .connect(1, tissue_HE)  # try adding overlap
         generator_y = fast.PatchGenerator.create(patch_size, patch_size)\
             .connect(0, y)  # .connect(1, tissue_HE)  # get error when adding level
 
+
+        patch_list_HE = []  # list of patches to plot to check overlap
+        patch_list_CK = []
         for patch_idx, (patch_HE, patch_CK) in enumerate(
                 zip(fast.DataStream(generator_x), fast.DataStream(generator_y))):
             # fast to np array
@@ -261,29 +268,52 @@ while True:  # Use this, HE_counter < 4 just for testing
 
             # One-hot TMA (IHC) binary, 01
             final_gt = np.stack([1 - curr_annotation, curr_annotation], axis=-1)
+            patch_list_HE.append(patch_HE)  # add HE patch to list for plot to check overlap
+            patch_list_CK.append(patch_CK)
 
-            """
-            if plot_flag:
-                fig, ax = plt.subplots(1, 1)  # Figure of the two patches on top of each other
-                ax.imshow(patch_HE)
-                ax.imshow(curr_annotation, cmap="gray", alpha=0.5)  # Add opacity
+            # Plot to check overlap
+            print(len(patch_list_HE))
+            if plot_flag_check_overlap and len(patch_list_HE) > 8:
+                fig, ax = plt.subplots(3, 3)  # Figure of the two patches on top of each other
+                ax[0, 0].imshow(patch_list_HE[0])
+                ax[0, 1].imshow(patch_list_HE[1])
+                ax[0, 2].imshow(patch_list_HE[2])
+                ax[1, 0].imshow(patch_list_HE[3])
+                ax[1, 1].imshow(patch_list_HE[4])
+                ax[1, 2].imshow(patch_list_HE[5])
+                ax[2, 0].imshow(patch_list_HE[6])
+                ax[2, 1].imshow(patch_list_HE[7])
+                ax[2, 2].imshow(patch_list_HE[8])
                 plt.show()  # Show the two images on top of each other
-            """
+                patch_list_HE.clear()
+            if plot_flag_check_overlap and len(patch_list_CK) > 8:
+                fig, ax = plt.subplots(3, 3)  # Figure of the two patches on top of each other
+                ax[0, 0].imshow(patch_list_CK[0], cmap="gray")
+                ax[0, 1].imshow(patch_list_CK[1], cmap="gray")
+                ax[0, 2].imshow(patch_list_CK[2], cmap="gray")
+                ax[1, 0].imshow(patch_list_CK[3], cmap="gray")
+                ax[1, 1].imshow(patch_list_CK[4], cmap="gray")
+                ax[1, 2].imshow(patch_list_CK[5], cmap="gray")
+                ax[2, 0].imshow(patch_list_CK[6], cmap="gray")
+                ax[2, 1].imshow(patch_list_CK[7], cmap="gray")
+                ax[2, 2].imshow(patch_list_CK[8], cmap="gray")
+                plt.show()  # Show the two images on top of each other
+                patch_list_CK.clear()
 
-            """
+            print("shape ck patch: ", patch_CK.shape)
             fig, ax = plt.subplots(1, 1)  # Figure of the two patches on top of each other
             ax.imshow(patch_HE)
-            ax.imshow(np.array(patch_CK)[:,:,1],cmap="gray", alpha=0.5)  # Add opacity
+            ax.imshow(np.array(patch_CK),cmap="gray", alpha=0.5)  # Add opacity
             plt.show()  # Show the two images on top of each other
-            """
+
             # insert saving patches as hdf5 (h5py) here:
-            with h5py.File(dataset_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
-                f.create_dataset(name="input", data=patch_HE.astype("uint8"))
-                f.create_dataset(name="output", data=final_gt.astype("uint8"))
-                f.create_dataset(name="orig_CK", data=patch_CK.astype("uint8"))
+            #with h5py.File(dataset_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+            #    f.create_dataset(name="input", data=patch_HE.astype("uint8"))
+            #    f.create_dataset(name="output", data=final_gt.astype("uint8"))
+            #    f.create_dataset(name="orig_CK", data=patch_CK.astype("uint8"))
 
         tma_idx += 1
-
+        exit()
         # add stupid first dim
         # x = np.expand_dims(x, axis=0)
         # y = np.expand_dims(y, axis=0)
