@@ -132,7 +132,13 @@ while True:  # Use this, HE_counter < 4 just for testing
         longest_width = max([shapes_IHC_TMA[1], shapes_HE_TMA[1]])
 
         IHC_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
-        HE_TMA_padded = IHC_TMA_padded.copy()
+        HE_TMA_padded = np.ones((longest_height, longest_width, 3), dtype="uint8")*255
+        #HE_TMA_padded = IHC_TMA_padded.copy()
+        print("CK padded shape", IHC_TMA_padded.shape)
+        print("CK unique", np.unique(IHC_TMA_padded))
+        print("HE padded shape", HE_TMA_padded.shape)
+        print("HE unique", np.unique(HE_TMA_padded))
+        #exit()
 
         IHC_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]] = IHC_TMA
         HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
@@ -255,7 +261,7 @@ while True:  # Use this, HE_counter < 4 just for testing
 
             # pad patches with incorrect shape
             if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
-                patch_HE_padded = np.zeros((patch_size, patch_size, 3), dtype="uint8")
+                patch_HE_padded = np.ones((patch_size, patch_size, 3), dtype="uint8")*255
                 patch_CK_padded = np.zeros((patch_size, patch_size), dtype="uint8")
 
                 patch_HE_padded[:patch_HE.shape[0], :patch_HE.shape[1]] = patch_HE.astype("uint8")
