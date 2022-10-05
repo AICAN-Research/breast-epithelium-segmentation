@@ -22,8 +22,8 @@ importerHE = fast.WholeSlideImageImporter.create(
     '/data/Maren_P1/TMA/H2 TP02 HE helsnittscan.vsi')
 
 # --- HYPER PARAMS FOR PATCH GEN
-plot_flag = False
-plot_flag_check_overlap = True
+plot_flag = True
+plot_flag_check_overlap = False
 patch_size = 512
 downsample_factor = 4  # tested with 8, but not sure if better
 level = 2  # used to be 4, changed to 2 050822
@@ -33,9 +33,10 @@ TMA_pairs = []
 # ---
 
 # level 2 - optimal values
+# changed min_size to check, optimal 3000? so far.
 dilation_radius = 5  # 1 for level 3
 area_threshold = 700  # 200 for level 3  # remove_small_holes
-min_size = 3000  # 300 for level 3  # remove_small_objects
+min_size = 1000  # 300 for level 3  # remove_small_objects
 erosion_radius = 5  # 1 for level 3
 hsv_th = 50
 
@@ -140,6 +141,7 @@ while True:  # Use this, HE_counter < 4 just for testing
         print("HE unique", np.unique(HE_TMA_padded))
         #exit()
 
+
         IHC_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]] = IHC_TMA
         HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
 
@@ -166,7 +168,8 @@ while True:  # Use this, HE_counter < 4 just for testing
         # Pad TMAs:
         x = HE_TMA_padded[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]
         y = tma_padded_shifted[:IHC_TMA.shape[0], :IHC_TMA.shape[1]]
-        y_ck = y.copy()  # to plot ck image
+        y_ck = y.copy()
+        y_copy = y.copy()
 
         #if plot_flag:
         #    fig, ax = plt.subplots(1, 1)  # Figure of the two TMAs on top of each other
@@ -174,39 +177,126 @@ while True:  # Use this, HE_counter < 4 just for testing
         #    ax.imshow(y, alpha=0.5)  # Add opacity
         #    plt.show()  # Show the two images on top of each other
 
-        # exit()
         # Threshold TMA (IHC)
-        y_hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # rgb to hsv color space
-        print("y_hsv shape", y_hsv.shape)
-        y_hsv = y_hsv[:, :, 1]  # hue, saturation, value
-        y = (y_hsv > hsv_th).astype('uint8')  # threshold, but which channel?
-        # - hsv = 60
+        y_rgb2hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # rgb to hsv color space
+        y_bgr2hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # bgr to hsv color space, not now, needed to compare
 
-        # post-process thresholded CK to generate annotation
-        curr_annotation = np.array(y)
-        result = binary_dilation(curr_annotation, disk(radius=dilation_radius))
-        result1 = remove_small_holes(result, area_threshold=area_threshold)
-        result2 = remove_small_objects(result1, min_size=min_size)
-        y = binary_erosion(result2, disk(radius=erosion_radius)).astype("uint8")
+        # Saturation channel from the two different hsv images (created from cv2.COLOR_RGB2HSV
+        # and cv2.COLOR_BGR2HSV):
+        y_rgb2hsv_1 = y_rgb2hsv[:, :, 1]  # saturation channel of hsv from rgb
+        y_bgr2hsv_1 = y_bgr2hsv[:, :, 1]  # saturation channel of hsv from bgr
 
-        print(x.dtype, y.dtype, x.shape, y.shape)
-        print(np.unique(y))
+        # Gaussian blur:
+        y_rgb2hsv_1 = cv2.GaussianBlur(y_rgb2hsv_1, (5, 5), 0)
 
+        # Otsu thresholding:
+
+        # Thresholding saturation channel from the two different hsv images:
+        y_rgb2hsv = (y_rgb2hsv_1 > hsv_th).astype('uint8')  # thresholding hsv from rgb
+        y_bgr2hsv = (y_bgr2hsv_1 > hsv_th).astype('uint8')  # thresholding hsv from bgr
+
+        # post-process thresholded rgb2hsv and bgr2hsv CK to generate annotation
+        curr_annotation_rgb2hsv = np.array(y_rgb2hsv)
+        curr_annotation_bgr2hsv = np.array(y_bgr2hsv)
+
+        result_rgb2hsv = binary_dilation(curr_annotation_rgb2hsv, disk(radius=dilation_radius))
+        result_bgr2hsv = binary_dilation(curr_annotation_bgr2hsv, disk(radius=dilation_radius))
+
+        result1_rgb2hsv = remove_small_holes(result_rgb2hsv, area_threshold=area_threshold)
+        result1_bgr2hsv = remove_small_holes(result_bgr2hsv, area_threshold=area_threshold)
+
+        result2_rgb2hsv = remove_small_objects(result1_rgb2hsv, min_size=min_size)
+        result2_bgr2hsv = remove_small_objects(result1_bgr2hsv, min_size=min_size)
+
+        y_rgb2hsv = binary_erosion(result2_rgb2hsv, disk(radius=erosion_radius)).astype("uint8")
+        y_bgr2hsv = binary_erosion(result2_bgr2hsv, disk(radius=erosion_radius)).astype("uint8")
+
+        # Plot RGB2HSV with post-processing:
+        if plot_flag:
+            plt.rcParams.update({'font.size': 28})
+            fig, ax = plt.subplots(2, 3, figsize=(30,30))
+            titles = ["CK TMA", "RGB2HSV CK thresholded", "dilation",
+                          "fill holes", "remove small obj.", "erosion"]
+            ax[0, 0].imshow(y_ck)
+            ax[0, 1].imshow(curr_annotation_rgb2hsv, cmap="gray", interpolation='none')
+            ax[0, 2].imshow(result_rgb2hsv, cmap="gray", interpolation='none')
+            ax[1, 0].imshow(result1_rgb2hsv, cmap="gray", interpolation='none')
+            ax[1, 1].imshow(result2_rgb2hsv, cmap="gray", interpolation='none')
+            ax[1, 2].imshow(y_rgb2hsv, cmap="gray", interpolation='none')
+            cnts = 0
+            for i in range(2):
+                for j in range(3):
+                    ax[i, j].set_title(titles[cnts])
+                    cnts += 1
+
+            plt.tight_layout()
+            plt.show()
+
+        # Plot BGR2HSV with post-processing:
+        if plot_flag:
+            plt.rcParams.update({'font.size': 28})
+            fig, ax = plt.subplots(2, 3, figsize=(30, 30))
+            titles = ["CK TMA", "BGR2HSV CK thresholded", "dilation",
+                      "fill holes", "remove small obj.", "erosion"]
+            ax[0, 0].imshow(y_ck)
+            ax[0, 1].imshow(curr_annotation_bgr2hsv, cmap="gray", interpolation='none')
+            ax[0, 2].imshow(result_bgr2hsv, cmap="gray", interpolation='none')
+            ax[1, 0].imshow(result1_bgr2hsv, cmap="gray", interpolation='none')
+            ax[1, 1].imshow(result2_bgr2hsv, cmap="gray", interpolation='none')
+            ax[1, 2].imshow(y_bgr2hsv, cmap="gray", interpolation='none')
+            cnts = 0
+            for i in range(2):
+                for j in range(3):
+                    ax[i, j].set_title(titles[cnts])
+                    cnts += 1
+
+            plt.tight_layout()
+            plt.show()
+
+
+        # Test red channel instead of hsv saturation
+        #y_red_ch = y_ck[:, :, 0]  # red channel (?) from ck image
+        #y_red_ch_test = y_ck.copy()
+        #y_red_ch_test[:, :, 1] = 0  # R G B
+        #y_red_ch_test[:, :, 2] = 0
+        #print(y_red_ch_test.shape)
+
+        #y_red_ch = np.array(y_red_ch)
+        #y_blue_ch_test = y_ck.copy()
+        #y_blue_ch_test[:, :, 0] = 0
+        #y_blue_ch_test[:, :, 1] = 0
+
+        # post-processing ck with red channel extraced:
+        curr_annotation_red_ch = np.array(y_ck[:, :, 0] < 130)
+
+        curr_annotation_green_ch = np.array(y_ck[:, :, 1] < 130)
+
+        # post-process ck with blue channel extracted:
+        curr_annotation_blue_ch = np.array(y_ck[:, :, 2] < 150)
+        result_blue_ch = binary_dilation(curr_annotation_blue_ch, disk(radius=dilation_radius))
+        result1_blue_ch = remove_small_holes(result_blue_ch, area_threshold=area_threshold)
+        result2_blue_ch = remove_small_objects(result1_blue_ch, min_size=min_size)
+        y_blue_ch = binary_erosion(result2_blue_ch, disk(radius=erosion_radius)).astype("uint8")
+
+        # Plot blue channel with post-processing steps:
         if plot_flag:
             plt.rcParams.update({'font.size': 28})
 
-            f, axes = plt.subplots(2, 3, figsize=(30, 30))  # Figure of patches
+            f, axes = plt.subplots(2, 4, figsize=(30, 30))  # Figure of patches
             # print(np.unique(patch_HE))
             # print(np.unique(np.array(patch_CK)[:,:,1]))
-            titles = ["HE Patch", "IHC thresholded", "dilation",
-                      "fill holes", "remove small obj.", "erosion"]
-            #axes[0, 0].imshow(x, interpolation='none')  # patch 1
-            axes[0, 0].imshow(y_ck, interpolation='none')  # patch 1
-            axes[0, 1].imshow(curr_annotation, cmap="gray", interpolation='none')  # patch 2
-            axes[0, 2].imshow(result, cmap="gray", interpolation='none')  # post-procssed segmentation
-            axes[1, 0].imshow(result1, cmap="gray", interpolation='none')  #
-            axes[1, 1].imshow(result2, cmap="gray", interpolation='none')  #
-            axes[1, 2].imshow(y, cmap="gray", interpolation='none')  #
+            titles = ["CK TMA", "R", "G", "B", "", "R th", "G th",
+                      "B th", "erosion"]
+            # axes[0, 0].imshow(x, interpolation='none')  # patch 1
+            axes[0, 0].imshow(y_ck, interpolation='none')
+            axes[0, 1].imshow(y_ck[..., 0], cmap="gray", interpolation='none')  # patch 1
+            axes[0, 2].imshow(y_ck[..., 1], cmap="gray", interpolation='none')
+            axes[0, 3].imshow(y_ck[..., 2], cmap="gray", interpolation='none')
+
+            axes[1, 1].imshow(curr_annotation_red_ch, cmap="gray", interpolation='none')  # patch 2
+            #axes[0, 2].imshow(result_red_ch, cmap="gray", interpolation='none')  # post-procssed segmentation
+            axes[1, 2].imshow(curr_annotation_green_ch, cmap="gray", interpolation='none')  #curr_annotation_green_ch
+            axes[1, 3].imshow(curr_annotation_blue_ch, cmap="gray", interpolation='none')  #
 
             cnts = 0
             for i in range(2):
@@ -216,7 +306,9 @@ while True:  # Use this, HE_counter < 4 just for testing
 
             plt.tight_layout()
             plt.show()
+            exit()
 
+        exit()
             # @TODO: use fig.savefig() instead to save figures on disk (set dpi=900 maybe?)
         #exit()
         # Visualize TMAs:
@@ -227,9 +319,10 @@ while True:  # Use this, HE_counter < 4 just for testing
         #    axes[2].imshow(np.array(y)[:,:,1],cmap="gray")
         #    plt.show()
 
-        # patch generator
-        x = fast.Image.createFromArray(np.asarray(x))
-        y = fast.Image.createFromArray(np.asarray(y))
+        # patch generator. Change input y corresponding to which channel or rgb2hsv or bgr2hsv:
+        #x = fast.Image.createFromArray(np.asarray(x))
+        x = fast.Image.createFromArray(np.asarray(y_copy))
+        y = fast.Image.createFromArray(np.asarray(y_blue_ch))
 
         # tissue_HE = fast.TissueSegmentation.create().connect(x)
 
