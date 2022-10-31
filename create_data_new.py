@@ -3,24 +3,55 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
+fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)
 
 # --- HYPER PARAMS
 plot_flag = True
-level = 2
+level = 2  # image pyramid level
+
+# want to read all images (oslistdir). Loop over.
+# match against HE images
+print('hei')
+# exit()
 
 
-
-#Import CK and annotated (in qupath) image:
-importerCK = fast.WholeSlideImageImporter.create(
-    '')  # path to CK image
+# import CK and annotated (in qupath) image:
+# importerCK = fast.WholeSlideImageImporter.create(
+#    '')  # path to CK image
 importerMask = fast.TIFFImagePyramidImporter.create(
-    '')  # path to annotated image
+    '/home/maren/workspace/qupath-ck-seg/pyramidal_image_new.tiff')  # path to annotated image
 
+# importerMask = fast.WholeSlideImageImporter.create(
+#    '/home/maren/workspace/qupath-ck-seg/geojson2tif_results/converted_ID3.tif')  # path to annotated image
+
+print('heihei')
 # access annotated mask (generated from qupath, blue channel)
-image_CK = importerMask.runAndGetOutputData()
-access = image_CK.getAccess(fast.ACCESS_READ)
+print('HER')
+# exit()
 
-# Get CK TMA cores
+
+#renderer = fast.ImagePyramidRenderer.create().setInputData(image_CK)
+# .connect(image_CK)
+
+#fast.SimpleWindow2D.create().connect(renderer).run()
+
+#exit()
+
+#wsi = importerMask.runAndGetOutputData()
+
+extractor = fast.ImagePyramidLevelExtractor.create(level=11).connect(importerMask)
+#extractor.setInputData(wsi)
+
+imageCK = extractor.runAndGetOutputData()
+
+numpy_image = np.asarray(imageCK)
+print(numpy_image.shape)
+
+plt.imshow(numpy_image[..., 0], cmap='gray')
+plt.show()
+
+exit()
+# get CK TMA cores
 extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerCK)
 CK_TMAs = []
 for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "CK TMA:"):
@@ -38,8 +69,10 @@ for element in CK_TMAs:
     position_CK_y = position_CK[1]
     position_CK_z = position_CK[2]
 
+    CK_TMA = np.asarray(CK_TMA)
     height, width, _ = CK_TMA.shape
 
+    # get corresponding TMA core in the annotated image as in the CK:
     mask = access.getPatchAsImage(level, position_CK_x, position_CK_y, width, height, False)[..., :3]
     mask = np.asarray(mask)
 
