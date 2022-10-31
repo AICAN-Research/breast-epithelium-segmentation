@@ -1,71 +1,70 @@
-# Script to convert annotations to geoJSON, then tif, then pyramidal tiff
-# Get shape of CK image
+"""
+Script to convert annotations to geoJSON, then tif, then pyramidal tiff
+Get shape of CK image
+"""
 import os
 import fast
+import subprocess as sp
+from tqdm import tqdm
 
-"""
-temp = []
-temp.append("2.hei")
-temp.append("5.hei")
-temp.append("1.hei")
-print(temp)
+fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)
 
-temp2 = temp.copy()
-for element in temp2:
-    element.replace(element)
 
-"""
+def get_size(image_path, level):
+    importerCK = fast.WholeSlideImageImporter.create(image_path)
+    image = importerCK.runAndGetOutputData()
 
-exit()
+    height = image.getLevelHeight(level)
+    width = image.getLevelWidth(level)
+
+    # spacing = image.getSpacing()
+    spacing = None  # @TODO: Spacing [1, 1, 1] not found in FAST using cellSens VSI format
+    return height, width, spacing
+
 
 # Parameters:
 level = 0  # image pyramid level to get size from
 
-path = ''  # path to images to convert
-pathCK = 'data/Maren_P1/FIND PATH'  # path to corresponding CK images
-image_names = os.listdir(path)
+# path = ''  # path to images to convert
+# pathCK = '/data/Maren_P1/epithelium/CK/ECD_EFI_CK_BC_3.vsi'  # path to corresponding CK images
+# image_names = os.listdir(path)
 
-def get_size(image_path):
-    importerCK = fast.WholeSlideImageImporter.create(image_path)
-    image = importerCK.runAndGetOutputData()
-    #access = image.getAccess(fast.ACCESS_READ)  # do I need this, what does it do?
-    #numpy_image = np.asarray(image)  # should I do this instead, and then use shape[0] and [1]? instead of getLevelHeight()...?
+CK_paths = "/data/Maren_P1/epithelium/CK/"
+geojson_path = "/home/maren/workspace/qupath-ck-seg/export_geojson_201022/"
+output_path = "/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/"
+tmp_path = "/home/maren/workspace/qupath-ck-seg/tmp_results/"
 
-    height = image.getLevelHeight(level)
-    width = image.getLevelWidth(level)
-    return height, width
+wsis = []
+for file in os.listdir(CK_paths):
+    if (".vsi" in file) and ("Overview" not in file):
+        wsis.append(CK_paths + file)
 
+wsis = wsis[::-1]
 
-get_size(pathCK)
-exit()
-heights = []
-widths = []
-for image in image_names:
-    image_path = pathCK + '/image'
-    height, width = get_size(image_path)  # get shape of CK image
-    heights.append(height)
-    widths.append(width)
+for pathCK in tqdm(wsis, "WSI:"):
+    # get ID
+    id_ = pathCK.split("/")[-1].split(".")[0]
 
-# Need to make shell script that does this:
-geoJSON_folder = 'export_geojson_DATE'  #add date at DATE
-geoJSON_list = os.listdir(geoJSON_folder)
-tif_folder = 'geojson2tif_results'
+    print(pathCK)
 
-# create names for new tif files:
-tif_list = geoJSON_list.copy()
-for tif in tif_list:
-    tif.replace()
+    # get image metadata info
+    height, width, spacing = get_size(pathCK, level=level)
+    print(height, width, spacing)
 
-#gdal_rasterize -burn 1 -ts height width -ot Byte geoJSON_folder/geoJSON_list[nbr]
+    # gdal_rasterize -burn 1 -ts height width -ot Byte geoJSON_folder/geoJSON_list[nbr]
 
+    # subprocesses to run terminal commands from python script
+    file1 = geojson_path + id_ + ".vsi - EFI 40x-labels.geojson"  # path to geoJSON file
+    file2 = tmp_path + id_ + "_nonpyramidal.tif"  # path to tif file (not pyramid)
+    file3 = output_path + id_ + ".tiff"  # path to tiff file (pyramid)
 
+    # convert from geoJSON to tiled geoTIFF (TIFF)
+    sp.check_call(["gdal_rasterize", "-burn", "1", "-ts", str(height), str(width), "-ot",
+                   "Byte", file1, file2, "-co", "COMPRESS=LZW"])
 
-# Find out: script with terminal commands? run script in scripts?
-# kan gjøre dette i python med subprosess:
-sp.check_call(["vips", "tiffsave", out1, out2, "--bigtiff", "--tile", "--pyramid",\
-               "--compression=" + comp2, "--Q=" + str(Q2)])
-# First convert to geoJSON (this is already done)
-# Then convert to tif (need to know image shape to do this correctly)
-# Then convert to tiff
-
-
+    # convert from TIFF to pyramidal TIFF
+    sp.check_call(["vips", "tiffsave", file2, file3, "--bigtiff", "--tile", "--pyramid",
+                   "--compression=lzw"])  # do I need to change quality of compression? "--Q=" + str(Q2)?
+    # First convert to geoJSON (this is already done)
+    # Then convert to tif (need to know image shape to do this correctly)
+    # Then convert to tiff
