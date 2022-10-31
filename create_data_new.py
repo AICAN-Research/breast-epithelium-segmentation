@@ -11,37 +11,15 @@ level = 2  # image pyramid level
 
 # want to read all images (oslistdir). Loop over.
 # match against HE images
-print('hei')
-# exit()
-
 
 # import CK and annotated (in qupath) image:
-# importerCK = fast.WholeSlideImageImporter.create(
-#    '')  # path to CK image
+importerCK = fast.WholeSlideImageImporter.create(
+    '')  # path to CK image
 importerMask = fast.TIFFImagePyramidImporter.create(
     '/home/maren/workspace/qupath-ck-seg/pyramidal_image_new.tiff')  # path to annotated image
 
-# importerMask = fast.WholeSlideImageImporter.create(
-#    '/home/maren/workspace/qupath-ck-seg/geojson2tif_results/converted_ID3.tif')  # path to annotated image
-
-print('heihei')
-# access annotated mask (generated from qupath, blue channel)
-print('HER')
-# exit()
-
-
-#renderer = fast.ImagePyramidRenderer.create().setInputData(image_CK)
-# .connect(image_CK)
-
-#fast.SimpleWindow2D.create().connect(renderer).run()
-
-#exit()
-
-#wsi = importerMask.runAndGetOutputData()
-
+# able to show image smaller than patch size of 128, 128
 extractor = fast.ImagePyramidLevelExtractor.create(level=11).connect(importerMask)
-#extractor.setInputData(wsi)
-
 imageCK = extractor.runAndGetOutputData()
 
 numpy_image = np.asarray(imageCK)
