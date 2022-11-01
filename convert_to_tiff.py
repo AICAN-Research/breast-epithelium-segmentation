@@ -25,10 +25,6 @@ def get_size(image_path, level):
 # Parameters:
 level = 0  # image pyramid level to get size from
 
-# path = ''  # path to images to convert
-# pathCK = '/data/Maren_P1/epithelium/CK/ECD_EFI_CK_BC_3.vsi'  # path to corresponding CK images
-# image_names = os.listdir(path)
-
 CK_paths = "/data/Maren_P1/epithelium/CK/"
 geojson_path = "/home/maren/workspace/qupath-ck-seg/export_geojson_201022/"
 output_path = "/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/"
@@ -51,20 +47,16 @@ for pathCK in tqdm(wsis, "WSI:"):
     height, width, spacing = get_size(pathCK, level=level)
     print(height, width, spacing)
 
-    # gdal_rasterize -burn 1 -ts height width -ot Byte geoJSON_folder/geoJSON_list[nbr]
-
     # subprocesses to run terminal commands from python script
     file1 = geojson_path + id_ + ".vsi - EFI 40x-labels.geojson"  # path to geoJSON file
     file2 = tmp_path + id_ + "_nonpyramidal.tif"  # path to tif file (not pyramid)
     file3 = output_path + id_ + ".tiff"  # path to tiff file (pyramid)
 
     # convert from geoJSON to tiled geoTIFF (TIFF)
-    sp.check_call(["gdal_rasterize", "-burn", "1", "-ts", str(height), str(width), "-ot",
+    sp.check_call(["gdal_rasterize", "-burn", "1", "-ts", str(width), str(height), "-ot",
                    "Byte", file1, file2, "-co", "COMPRESS=LZW"])
 
     # convert from TIFF to pyramidal TIFF
     sp.check_call(["vips", "tiffsave", file2, file3, "--bigtiff", "--tile", "--pyramid",
                    "--compression=lzw"])  # do I need to change quality of compression? "--Q=" + str(Q2)?
-    # First convert to geoJSON (this is already done)
-    # Then convert to tif (need to know image shape to do this correctly)
-    # Then convert to tiff
+
