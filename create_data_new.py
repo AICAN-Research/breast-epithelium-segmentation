@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)
+#fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
 
 # --- HYPER PARAMS
 plot_flag = True
@@ -14,27 +14,29 @@ level = 2  # image pyramid level
 
 # import CK and annotated (in qupath) image:
 importerCK = fast.WholeSlideImageImporter.create(
-    '')  # path to CK image
+    '/data/Maren_P1/epithelium/CK/ECD_EFI_CK_BC_4.vsi')  # path to CK image
 importerMask = fast.TIFFImagePyramidImporter.create(
-    '/home/maren/workspace/qupath-ck-seg/pyramidal_image_new.tiff')  # path to annotated image
+    '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/ECD_EFI_CK_BC_4.tiff')  # path to annotated image
 
-# able to show image smaller than patch size of 128, 128
-extractor = fast.ImagePyramidLevelExtractor.create(level=11).connect(importerMask)
-imageCK = extractor.runAndGetOutputData()
+# access annotated mask (generated from qupath)
+mask = importerMask.runAndGetOutputData()
+access = mask.getAccess(fast.ACCESS_READ)
 
-numpy_image = np.asarray(imageCK)
-print(numpy_image.shape)
+# plot whole TMA image (does not work on level 0-3, image level too large to convert to FAST image)
+if plot_flag:
+    extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerMask)
+    image = extractor.runAndGetOutputData()
+    numpy_image = np.asarray(image)
+    plt.imshow(numpy_image[...,0], cmap='gray')
+    plt.show()
+    exit()
 
-plt.imshow(numpy_image[..., 0], cmap='gray')
-plt.show()
-
-exit()
 # get CK TMA cores
 extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerCK)
 CK_TMAs = []
 for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "CK TMA:"):
     CK_TMAs.append(TMA)
-    if j == 20:
+    if j == 5:
         break
 
 CK_counter = 0
@@ -43,16 +45,18 @@ for element in CK_TMAs:
     CK_TMA = CK_TMAs[CK_counter]
     position_CK = CK_TMA.getTransform().getTranslation()  # position of IHC TMA at position IHC_counter. just zero, why?
 
-    position_CK_x = position_CK[0]
-    position_CK_y = position_CK[1]
-    position_CK_z = position_CK[2]
+    position_CK_x = position_CK[0].astype("int32")[0]  # ex [123.] -> 123, needs to be int for getPatchAsImage()
+    position_CK_y = position_CK[1].astype("int32")[0]
+    position_CK_z = position_CK[2].astype("int32")[0]
 
     CK_TMA = np.asarray(CK_TMA)
     height, width, _ = CK_TMA.shape
-
+    print(level, position_CK_x, position_CK_y, width, height)
     # get corresponding TMA core in the annotated image as in the CK:
-    mask = access.getPatchAsImage(level, position_CK_x, position_CK_y, width, height, False)[..., :3]
+    mask = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height), False)
     mask = np.asarray(mask)
+    print(mask.shape)
+    #exit()
 
     # plot CK tma core and mask:
     if plot_flag:
@@ -61,16 +65,18 @@ for element in CK_TMAs:
         f, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of patches
 
         titles = ["CK TMA core", "mask from QuPath, blue channel"]
-        axes[0, 0].imshow(CK_TMA, interpolation='none')
-        axes[0, 1].imshow(mask, cmap="gray", interpolation='none')
+        axes[0].imshow(CK_TMA, interpolation='none')
+        axes[1].imshow(mask, cmap="gray", interpolation='none')
 
         cnts = 0
-        for i in range(1):
-            for j in range(2):
-                axes[i, j].set_title(titles[cnts])
+        for i in range(2):
+                axes[i].set_title(titles[cnts])
                 cnts += 1
 
         plt.tight_layout()
         plt.show()
+        exit()
 
     CK_counter += 1
+    if CK_counter > 3:
+        exit()
