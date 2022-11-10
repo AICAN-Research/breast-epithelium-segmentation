@@ -39,9 +39,6 @@ width_slide = image_temp.getLevelWidth(level)
 print("height_slide, width_slide", height_slide, width_slide)
 print(height_slide/512, width_slide/512)
 
-exit()
-
-#exit()
 # plot whole TMA image (does not work on level 0-3, image level too large to convert to FAST image)
 if plot_flag:
     extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerMask)
@@ -89,9 +86,6 @@ for element in CK_TMAs:
 
     position_CK_y = height_mask - position_CK_y - height
 
-    #position_CK_y += 0
-    #position_CK_x += 16
-
     print(width_mask, height_mask)
     print(width, height)
     print(position_CK_x, position_CK_y, )
@@ -99,29 +93,17 @@ for element in CK_TMAs:
     print("CK AND segCK sizes (original):", height_slide, width_slide, height_mask, width_mask)
 
     # get corresponding TMA core in the annotated image as in the CK:
-    # Får ikke getPathchAsImage() til å fungere.
     patch = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height), False)
     patch = np.asarray(patch)
 
     print(patch.shape)
     patch = patch[..., 0]
-    #patch[patch == 255] = 0  # this we should not need to do
 
-    patch = np.flip(patch, axis=0)
+    patch = np.flip(patch, axis=0)  # since annotation is flipped
 
     print(CK_TMA.shape)
-
     print(np.unique(patch), patch.dtype)
-    #x, y = access.getPatchData(int(level), int(position_CK_x), int(position_y), int(width), int(height))
-    #mask = access.getPatchAsImage(int(level), int(2000), int(2000), int(width), int(height), False)
-
-    #mask = np.asarray(mask)
-    #print(mask.shape)
-    #print('********')
-    #exit()
-
     print("postition y", position_y)
-    #exit()
 
     # plot CK tma core and mask:
     if plot_flag:
