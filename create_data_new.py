@@ -7,40 +7,68 @@ import matplotlib.pyplot as plt
 
 # --- HYPER PARAMS
 plot_flag = True
-level = 2  # image pyramid level
+level = 0  # image pyramid level
+nb_iters = 10
 
 # want to read all images (oslistdir). Loop over.
 # match against HE images
+CK_path = '/data/Maren_P1/epithelium/CK/ECD_EFI_CK_BC_4.vsi'
+# CK_path = '/home/maren/workspace/qupath-ck-seg/vsi_to_tif/ECD_EFI_CK_BC_4.tif'
+mask_path = '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/ECD_EFI_CK_BC_4.tiff'
 
 # import CK and annotated (in qupath) image:
 importerCK = fast.WholeSlideImageImporter.create(
-    '/data/Maren_P1/epithelium/CK/ECD_EFI_CK_BC_4.vsi')  # path to CK image
-importerMask = fast.TIFFImagePyramidImporter.create(
-    '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/ECD_EFI_CK_BC_4.tiff')  # path to annotated image
+    CK_path)  # path to CK image
+importerMask = fast.WholeSlideImageImporter.create(
+    mask_path)  # path to annotated image
 
 # access annotated mask (generated from qupath)
 mask = importerMask.runAndGetOutputData()
+height_mask = mask.getLevelHeight(level)
+width_mask = mask.getLevelWidth(level)
+print("height_mask, width_mask", height_mask, width_mask)
+print(height_mask/512, width_mask/512)
 access = mask.getAccess(fast.ACCESS_READ)
 
+# Find height of image
+importerCK_temp = fast.WholeSlideImageImporter.create(CK_path)
+image_temp = importerCK_temp.runAndGetOutputData()
+
+height_slide = image_temp.getLevelHeight(level)
+width_slide = image_temp.getLevelWidth(level)
+print("height_slide, width_slide", height_slide, width_slide)
+print(height_slide/512, width_slide/512)
+
+exit()
+
+#exit()
 # plot whole TMA image (does not work on level 0-3, image level too large to convert to FAST image)
 if plot_flag:
     extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerMask)
     image = extractor.runAndGetOutputData()
     numpy_image = np.asarray(image)
-    plt.imshow(numpy_image[...,0], cmap='gray')
+    plt.imshow(numpy_image[..., 0], cmap='gray')
     plt.show()
-    exit()
+
+if plot_flag:
+    extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerCK)
+    image = extractor.runAndGetOutputData()
+    numpy_image = np.asarray(image)
+    plt.imshow(numpy_image[..., 0], cmap='gray')
+    plt.show()
 
 # get CK TMA cores
 extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerCK)
 CK_TMAs = []
 for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "CK TMA:"):
     CK_TMAs.append(TMA)
-    if j == 5:
+    if j == nb_iters:
         break
 
+position_y = height_slide
 CK_counter = 0
 for element in CK_TMAs:
+    print('---------')
 
     CK_TMA = CK_TMAs[CK_counter]
     position_CK = CK_TMA.getTransform().getTranslation()  # position of IHC TMA at position IHC_counter. just zero, why?
@@ -49,24 +77,63 @@ for element in CK_TMAs:
     position_CK_y = position_CK[1].astype("int32")[0]
     position_CK_z = position_CK[2].astype("int32")[0]
 
+    # print(CK_TMA.getTransform().getMatrix())
+
     CK_TMA = np.asarray(CK_TMA)
     height, width, _ = CK_TMA.shape
-    print(level, position_CK_x, position_CK_y, width, height)
+
+    # position_y = position_y - height  # update y-position due to flip
+
+    position_CK_x /= (2 ** level)
+    position_CK_y /= (2 ** level)
+
+    position_CK_y = height_mask - position_CK_y - height
+
+    #position_CK_y += 0
+    #position_CK_x += 16
+
+    print(width_mask, height_mask)
+    print(width, height)
+    print(position_CK_x, position_CK_y, )
+
+    print("CK AND segCK sizes (original):", height_slide, width_slide, height_mask, width_mask)
+
     # get corresponding TMA core in the annotated image as in the CK:
-    mask = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height), False)
-    mask = np.asarray(mask)
-    print(mask.shape)
+    # Får ikke getPathchAsImage() til å fungere.
+    patch = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height), False)
+    patch = np.asarray(patch)
+
+    print(patch.shape)
+    patch = patch[..., 0]
+    #patch[patch == 255] = 0  # this we should not need to do
+
+    patch = np.flip(patch, axis=0)
+
+    print(CK_TMA.shape)
+
+    print(np.unique(patch), patch.dtype)
+    #x, y = access.getPatchData(int(level), int(position_CK_x), int(position_y), int(width), int(height))
+    #mask = access.getPatchAsImage(int(level), int(2000), int(2000), int(width), int(height), False)
+
+    #mask = np.asarray(mask)
+    #print(mask.shape)
+    #print('********')
+    #exit()
+
+    print("postition y", position_y)
     #exit()
 
     # plot CK tma core and mask:
     if plot_flag:
         plt.rcParams.update({'font.size': 28})
 
-        f, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of patches
+        f, axes = plt.subplots(1, 3, figsize=(30, 30))  # Figure of patches
 
         titles = ["CK TMA core", "mask from QuPath, blue channel"]
         axes[0].imshow(CK_TMA, interpolation='none')
-        axes[1].imshow(mask, cmap="gray", interpolation='none')
+        axes[1].imshow(patch, cmap="gray", interpolation='none')
+        axes[2].imshow(CK_TMA)
+        axes[2].imshow(patch, alpha=0.5, cmap='gray', interpolation='none')
 
         cnts = 0
         for i in range(2):
@@ -75,8 +142,8 @@ for element in CK_TMAs:
 
         plt.tight_layout()
         plt.show()
-        exit()
+        # exit()
 
     CK_counter += 1
-    if CK_counter > 3:
+    if CK_counter > nb_iters:
         exit()
