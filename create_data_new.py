@@ -148,7 +148,7 @@ while True:  # Use this, HE_counter < 4 just for testing
         HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
 
         # downsample image before registration
-        """
+
         curr_shape = CK_TMA_padded.shape[:2]
 
         CK_TMA_padded_ds = cv2.resize(CK_TMA_padded,
@@ -171,7 +171,7 @@ while True:  # Use this, HE_counter < 4 just for testing
         # Pad TMAs:
         x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
         y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
-        """
+
         # Get TMA from mask slide
         position_CK_x /= (2 ** level)  # why do I need to do this now, when I didn't before?
         position_CK_y /= (2 ** level)  # why do I need to do this now, when I didn't before?
@@ -193,35 +193,24 @@ while True:  # Use this, HE_counter < 4 just for testing
         mask_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
 
         mask_TMA_padded[:patch.shape[0], :patch.shape[1]] = patch
-        """
-        # downsample image before registration
-        mask_TMA_padded_ds = cv2.resize(mask_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
-                                      interpolation=cv2.INTER_NEAREST)
 
-        detected_shift = phase_cross_correlation(CK_TMA_padded_ds, mask_TMA_padded_ds)  # detect shift between CK and mask. Should not need to do this
+        mask_padded_shifted = ndi.shift(mask_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
-        # print(detected_shift)
-        shifts_mask = detected_shift[0]
-        shifts_mask[2] = 0
+        # Pad TMAs:
+        x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
+        y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
+        mask = mask_padded_shifted[:patch.shape[0], :patch.shape[1]]
 
-        # scale shifts back and apply to original resolution
-        shifts_mask = (np.round(downsample_factor * shifts_mask)).astype("int32")
-
-        mask_padded_shifted = ndi.shift(mask_TMA_padded, shifts_mask, order=0, mode="constant", cval=0, prefilter=False)
-
-        # Pad mask:
-        mask_TMA = mask_padded_shifted[:patch.shape[0], :patch.shape[1]]
-        """
         # Visualize TMAs:
         if plot_flag:
             f, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
             #axes[0, 0].imshow(x) HE
-            axes[0, 0].imshow(CK_TMA) #(y)
-            axes[0, 1].imshow(HE_TMA) #(x)
-            #axes[0, 1].imshow(y, alpha=0.5)
-            axes[1, 0].imshow(patch[..., 0], cmap="gray") #(patch[..., 0], cmap="gray")
-            axes[1, 1].imshow(CK_TMA) #(mask_TMA[..., 0], cmap="gray")
-            axes[1, 1].imshow(patch[..., 0], alpha=0.5, cmap="gray") #(y, alpha=0.5)
+            axes[0, 0].imshow(y)
+            axes[0, 1].imshow(x)
+            axes[0, 1].imshow(y, alpha=0.5)
+            axes[1, 0].imshow(mask[..., 0], cmap="gray") #(patch[..., 0], cmap="gray")
+            axes[1, 1].imshow(y) #(mask_TMA[..., 0], cmap="gray")
+            axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray") #(y, alpha=0.5)
             plt.show()
 
         tma_idx += 1
@@ -247,71 +236,3 @@ print(shifts)
 # END NEW
 
 exit()
-
-position_y = height_slide
-CK_counter = 0
-for element in CK_TMAs:
-    print('---------')
-
-    CK_TMA = CK_TMAs[CK_counter]
-    position_CK = CK_TMA.getTransform().getTranslation()  # position of IHC TMA at position IHC_counter. just zero, why?
-
-    position_CK_x = position_CK[0].astype("int32")[0]  # ex [123.] -> 123, needs to be int for getPatchAsImage()
-    position_CK_y = position_CK[1].astype("int32")[0]
-    position_CK_z = position_CK[2].astype("int32")[0]
-
-    # print(CK_TMA.getTransform().getMatrix())
-
-    CK_TMA = np.asarray(CK_TMA)
-    height, width, _ = CK_TMA.shape
-
-    # position_y = position_y - height  # update y-position due to flip
-
-    position_CK_x /= (2 ** level)
-    position_CK_y /= (2 ** level)
-
-    position_CK_y = height_mask - position_CK_y - height
-
-    print(width_mask, height_mask)
-    print(width, height)
-    print(position_CK_x, position_CK_y, )
-
-    print("CK AND segCK sizes (original):", height_slide, width_slide, height_mask, width_mask)
-
-    # get corresponding TMA core in the annotated image as in the CK:
-    patch = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height), False)
-    patch = np.asarray(patch)
-
-    print(patch.shape)
-    patch = patch[..., 0]
-
-    patch = np.flip(patch, axis=0)  # since annotation is flipped
-
-    print(CK_TMA.shape)
-    print(np.unique(patch), patch.dtype)
-    print("postition y", position_y)
-
-    # plot CK tma core and mask:
-    if plot_flag:
-        plt.rcParams.update({'font.size': 28})
-
-        f, axes = plt.subplots(1, 3, figsize=(30, 30))  # Figure of patches
-
-        titles = ["CK TMA core", "mask from QuPath, blue channel"]
-        axes[0].imshow(CK_TMA, interpolation='none')
-        axes[1].imshow(patch, cmap="gray", interpolation='none')
-        axes[2].imshow(CK_TMA)
-        axes[2].imshow(patch, alpha=0.5, cmap='gray', interpolation='none')
-
-        cnts = 0
-        for i in range(2):
-                axes[i].set_title(titles[cnts])
-                cnts += 1
-
-        plt.tight_layout()
-        plt.show()
-        # exit()
-
-    CK_counter += 1
-    if CK_counter > nb_iters:
-        exit()
