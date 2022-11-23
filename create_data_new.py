@@ -16,7 +16,7 @@ nb_iters = 5
 HE_path = '/data/Maren_P1/epithelium/HE/ECD_EFI_HE_BC_4.vsi'
 CK_path = '/data/Maren_P1/epithelium/CK/ECD_EFI_CK_BC_4.vsi'
 # CK_path = '/home/maren/workspace/qupath-ck-seg/vsi_to_tif/ECD_EFI_CK_BC_4.tif'
-mask_path = '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/ECD_EFI_CK_BC_4_new.tiff'
+mask_path = '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/ECD_EFI_CK_BC_4.tiff'
 
 # import CK and annotated (in qupath) image:
 importerHE = fast.WholeSlideImageImporter.create(
@@ -179,6 +179,10 @@ while True:  # Use this, HE_counter < 4 just for testing
         position_CK_y = height_mask - position_CK_y - height
 
         # get corresponding TMA core in the annotated image as in the CK:
+        # skip TMA cores when area is outside mask area
+        if position_CK_x + width > width_mask or position_CK_y + height > height_mask:
+            print("TMA core boundary outside mask boundary")
+            continue
         patch = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
                                        False)
         patch = np.asarray(patch)
@@ -209,7 +213,7 @@ while True:  # Use this, HE_counter < 4 just for testing
             axes[0, 1].imshow(x)
             axes[0, 1].imshow(y, alpha=0.5)
             axes[1, 0].imshow(mask[..., 0], cmap="gray") #(patch[..., 0], cmap="gray")
-            axes[1, 1].imshow(y) #(mask_TMA[..., 0], cmap="gray")
+            axes[1, 1].imshow(x) #(mask_TMA[..., 0], cmap="gray")
             axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray") #(y, alpha=0.5)
             plt.show()
 
