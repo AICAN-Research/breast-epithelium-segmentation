@@ -139,8 +139,13 @@ while True:  # Use this, HE_counter < 4 just for testing
     dist_y = position_HE_y - position_CK_y
 
     if np.abs(dist_x) < dist_limit and np.abs(dist_y) < dist_limit:  # if positions are close we have a pair
+
         HE_counter += 1
         CK_counter += 1
+
+        # skip if one of the "position" cores
+        if position_HE_y < 5000:
+            continue
 
         # need to get TMA from coordinates
         #CK_TMA = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
@@ -211,6 +216,7 @@ while True:  # Use this, HE_counter < 4 just for testing
         position_CK_y = height_mask - position_CK_y - height
 
         # get corresponding TMA core in the annotated image as in the CK:
+        # get corresponding TMA core in manual annotated image as in the HE:
         # skip TMA cores when area is outside mask area
         if position_CK_x + width > width_mask or position_CK_y + height > height_mask:
             print("TMA core boundary outside mask boundary")
@@ -234,13 +240,15 @@ while True:  # Use this, HE_counter < 4 just for testing
         annot_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
 
         mask_TMA_padded[:patch.shape[0], :patch.shape[1]] = patch
+        # the correctly placed manual annotation:
         annot_TMA_padded[:patch_annot.shape[0], :patch_annot.shape[1]] = patch_annot
 
         mask_padded_shifted = ndi.shift(mask_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
-        # Pad TMAs:
+        # Pad TMAs, x and y are the correctly placed HE and CK cores:
         x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
         y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
+        # the correctly placed blue channel threshold:
         mask = mask_padded_shifted[:patch.shape[0], :patch.shape[1]]  # should I have CK_TMA.shape here instead?
 
         if plot_flag:
@@ -256,13 +264,12 @@ while True:  # Use this, HE_counter < 4 just for testing
         # Visualize TMAs:
         if plot_flag:
             f, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
-            #axes[0, 0].imshow(x) HE
             axes[0, 0].imshow(y)
             axes[0, 1].imshow(x)
             axes[0, 1].imshow(y, alpha=0.5)
-            axes[1, 0].imshow(mask[..., 0], cmap="gray") #(patch[..., 0], cmap="gray")
-            axes[1, 1].imshow(x) #(mask_TMA[..., 0], cmap="gray")
-            axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray") #(y, alpha=0.5)
+            axes[1, 0].imshow(mask[..., 0], cmap="gray")
+            axes[1, 1].imshow(x)
+            axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray")
             plt.show()
 
         tma_idx += 1
@@ -311,9 +318,9 @@ while True:  # Use this, HE_counter < 4 just for testing
             # One-hot TMA (IHC) binary, 01
             final_gt = np.stack([1 - curr_annotation, curr_annotation], axis=-1)
 
-            if False: # plot_flag:
+            if plot_flag:
                 print(":)")
-                fig, ax = plt.subplots(2, 2)  # Figure of the two patches on top of each other
+                fig, ax = plt.subplots(2, 2, figsize=(30, 30))  # Figure of the two patches on top of each other
                 ax[0, 0].imshow(patch_HE)
                 ax[0, 1].imshow(final_gt[..., 0], cmap="gray")
                 ax[1, 0].imshow(final_gt[..., 1], cmap="gray")
