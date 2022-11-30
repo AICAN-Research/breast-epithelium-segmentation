@@ -1,13 +1,9 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 import os
-import h5py
-import tensorflow_datasets as tfds
 from deep_learning_tools.network import Unet
-from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
+from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
-from tensorflow.keras.models import load_model
 from augment import random_brightness, random_rot90, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift
 from utils import normalize_img, patchReader
@@ -15,9 +11,9 @@ from argparse import ArgumentParser
 import sys
 
 parser = ArgumentParser()
-parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=8,
+parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=16,
                     help="set which batch size to use for training.")
-parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.001,
+parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0005,
                     help="set which learning rate to use for training.")
 parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
                     help="number of epochs to train.")
@@ -36,12 +32,12 @@ curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 img_size = 512
-nb_classes = 2
+nb_classes = 4
 
 name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
 # paths
-dataset_path = './datasets/210922_145759_TMASegmentation_level_2_psize_512_ds_4/'  # path to directory
+dataset_path = './datasets/241122_181001_TMASegmentation_level_2_psize_512_ds_4/'  # path to directory
 history_path = './output/history/'  # path to directory
 model_path = './output/models/'  # path to directory
 save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
@@ -120,15 +116,15 @@ tf.data.experimental.save(
     ds_test, save_ds_path + 'ds_test', compression=None, shard_func=None
 )
 
-ds_train = ds_train.shuffle(buffer_size=1)
+ds_train = ds_train.shuffle(buffer_size=N_train)  # is this correct, do I need to "reshuffle_each_iteration"?
 ds_train = ds_train.batch(ret.batch_size)
-ds_train = ds_train.prefetch(2)  # @TODO: Use prefetch(1) for better GPU utilization?
-ds_train = ds_train.repeat(-1)
+ds_train = ds_train.prefetch(1)
+ds_train = ds_train.repeat(-1)  # repeat indefinitely (?)
 
-ds_test = ds_test.shuffle(buffer_size=1)
+ds_test = ds_test.shuffle(buffer_size=N_test)  # is this correct, do I need to "reshuffle_each_iteration"?
 ds_test = ds_test.batch(ret.batch_size)
-ds_test = ds_test.prefetch(2)  # tf.data.AUTOTUNE)
-ds_test = ds_test.repeat(-1)
+ds_test = ds_test.prefetch(1)
+ds_test = ds_test.repeat(-1)  # repeat indefinitely (?)
 
 # normalize intensities
 ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
@@ -140,7 +136,8 @@ ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=4)
 ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=4)
 ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=4)  # ADDITIVE
 ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.1), y), num_parallel_calls=4)  # ADDITIVE
-ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y), num_parallel_calls=4)  # @TODO: MULTIPLICATIVE?
+ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
+                        num_parallel_calls=4)  # @TODO: MULTIPLICATIVE?
 ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=4)
 # shift last
 
@@ -158,6 +155,15 @@ history = CSVLogger(
     append=True
 )
 
+early = EarlyStopping(
+    monitor="val_loss",
+    min_delta=0,  # 0: any improvement is considered an improvement
+    patience=50,  # if not improved for 50 epochs, stops
+    verbose=1,
+    mode="min",  # set "min" for catching the lowest val_loss
+    restore_best_weights=False,
+)
+
 save_best = ModelCheckpoint(
     model_path + "model_" + name,
     monitor="val_loss",
@@ -172,6 +178,7 @@ model.compile(
     optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
     loss=network.get_dice_loss(),
     # metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
+    run_eagerly=False,
 )
 
 history = model.fit(
@@ -180,6 +187,6 @@ history = model.fit(
     epochs=ret.epochs,
     validation_data=ds_test,
     validation_steps=N_test // ret.batch_size,
-    callbacks=[save_best, history],
+    callbacks=[save_best, history, early],
     verbose=1,
 )
