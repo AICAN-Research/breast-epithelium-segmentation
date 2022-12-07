@@ -11,8 +11,8 @@ import os
 import pandas as pd
 
 
-def create_datasets(HE_path, CK_path, mask_path, annot_path,
-                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor):
+def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
+                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx):
 
     # fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
 
@@ -25,14 +25,18 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
         mask_path)  # path to annotated image
     importerAnnot = fast.TIFFImagePyramidImporter.create(
         annot_path)  # path to annotated image
+    importerRemove = fast.TIFFImagePyramidImporter.create(
+        remove_path)  # path to annotated image
 
     # access annotated mask (generated from qupath)
     mask = importerMask.runAndGetOutputData()
     annot = importerAnnot.runAndGetOutputData()
+    annotRemove = importerRemove.runAndGetOutputData()
     height_mask = mask.getLevelHeight(level)
     width_mask = mask.getLevelWidth(level)
     access = mask.getAccess(fast.ACCESS_READ)
     accessAnnot = annot.getAccess(fast.ACCESS_READ)
+    accessRemove = annotRemove.getAccess(fast.ACCESS_READ)
 
     # plot whole TMA image (does not work on level 0-3, image level too large to convert to FAST image)
     if plot_flag:
@@ -56,6 +60,14 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
         plt.imshow(numpy_image[..., 0], cmap='jet', interpolation="none")
         plt.show()
 
+    if plot_flag:
+        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerRemove)
+        image = extractor.runAndGetOutputData()
+        numpy_image = np.asarray(image)
+        plt.imshow(numpy_image[..., 0], cmap='jet', interpolation="none")
+        plt.show()
+
+
     # get CK TMA cores
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerCK)
     CK_TMAs = []
@@ -76,7 +88,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
 
     # init tqdm
     pbar = tqdm(total=max([len(CK_TMAs), len(HE_TMAs)]))
-    wsi_idx = 0
+    #wsi_idx = 0
     tma_idx = 0
     some_counter = 0
     HE_counter = 0
@@ -85,15 +97,10 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
     skip_indx = 0
 
-    """
-    # remove badly stained cores:
-    def remove_cores():
-        pd.read_excel(remove_cores_path)
-        print("read")
-    
-    remove_cores()
-    exit()
-    """
+    count_invasive = 0
+    count_benign = 0
+    count_inSitu = 0
+
     while True:
         some_counter += 1
         if HE_counter == len(HE_TMAs) or CK_counter == len(CK_TMAs):
@@ -155,6 +162,31 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
 
             CK_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]] = CK_TMA
             HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
+
+            # skip cores that should be removed
+            position_HE_x /= (2 ** level)  # why do I need to do this now, when I didn't before?
+            position_HE_y /= (2 ** level)  # why do I need to do this now, when I didn't before?
+            try:
+                remove_annot = accessRemove.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
+                                                      int(height_HE),
+                                                      False)
+            except RuntimeError as e:
+                print(e)
+                continue
+            patch_remove = np.asarray(remove_annot)
+            patch_remove = patch_remove[..., 0:3]
+            remove_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
+            remove_TMA_padded[:patch_remove.shape[0], :patch_remove.shape[1]] = patch_remove
+            remove_TMA_padded = remove_TMA_padded[:patch_remove.shape[0], :patch_remove.shape[1]]
+
+            if np.count_nonzero(remove_TMA_padded) > 0:
+                if plot_flag:
+                    f, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
+                    axes[0].imshow(remove_TMA_padded[..., 0], cmap="gray")
+                    axes[1].imshow(HE_TMA_padded, cmap="gray")
+                    plt.show()
+                continue
+            #exit()
 
             # downsample image before registration
             curr_shape = CK_TMA_padded.shape[:2]
@@ -220,7 +252,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
             mask = mask_padded_shifted[:patch.shape[0], :patch.shape[1]]  # should I have CK_TMA.shape here instead?
 
             # do the same for manual annotations
-            annot_TMA_padded = annot_TMA_padded[:patch.shape[0], :patch.shape[1]]
+            annot_TMA_padded = annot_TMA_padded[:patch.shape[0], :patch.shape[1]]  # is this necessary?
 
             if plot_flag:
                 f, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
@@ -258,8 +290,14 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
             streamers = [fast.DataStream(curr) for curr in generators]
 
             for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):
+                try:
+                    patch_HE = np.array(patch_HE)
+                except RuntimeError as e:
+                    print(e)
+                    print("shape", patch_HE.shape)
+                    continue
                 # fast to np array
-                patch_HE = np.array(patch_HE)
+                #patch_HE = np.array(patch_HE)
                 patch_mask = np.array(patch_mask)[..., 0]
                 patch_healthy = np.array(patch_healthy)[..., 0]
                 patch_in_situ = np.array(patch_in_situ)[..., 0]
@@ -292,10 +330,25 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
                     ax[1, 2].imshow(gt_one_hot[..., 3], cmap="gray")
                     plt.show()  # Show the two images on top of each other
 
+                # check if patch includes benign or in situ
+                # How to deal with patches with multiple classes??
+                if np.count_nonzero(patch_in_situ) > 0:
+                    add_to_path = 'inSitu/'
+                    count_inSitu += 1
+                elif np.count_nonzero(patch_healthy) > 0:
+                    add_to_path = 'benign/'
+                    count_benign += 1
+                else:
+                    add_to_path = 'invasive/'
+                    count_invasive += 1
+                print("dataset path", dataset_path + file_name + "/" + add_to_path)
+                # create folder if not exists
+                os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
+
                 # insert saving patches as hdf5 (h5py) here:
-                #with h5py.File(dataset_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
-                #    f.create_dataset(name="input", data=patch_HE.astype("uint8"))
-                #    f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                with h5py.File(dataset_path + file_name + "/" + add_to_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                    f.create_dataset(name="input", data=patch_HE.astype("uint8"))
+                    f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
 
             tma_idx += 1
 
@@ -311,21 +364,23 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path,
             raise ValueError("Logical error in distance calculation")
 
     pbar.close()
+    print("count invasive", count_invasive)
+    print("count benign", count_benign)
+    print("count in situ", count_inSitu)
 
 
 if __name__ == "__main__":
-    print("HERHERHER")
-    print('------........------')
 
     # --- HYPER PARAMS
     plot_flag = False
     level = 2  # image pyramid level
-    nb_iters = 5
+    nb_iters = -1
     patch_size = 512
     downsample_factor = 4  # tested with 8, but not sure if better
+    wsi_idx = 0
 
+    # find number of slides in total
     mask_path = '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/'
-
     files = os.listdir(mask_path)
     nbr_files = len(files)
 
@@ -345,26 +400,29 @@ if __name__ == "__main__":
     val_set = shuffled_files[N_train:(N_train + N_val)]
     test_set = shuffled_files[(N_train + N_val):]
 
-    # curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
-    # curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
+    curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
+    curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 
     # dataset path name
-    # dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
-    #               "_TMASegmentation_level_" + str(level) + \
-    #               "_psize_" + str(patch_size) + \
-    #               "_ds_" + str(downsample_factor) + "/"
+    # level = TMA segmentation level
+    dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
+                   "_level_" + str(level) + \
+                   "_psize_" + str(patch_size) + \
+                   "_ds_" + str(downsample_factor) + "/"
 
     # create folder if not exists
-    # os.makedirs(dataset_path, exist_ok=True)
+    os.makedirs(dataset_path, exist_ok=True)
 
     file_set = train_set, val_set, test_set
     print("file set", file_set)
     print("length file set", len(file_set))
-    file_names = ['train_set', 'val_set', 'test_set']
+    file_names = ['ds_train', 'ds_val', 'ds_test']
     count = 0
     for files in file_set:
         file_name = file_names[count]
         for file in files:
+            #if not file.endswith("3.tiff"):  # just for testing on one slide
+            #    continue
             file_front = file.split("_CK")[0]
             id_ = file.split("BC_")[1].split(".tiff")[0]
 
@@ -374,7 +432,10 @@ if __name__ == "__main__":
                 id_) + '.tiff'
             annot_path = '/home/maren/workspace/qupath-ck-seg/export_annotations_pyramidal_tiff_291122/' \
                          + str(file_front) + '_HE_BC_' + str(id_) + '-labels.ome.tif'
+            remove_path = '/home/maren/workspace/qupath-ck-seg/export_annotations_remove_cores_061222/' + str(file_front) + '_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
 
-            create_datasets(HE_path, CK_path, mask_path, annot_path,
-                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor)
+            create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
+                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx)
+
+            wsi_idx += 1
         count += 1
