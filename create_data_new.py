@@ -11,7 +11,7 @@ import os
 
 
 def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
-                    file_name, plot_flag, plot_flag_test, level, nb_iters, patch_size, downsample_factor, wsi_idx):
+                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit):
 
     # fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
 
@@ -91,7 +91,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     some_counter = 0
     HE_counter = 0
     CK_counter = 0
-    dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
 
     count_invasive = 0
     count_benign = 0
@@ -138,6 +137,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             CK_TMA = np.asarray(CK_TMA)
             HE_TMA = np.asarray(HE_TMA)
 
+            #TODO: is this what happens at TODO at about row 290 as well?
             if (CK_TMA.dtype == "object") or (HE_TMA.dtype == "object"):
                 #print("TMA was 'corrupt', either HE or CK")
                 continue
@@ -158,8 +158,8 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
 
             # skip cores that should be removed
-            position_HE_x /= (2 ** level)  # why do I need to do this now, when I didn't before?
-            position_HE_y /= (2 ** level)  # why do I need to do this now, when I didn't before?
+            position_HE_x /= (2 ** level)
+            position_HE_y /= (2 ** level)
             try:
                 remove_annot = accessRemove.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
                                                       int(height_HE),
@@ -205,8 +205,8 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
 
             # Get TMA from mask slide
-            position_CK_x /= (2 ** level)  # why do I need to do this now, when I didn't before?
-            position_CK_y /= (2 ** level)  # why do I need to do this now, when I didn't before?
+            position_CK_x /= (2 ** level)
+            position_CK_y /= (2 ** level)
 
             position_CK_y = height_mask - position_CK_y - height
 
@@ -275,9 +275,9 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 ax[0, 0].imshow(marit_annot[..., 0], cmap="jet")
                 ax[0, 1].imshow(healthy_ep[..., 0], cmap="gray")
                 ax[1, 0].imshow(in_situ[..., 0], cmap="gray")
-                plt.show()  # Show the two images on top of each other
+                plt.show()
 
-            # substract fixed healthy and in-sity from invasive tissue
+            # subtract fixed healthy and in situ from invasive tissue
             mask[healthy_ep == 1] = 0
             mask[in_situ == 1] = 0
 
@@ -286,6 +286,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             generators = [fast.PatchGenerator.create(patch_size, patch_size).connect(0, curr) for curr in data_fast]
             streamers = [fast.DataStream(curr) for curr in generators]
 
+            # @TODO: find out why the error below sometimes happens
             for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):
                 try:
                     patch_HE = np.array(patch_HE)
@@ -306,7 +307,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 if (len(patch_HE) == 0) or (len(patch_mask) == 0):
                     continue
 
-                # pad patches with incorrect shape
+                #TODO: pad patches with incorrect shape, now they are just skipped
                 if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
                     continue
                     patch_HE_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
@@ -338,14 +339,13 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 else:
                     add_to_path = 'invasive/'
                     count_invasive += 1
-                print("dataset path", dataset_path + file_name + "/" + add_to_path)
                 # create folder if not exists
-                #os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
+                os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
 
                 # insert saving patches as hdf5 (h5py) here:
-                #with h5py.File(dataset_path + file_name + "/" + add_to_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
-                #    f.create_dataset(name="input", data=patch_HE.astype("uint8"))
-                #    f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                with h5py.File(dataset_path + file_name + "/" + add_to_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                    f.create_dataset(name="input", data=patch_HE.astype("uint8"))
+                    f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
 
             tma_idx += 1
 
@@ -361,21 +361,18 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             raise ValueError("Logical error in distance calculation")
 
     pbar.close()
-    print("count invasive", count_invasive)
-    print("count benign", count_benign)
-    print("count in situ", count_inSitu)
 
 
 if __name__ == "__main__":
 
     # --- HYPER PARAMS
     plot_flag = False
-    plot_flag_test = True
     level = 2  # image pyramid level
     nb_iters = -1
     patch_size = 512
     downsample_factor = 4  # tested with 8, but not sure if better
     wsi_idx = 0
+    dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
 
     # find number of slides in total
     mask_path = '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/'
@@ -409,18 +406,16 @@ if __name__ == "__main__":
                    "_ds_" + str(downsample_factor) + "/"
 
     # create folder if not exists
-    #os.makedirs(dataset_path, exist_ok=True)
+    os.makedirs(dataset_path, exist_ok=True)
 
     file_set = train_set, val_set, test_set
     print("file set", file_set)
     print("length file set", len(file_set))
     file_names = ['ds_train', 'ds_val', 'ds_test']
-    count = 0
+    count = 0  # go through file names
     for files in file_set:
         file_name = file_names[count]
         for file in files:
-            if not file.endswith("3.tiff"):  # just for testing on one slide
-                continue
             file_front = file.split("_CK")[0]
             id_ = file.split("BC_")[1].split(".tiff")[0]
 
@@ -433,7 +428,7 @@ if __name__ == "__main__":
             remove_path = '/home/maren/workspace/qupath-ck-seg/export_annotations_remove_cores_061222/' + str(file_front) + '_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
 
             create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
-                    file_name, plot_flag, plot_flag_test, level, nb_iters, patch_size, downsample_factor, wsi_idx)
+                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
 
             wsi_idx += 1
         count += 1
