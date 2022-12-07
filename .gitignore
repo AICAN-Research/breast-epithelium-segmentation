@@ -8,3 +8,4 @@ deep_learning_tools/
 *.jpg
 *.whl
 *.xlsx
+*.geojson
