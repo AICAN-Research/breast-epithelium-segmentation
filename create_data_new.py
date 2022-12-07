@@ -88,7 +88,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     # init tqdm
     pbar = tqdm(total=max([len(CK_TMAs), len(HE_TMAs)]))
     tma_idx = 0
-    some_counter = 0
     HE_counter = 0
     CK_counter = 0
 
@@ -97,7 +96,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     count_inSitu = 0
 
     while True:
-        some_counter += 1
         if HE_counter == len(HE_TMAs) or CK_counter == len(CK_TMAs):
             break
 
@@ -160,6 +158,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             # skip cores that should be removed
             position_HE_x /= (2 ** level)
             position_HE_y /= (2 ** level)
+
             try:
                 remove_annot = accessRemove.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
                                                       int(height_HE),
@@ -167,6 +166,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             except RuntimeError as e:
                 print(e)
                 continue
+
             patch_remove = np.asarray(remove_annot)
             patch_remove = patch_remove[..., 0:3]
             remove_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
@@ -216,6 +216,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             if position_CK_x + width > width_mask or position_CK_y + height > height_mask:
                 # print("TMA core boundary outside mask boundary")
                 continue
+
             patch = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
                                            False)
             patch_annot = accessAnnot.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
@@ -288,12 +289,14 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
 
             # @TODO: find out why the error below sometimes happens
             for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):
+
                 try:
                     patch_HE = np.array(patch_HE)
                 except RuntimeError as e:
                     print(e)
                     print("shape", patch_HE.shape)
                     continue
+
                 # fast to np array
                 #patch_HE = np.array(patch_HE)
                 patch_mask = np.array(patch_mask)[..., 0]
@@ -339,6 +342,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 else:
                     add_to_path = 'invasive/'
                     count_invasive += 1
+
                 # create folder if not exists
                 os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
 
