@@ -8,11 +8,10 @@ from scipy import ndimage as ndi
 import h5py
 from datetime import datetime, date
 import os
-import pandas as pd
 
 
 def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
-                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx):
+                    file_name, plot_flag, plot_flag_test, level, nb_iters, patch_size, downsample_factor, wsi_idx):
 
     # fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
 
@@ -88,14 +87,11 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
 
     # init tqdm
     pbar = tqdm(total=max([len(CK_TMAs), len(HE_TMAs)]))
-    #wsi_idx = 0
     tma_idx = 0
     some_counter = 0
     HE_counter = 0
     CK_counter = 0
-    shifts = []
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
-    skip_indx = 0
 
     count_invasive = 0
     count_benign = 0
@@ -119,11 +115,9 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
 
         position_HE_x = position_HE[0][0]
         position_HE_y = position_HE[1][0]
-        position_HE_z = position_HE[2][0]
 
         position_CK_x = position_CK[0][0]
         position_CK_y = position_CK[1][0]
-        position_CK_z = position_CK[2][0]
 
         dist_x = position_HE_x - position_CK_x
         dist_y = position_HE_y - position_CK_y
@@ -186,7 +180,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                     axes[1].imshow(HE_TMA_padded, cmap="gray")
                     plt.show()
                 continue
-            #exit()
 
             # downsample image before registration
             curr_shape = CK_TMA_padded.shape[:2]
@@ -214,9 +207,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             # Get TMA from mask slide
             position_CK_x /= (2 ** level)  # why do I need to do this now, when I didn't before?
             position_CK_y /= (2 ** level)  # why do I need to do this now, when I didn't before?
-
-            position_HE_x /= (2 ** level)  # why do I need to do this now, when I didn't before?
-            position_HE_y /= (2 ** level)  # why do I need to do this now, when I didn't before?
 
             position_CK_y = height_mask - position_CK_y - height
 
@@ -271,14 +261,21 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 axes[0, 1].imshow(x)
                 axes[0, 1].imshow(y, alpha=0.5)
                 axes[1, 0].imshow(mask[..., 0], cmap="gray")
-                axes[1, 1].imshow(x)
-                axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray")
+                axes[1, 1].imshow(annot_TMA_padded[..., 0], cmap="jet")
+                #axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray")
                 plt.show()
 
             # get each GT annotation as its own binary image + fix manual annotations
             marit_annot = np.asarray(annot_TMA_padded)
             healthy_ep = ((marit_annot == 1) & (mask == 1)).astype("float32")
             in_situ = ((marit_annot == 2) & (mask == 1)).astype("float32")
+
+            if plot_flag:
+                fig, ax = plt.subplots(2, 2, figsize=(30, 30))  # Figure of the two patches on top of each other
+                ax[0, 0].imshow(marit_annot[..., 0], cmap="jet")
+                ax[0, 1].imshow(healthy_ep[..., 0], cmap="gray")
+                ax[1, 0].imshow(in_situ[..., 0], cmap="gray")
+                plt.show()  # Show the two images on top of each other
 
             # substract fixed healthy and in-sity from invasive tissue
             mask[healthy_ep == 1] = 0
@@ -343,12 +340,12 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                     count_invasive += 1
                 print("dataset path", dataset_path + file_name + "/" + add_to_path)
                 # create folder if not exists
-                os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
+                #os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
 
                 # insert saving patches as hdf5 (h5py) here:
-                with h5py.File(dataset_path + file_name + "/" + add_to_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
-                    f.create_dataset(name="input", data=patch_HE.astype("uint8"))
-                    f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                #with h5py.File(dataset_path + file_name + "/" + add_to_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                #    f.create_dataset(name="input", data=patch_HE.astype("uint8"))
+                #    f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
 
             tma_idx += 1
 
@@ -373,6 +370,7 @@ if __name__ == "__main__":
 
     # --- HYPER PARAMS
     plot_flag = False
+    plot_flag_test = True
     level = 2  # image pyramid level
     nb_iters = -1
     patch_size = 512
@@ -411,7 +409,7 @@ if __name__ == "__main__":
                    "_ds_" + str(downsample_factor) + "/"
 
     # create folder if not exists
-    os.makedirs(dataset_path, exist_ok=True)
+    #os.makedirs(dataset_path, exist_ok=True)
 
     file_set = train_set, val_set, test_set
     print("file set", file_set)
@@ -421,8 +419,8 @@ if __name__ == "__main__":
     for files in file_set:
         file_name = file_names[count]
         for file in files:
-            #if not file.endswith("3.tiff"):  # just for testing on one slide
-            #    continue
+            if not file.endswith("3.tiff"):  # just for testing on one slide
+                continue
             file_front = file.split("_CK")[0]
             id_ = file.split("BC_")[1].split(".tiff")[0]
 
@@ -435,7 +433,7 @@ if __name__ == "__main__":
             remove_path = '/home/maren/workspace/qupath-ck-seg/export_annotations_remove_cores_061222/' + str(file_front) + '_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
 
             create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
-                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx)
+                    file_name, plot_flag, plot_flag_test, level, nb_iters, patch_size, downsample_factor, wsi_idx)
 
             wsi_idx += 1
         count += 1
