@@ -48,9 +48,6 @@ paths = np.array([dataset_path + x for x in patches]).astype("U400")  # make lis
 ds_all = tf.data.Dataset.from_tensor_slices(paths)  # list of paths to tensor in data.Dataset format
 ds_all = ds_all.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=4)
 
-# for train/val/test, split on patient-level (ideally) or TMA-level. You have information on this in the filenames
-
-
 # ds_train = ds_train.cache()
 
 # create test set
@@ -59,52 +56,6 @@ N_train = int(np.round(N * 0.8))
 N_test = N - N_train
 ds_train = ds_all.take(N_train)
 ds_test = ds_all.skip(N_train)
-
-"""
-ds_train = ds_train.map(normalize_img)
-# hsv augmentation next
-# ds_train = ds_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)  # remove this when not testing
-
-for image, mask in ds_train:
-    # image, mask = next(iter(ds_train))
-
-    img_orig = tf.identity(image)
-    mask_orig = tf.identity(mask)
-
-    #f, axes = plt.subplots(1, 2)  # Figure of the two corresponding TMAs
-    #axes[0].imshow(image)
-    #axes[1].imshow(mask[:, :, 1], cmap="gray")
-    #plt.show()
-
-    # image_aug = random_saturation(image, saturation=0.5)
-    # image_aug = np.asarray(image_aug)
-    # mask = np.asarray(mask)
-    # image, mask = random_shift(image, mask)  # how does this work, or does it? It is a keras layer? does it just work during training?
-    image, mask = random_rot90(image, mask)
-    image, mask = random_brightness(image, brightness=0.2), mask
-    image, mask = random_hue(image, max_delta=0.1), mask
-    image, mask = random_saturation(image, saturation=0.5), mask  # @TODO: MULTIPLICATIVE??
-    image, mask = random_shift(image, mask, translate=50)
-
-    image = np.asarray(image).astype("float32")
-    mask = np.asarray(mask).astype("float32")
-
-    img_orig = np.asarray(img_orig).astype("float32")
-    mask_orig = np.asarray(mask_orig).astype("float32")
-
-    f, axes = plt.subplots(2, 3)  # Figure of the two corresponding TMAs
-    axes[0, 0].imshow(img_orig)
-    axes[0, 1].imshow(mask_orig[:, :, 0], cmap="gray")
-    axes[0, 2].imshow(mask_orig[:, :, 1], cmap="gray")
-
-    axes[1, 0].imshow(image)
-    axes[1, 1].imshow(mask[:, :, 0], cmap="gray")
-    axes[1, 2].imshow(mask[:, :, 1], cmap="gray")
-
-    plt.show()
-
-exit()
-"""
 
 os.makedirs(save_ds_path, exist_ok=True)  # check if exist, then create, otherwise not
 
