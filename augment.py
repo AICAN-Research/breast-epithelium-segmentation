@@ -42,6 +42,13 @@ def random_saturation(x, saturation):
     return x
 
 
+def random_blur(x):
+    nbr = tf.random.uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
+    x = tf.cond(nbr < 0.5, lambda: x, lambda: tf.clip_by_value(
+        tfa.image.gaussian_filter2d(x, filter_shape=(3, 3), sigma=0.5), 0, 1))
+    return x
+
+
 # convenience
 def gt_shift(z, shift_x, shift_y):
     # need to handle one-hots in a specific way, when shifting
@@ -63,6 +70,3 @@ def random_shift(x, y, translate=50):
                    )
     return x, y
 
-# zoom
-# think about interpolation
-# think about gt is one-hot encoded
