@@ -132,13 +132,17 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             # CK_TMA = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
             #                               False)
 
-            CK_TMA = np.asarray(CK_TMA)
-            HE_TMA = np.asarray(HE_TMA)
+            try:
+                CK_TMA = np.asarray(CK_TMA)
+                HE_TMA = np.asarray(HE_TMA)
+            except RuntimeError as e:
+                print(e)
+                continue
 
             #TODO: is this what happens at TODO at about row 290 as well?
-            if (CK_TMA.dtype == "object") or (HE_TMA.dtype == "object"):
+            #if (CK_TMA.dtype == "object") or (HE_TMA.dtype == "object"):
                 #print("TMA was 'corrupt', either HE or CK")
-                continue
+            #    continue
 
             shapes_CK_TMA = CK_TMA.shape
             shapes_HE_TMA = HE_TMA.shape
@@ -288,68 +292,74 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             streamers = [fast.DataStream(curr) for curr in generators]
 
             # @TODO: find out why the error below sometimes happens
-            for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):
+            try:
+                for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
 
-                try:
-                    patch_HE = np.array(patch_HE)
-                except RuntimeError as e:
-                    print(e)
-                    print("shape", patch_HE.shape)
-                    continue
+                    try:
+                        # convert from FAST image to numpy array
+                        patch_HE = np.array(patch_HE)
+                        patch_mask = np.array(patch_mask)[..., 0]
+                        patch_healthy = np.array(patch_healthy)[..., 0]
+                        patch_in_situ = np.array(patch_in_situ)[..., 0]
+                    except RuntimeError as e:
+                        print(e)
+                        #print("shape", patch_HE.shape)
+                        continue
 
-                # fast to np array
-                #patch_HE = np.array(patch_HE)
-                patch_mask = np.array(patch_mask)[..., 0]
-                patch_healthy = np.array(patch_healthy)[..., 0]
-                patch_in_situ = np.array(patch_in_situ)[..., 0]
+                    # create one-hot, one channel for each class
+                    #TODO: is the background class correct, should it be 1 - (patch_mask - patch_healthy - patch_in_situ)?
+                    gt_one_hot = np.stack([1 - patch_mask - patch_healthy - patch_in_situ, patch_mask, patch_healthy, patch_in_situ], axis=-1)
 
-                # create one-hot, one channel for each class
-                gt_one_hot = np.stack([1 - patch_mask, patch_mask, patch_healthy, patch_in_situ], axis=-1)
+                    if np.any(gt_one_hot[..., 0] < 0):
+                        raise ValueError("Negative values occurred in the background class, check the segmentations...")
 
-                # check if either of the shapes are empty, if yes, continue
-                if (len(patch_HE) == 0) or (len(patch_mask) == 0):
-                    continue
+                    # check if either of the shapes are empty, if yes, continue
+                    if (len(patch_HE) == 0) or (len(patch_mask) == 0):
+                        continue
 
-                #TODO: pad patches with incorrect shape, now they are just skipped
-                if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
-                    continue
-                    patch_HE_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
-                    patch_mask_padded = np.zeros((patch_size, patch_size, 3), dtype="uint8")
+                    #TODO: pad patches with incorrect shape, now they are just skipped
+                    if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
+                        continue
+                        patch_HE_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
+                        patch_mask_padded = np.zeros((patch_size, patch_size, 3), dtype="uint8")
 
-                    patch_HE_padded[:patch_HE.shape[0], :patch_HE.shape[1]] = patch_HE.astype("uint8")
-                    patch_mask_padded[:patch_mask.shape[0], :patch_mask.shape[1]] = patch_mask.astype("uint8")
+                        patch_HE_padded[:patch_HE.shape[0], :patch_HE.shape[1]] = patch_HE.astype("uint8")
+                        patch_mask_padded[:patch_mask.shape[0], :patch_mask.shape[1]] = patch_mask.astype("uint8")
 
-                    patch_HE = patch_HE_padded
-                    patch_mask = patch_mask_padded
+                        patch_HE = patch_HE_padded
+                        patch_mask = patch_mask_padded
 
-                if plot_flag:
-                    fig, ax = plt.subplots(2, 3, figsize=(30, 30))  # Figure of the two patches on top of each other
-                    ax[0, 0].imshow(patch_HE)
-                    ax[0, 1].imshow(gt_one_hot[..., 0], cmap="gray")
-                    ax[0, 2].imshow(gt_one_hot[..., 1], cmap="gray")
-                    ax[1, 1].imshow(gt_one_hot[..., 2], cmap="gray")
-                    ax[1, 2].imshow(gt_one_hot[..., 3], cmap="gray")
-                    plt.show()  # Show the two images on top of each other
+                    if plot_flag:
+                        fig, ax = plt.subplots(2, 3, figsize=(30, 30))  # Figure of the two patches on top of each other
+                        ax[0, 0].imshow(patch_HE)
+                        ax[0, 1].imshow(gt_one_hot[..., 0], cmap="gray")
+                        ax[0, 2].imshow(gt_one_hot[..., 1], cmap="gray")
+                        ax[1, 1].imshow(gt_one_hot[..., 2], cmap="gray")
+                        ax[1, 2].imshow(gt_one_hot[..., 3], cmap="gray")
+                        plt.show()  # Show the two images on top of each other
 
-                # check if patch includes benign or in situ
-                # How to deal with patches with multiple classes??
-                if np.count_nonzero(patch_in_situ) > 0:
-                    add_to_path = 'inSitu/'
-                    count_inSitu += 1
-                elif np.count_nonzero(patch_healthy) > 0:
-                    add_to_path = 'benign/'
-                    count_benign += 1
-                else:
-                    add_to_path = 'invasive/'
-                    count_invasive += 1
+                    # check if patch includes benign or in situ
+                    # How to deal with patches with multiple classes??
+                    if np.count_nonzero(patch_in_situ) > 0:
+                        add_to_path = 'inSitu/'
+                        count_inSitu += 1
+                    elif np.count_nonzero(patch_healthy) > 0:
+                        add_to_path = 'benign/'
+                        count_benign += 1
+                    else:
+                        add_to_path = 'invasive/'
+                        count_invasive += 1
 
-                # create folder if not exists
-                os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
+                    # create folder if not exists
+                    os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
 
-                # insert saving patches as hdf5 (h5py) here:
-                with h5py.File(dataset_path + file_name + "/" + add_to_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
-                    f.create_dataset(name="input", data=patch_HE.astype("uint8"))
-                    f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                    # insert saving patches as hdf5 (h5py) here:
+                    with h5py.File(dataset_path + file_name + "/" + add_to_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                        f.create_dataset(name="input", data=patch_HE.astype("uint8"))
+                        f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+            except RuntimeError as e:
+                print(e)
+                continue
 
             tma_idx += 1
 
