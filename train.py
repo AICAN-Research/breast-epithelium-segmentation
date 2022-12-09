@@ -5,7 +5,7 @@ from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
 from augment import random_brightness, random_rot90, random_fliplr, random_flipud, \
-    random_hue, random_saturation, random_shift
+    random_hue, random_saturation, random_shift, random_blur
 from utils import normalize_img, patchReader, get_random_path_from_random_class
 from argparse import ArgumentParser
 import sys
@@ -115,6 +115,7 @@ ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), 
 ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=4)  # ADDITIVE
 ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
                         num_parallel_calls=4)  # @TODO: MULTIPLICATIVE?
+ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=4)
 ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=4)
 # shift last
 
