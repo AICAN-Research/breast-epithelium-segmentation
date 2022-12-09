@@ -288,7 +288,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
 
             data = [x, mask, healthy_ep, in_situ]
             data_fast = [fast.Image.createFromArray(curr) for curr in data]
-            generators = [fast.PatchGenerator.create(patch_size, patch_size).connect(0, curr) for curr in data_fast]
+            generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=0.25).connect(0, curr) for curr in data_fast]
             streamers = [fast.DataStream(curr) for curr in generators]
 
             # @TODO: find out why the error below sometimes happens
