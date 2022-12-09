@@ -4,7 +4,8 @@ import numpy as np
 import os
 from tqdm import tqdm
 from utils import normalize_img, patchReader
-from augment import random_rot90, random_fliplr, random_flipud, random_hue, random_saturation, random_brightness
+from augment import random_rot90, random_fliplr, \
+    random_flipud, random_hue, random_saturation, random_brightness, random_blur
 
 
 # evaluate augmentation
@@ -22,44 +23,57 @@ def eval_augmentation():
     ds_train = tf.data.Dataset.from_tensor_slices(paths)
     ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=4)
 
-    ds_train = ds_train.take(10)  # testing with 10
+    ds_train = ds_train.take(100)  # testing with 10
     ds_train = ds_train.map(normalize_img)
 
+    count = 0
+    image_alls = []
     for image, mask in tqdm(ds_train):
-        image_rot, mask_rot = random_rot90(image, mask)
-        image_fup, mask_fup = random_flipud(image, mask)
-        image_flr, mask_flr = random_fliplr(image, mask)
-        image_rs = random_saturation(image, saturation=0.5)
-        image_rh = random_hue(image, max_delta=0.1)
-        image_rb = random_brightness(image, brightness=0.2)
 
-        if plot_flag:
+        image_all, mask_rot = random_rot90(image, mask)
+        image_all, mask_fup = random_flipud(image_all, mask)
+        image_all, mask_flr = random_fliplr(image_all, mask)
+        image_all = random_saturation(image_all, saturation=0.5)
+        image_all = random_hue(image_all, max_delta=0.05)
+        image_all = random_brightness(image_all, brightness=0.2)
+        image_all = random_blur(image_all)
+        image_alls.append(image_all)
+
+        if plot_flag and count > 8:
             f, axes = plt.subplots(3, 3)  # Figure of the two corresponding TMAs
-            axes[0, 0].imshow(image)
-            axes[0, 0].set_title("image")
+            axes[0, 0].imshow(image_alls[0])
+            axes[0, 0].set_title("all1")
 
-            axes[0, 1].imshow(image_rot)
-            axes[0, 1].set_title("image rot")
+            axes[0, 1].imshow(image_alls[1])
+            axes[0, 1].set_title("all2")
 
-            axes[0, 2].imshow(image_fup)
-            axes[0, 2].set_title("image fup")
+            axes[0, 2].imshow(image_alls[2])
+            axes[0, 2].set_title("all3")
 
-            axes[1, 0].imshow(image_flr)
-            axes[1, 0].set_title("image flr")
+            axes[1, 0].imshow(image_alls[3])
+            axes[1, 0].set_title("all4")
 
-            axes[1, 1].imshow(image_rb)
-            axes[1, 1].set_title("image rb")
+            axes[1, 1].imshow(image_alls[4])
+            axes[1, 1].set_title("all5")
 
-            axes[1, 2].imshow(image_rh)
-            axes[1, 2].set_title("image rh")
+            axes[1, 2].imshow(image_alls[5])
+            axes[1, 2].set_title("all6")
 
-            axes[2, 0].imshow(image_rs)
-            axes[2, 0].set_title("image rs")
+            axes[2, 0].imshow(image_alls[6])
+            axes[2, 0].set_title("all7")
+
+            axes[2, 1].imshow(image_alls[7])
+            axes[2, 1].set_title("all8")
+
+            axes[2, 2].imshow(image_alls[8])
+            axes[2, 2].set_title("all9")
 
             plt.show()
-            exit()
+        count += 1
+        if count == 10:
+            count = 0
+            image_alls.clear()
 
 
 if __name__ == "__main__":
     eval_augmentation()
-    
