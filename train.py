@@ -6,7 +6,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
 from augment import random_brightness, random_rot90, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift
-from utils import normalize_img, patchReader
+from utils import normalize_img, patchReader, get_random_path_from_random_class
 from argparse import ArgumentParser
 import sys
 
@@ -19,6 +19,8 @@ parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500
                     help="number of epochs to train.")
 parser.add_argument('--patience', metavar='--pa', type=int, nargs='?', default=10,
                     help="number of epochs to wait (patience) for early stopping.")
+parser.add_argument('--proc', metavar='--pr', type=int, nargs='?', default=4,
+                    help="number of workers to use with tf.data.")
 ret = parser.parse_known_args(sys.argv[1:])[0]
 
 print(ret)
@@ -37,49 +39,73 @@ nb_classes = 4
 name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
 # paths
-dataset_path = './datasets/241122_181001_TMASegmentation_level_2_psize_512_ds_4/'  # path to directory
+dataset_path = './datasets/081222_133329_level_2_psize_512_ds_4/'  # path to directory
+train_path = dataset_path + 'ds_train'
+val_path = dataset_path + 'ds_val'
+test_path = dataset_path + 'ds_test'
 history_path = './output/history/'  # path to directory
 model_path = './output/models/'  # path to directory
 save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
 
-patches = os.listdir(dataset_path)
-paths = np.array([dataset_path + x for x in patches]).astype("U400")  # make list of elements in
+N_train_tot = 1000
+N_val_tot = 200
 
-ds_all = tf.data.Dataset.from_tensor_slices(paths)  # list of paths to tensor in data.Dataset format
-ds_all = ds_all.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=4)
+# --------------------
+train_paths = []
+for directory in os.listdir(train_path):
+    dir_path = train_path + "/" + directory + "/"
+    dir_paths = []
+    for file_ in os.listdir(dir_path):
+        file_path = dir_path + file_
+        dir_paths.append(file_path)
+    train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
 
-# ds_train = ds_train.cache()
+val_paths = []
+for directory in os.listdir(val_path):
+    dir_path = train_path + "/" + directory + "/"
+    dir_paths = []
+    for file_ in os.listdir(dir_path):
+        file_path = dir_path + file_
+        dir_paths.append(file_path)
+    val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
 
-# create test set
-N = len(patches)
-N_train = int(np.round(N * 0.8))
-N_test = N - N_train
-ds_train = ds_all.take(N_train)
-ds_test = ds_all.skip(N_train)
-
-os.makedirs(save_ds_path, exist_ok=True)  # check if exist, then create, otherwise not
-
-tf.data.experimental.save(
-    ds_train, save_ds_path + 'ds_train', compression=None, shard_func=None
+# combine all train/val paths
+ds_train = tf.data.Dataset.from_generator(
+    get_random_path_from_random_class,
+    output_shapes=tf.TensorShape([]),
+    output_types=tf.string,
+    args=train_paths
 )
 
-tf.data.experimental.save(
-    ds_test, save_ds_path + 'ds_test', compression=None, shard_func=None
+ds_val = tf.data.Dataset.from_generator(
+    get_random_path_from_random_class,
+    output_shapes=tf.TensorShape([]),
+    output_types=tf.string,
+    args=val_paths
 )
 
-ds_train = ds_train.shuffle(buffer_size=N_train)  # is this correct, do I need to "reshuffle_each_iteration"?
+# load patch from randomly selected patch
+ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
+ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
+
+
+#ds_train = ds_train.shuffle(buffer_size=N_train)  # is this correct, do I need to "reshuffle_each_iteration"?
 ds_train = ds_train.batch(ret.batch_size)
 ds_train = ds_train.prefetch(1)
 ds_train = ds_train.repeat(-1)  # repeat indefinitely (?)
 
-ds_test = ds_test.shuffle(buffer_size=N_test)  # is this correct, do I need to "reshuffle_each_iteration"?
-ds_test = ds_test.batch(ret.batch_size)
-ds_test = ds_test.prefetch(1)
-ds_test = ds_test.repeat(-1)  # repeat indefinitely (?)
+#ds_val = ds_val.shuffle(buffer_size=N_val)  # is this correct, do I need to "reshuffle_each_iteration"?
+ds_val = ds_val.batch(ret.batch_size)
+ds_val = ds_val.prefetch(1)
+ds_val = ds_val.repeat(-1)  # repeat indefinitely (?)  # TODO: Remove! no longer needed as we have infinite generator
+
 
 # normalize intensities
 ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
-ds_test = ds_test.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
+ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
+
+# --------------------
+# TODO: Put all above in a function and call them for both train/val to generate generators
 
 # only augment train data
 # shift last
@@ -134,10 +160,10 @@ model.compile(
 
 history = model.fit(
     ds_train,
-    steps_per_epoch=N_train // ret.batch_size,
+    steps_per_epoch=N_train_tot // ret.batch_size,
     epochs=ret.epochs,
-    validation_data=ds_test,
-    validation_steps=N_test // ret.batch_size,
+    validation_data=ds_val,
+    validation_steps=N_val_tot // ret.batch_size,
     callbacks=[save_best, history, early],
     verbose=1,
 )
