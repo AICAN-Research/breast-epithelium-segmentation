@@ -39,7 +39,7 @@ nb_classes = 4
 name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
 # paths
-dataset_path = './datasets/081222_133329_level_2_psize_512_ds_4/'  # path to directory
+dataset_path = './datasets/081222_135917_level_2_psize_512_ds_4/'  # path to directory
 train_path = dataset_path + 'ds_train'
 val_path = dataset_path + 'ds_val'
 test_path = dataset_path + 'ds_test'
@@ -112,7 +112,7 @@ ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
 ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=4)
 ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=4)
 ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=4)  # ADDITIVE
-ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.1), y), num_parallel_calls=4)  # ADDITIVE
+ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=4)  # ADDITIVE
 ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
                         num_parallel_calls=4)  # @TODO: MULTIPLICATIVE?
 ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=4)
