@@ -20,6 +20,25 @@ def patchReader(path):
         gt = np.asarray(f["output"]).astype("float32")
     return image, gt
 
+
+def get_random_path_from_random_class(x1, x2, x3):
+    nested_class_folder = [x1, x2, x3]
+
+    # make infinite generator
+    while True:
+        # get random class
+        random_class_int = np.random.randint(0, len(nested_class_folder), 1)[0]
+        chosen_class = nested_class_folder[random_class_int]
+
+        # get random patch from selected class
+        random_patch = np.random.choice(chosen_class, 1)[0].decode('utf-8')
+
+        # convert to tensor
+        random_patch = tf.convert_to_tensor(random_patch, dtype=tf.string)
+
+        yield random_patch
+
+
 def define_logger(verbose=1):
     """
     method which sets the verbose handler
