@@ -395,7 +395,12 @@ if __name__ == "__main__":
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
-    dataset_path = "./datasets/" + curr_date + "_" + curr_time + "/"
+    dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
+                   "_level_" + str(level) + \
+                   "_psize_" + str(patch_size) + \
+                   "_ds_" + str(downsample_factor) + "/"
+
+    os.makedirs(dataset_path, exist_ok=True)
 
     files = os.listdir(mask_path)
     file_set = files.copy()
