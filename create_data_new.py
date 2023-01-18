@@ -380,7 +380,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
 if __name__ == "__main__":
 
     # --- HYPER PARAMS
-    plot_flag = False
+    plot_flag = True
     level = 2  # image pyramid level
     nb_iters = -1
     patch_size = 512
@@ -389,60 +389,35 @@ if __name__ == "__main__":
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
 
     # find number of slides in total
-    mask_path = '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/'
-    files = os.listdir(mask_path)
-    nbr_files = len(files)
+    mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/'
 
-    # shuffle
-    order = np.arange(nbr_files)
-    np.random.shuffle(order)
-    shuffled_files = [files[x] for x in order]
-
-    # split into train, val and test set
-    N = nbr_files
-    N_train = int(np.round(N * 0.6))
-    N_val = int(np.round(N * 0.2))
-    N_test = N - N_train - N_val
-
-    # files in train, validation and test set
-    train_set = shuffled_files[:N_train]
-    val_set = shuffled_files[N_train:(N_train + N_val)]
-    test_set = shuffled_files[(N_train + N_val):]
+    HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
+    dataset_path = "./datasets/" + curr_date + "_" + curr_time + "/"
 
-    # dataset path name
-    # level = TMA segmentation level
-    dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
-                   "_level_" + str(level) + \
-                   "_psize_" + str(patch_size) + \
-                   "_ds_" + str(downsample_factor) + "/"
+    files = os.listdir(mask_path)
+    file_set = files.copy()
 
-    # create folder if not exists
-    os.makedirs(dataset_path, exist_ok=True)
-
-    file_set = train_set, val_set, test_set
     print("file set", file_set)
     print("length file set", len(file_set))
-    file_names = ['ds_train', 'ds_val', 'ds_test']
-    count = 0  # go through file names
-    for files in file_set:
-        file_name = file_names[count]
-        for file in files:
-            file_front = file.split("_CK")[0]
-            id_ = file.split("BC_")[1].split(".tiff")[0]
 
-            HE_path = '/data/Maren_P1/epithelium/HE/' + str(file_front) + '_HE_BC_' + str(id_) + '.vsi'
-            CK_path = '/data/Maren_P1/epithelium/CK/' + str(file_front) + '_CK_BC_' + str(id_) + '.vsi'
-            mask_path = '/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/' + str(file_front) + '_CK_BC_' + str(
-                id_) + '.tiff'
-            annot_path = '/home/maren/workspace/qupath-ck-seg/export_annotations_pyramidal_tiff_291122/' \
-                         + str(file_front) + '_HE_BC_' + str(id_) + '-labels.ome.tif'
-            remove_path = '/home/maren/workspace/qupath-ck-seg/export_annotations_remove_cores_061222/' + str(file_front) + '_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
+    for file in file_set:
+        file_front = file.split("_EFI_CK")[0]
+        id_ = file.split("BC_")[1].split(".tiff")[0]
 
-            create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
-                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
+        HE_path = HE_CK_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_HE_BC_' + str(id_) + '.vsi'
+        CK_path = HE_CK_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_CK_BC_' + str(id_) + '.vsi'
 
-            wsi_idx += 1
-        count += 1
+        mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/' + str(file_front) + \
+                    '_EFI_CK_BC_' + str(id_) + '.tiff'
+        annot_path = '/data/Maren_P1/data/annotations_converted/TMA/' + str(file_front) + \
+                     '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
+        remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/'+ str(file_front) \
+                      + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
+
+        create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
+                        file, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
+
+        wsi_idx += 1
