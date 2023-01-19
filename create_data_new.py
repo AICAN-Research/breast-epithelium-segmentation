@@ -11,7 +11,7 @@ import os
 
 
 def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
-                    file_name, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit):
+                    plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit):
 
     # fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
 
@@ -128,6 +128,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             # CK_TMA = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
             #                               False)
 
+            # @TODO: why do I need to do this, should not be necessary
             try:
                 CK_TMA = np.asarray(CK_TMA)
                 HE_TMA = np.asarray(HE_TMA)
@@ -350,7 +351,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                     os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
 
                     # insert saving patches as hdf5 (h5py) here:
-                    with h5py.File(dataset_path + file_name + "/" + add_to_path + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                    with h5py.File(dataset_path + "/" + add_to_path + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                         f.create_dataset(name="input", data=patch_HE.astype("uint8"))
                         f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
             except RuntimeError as e:
@@ -419,6 +420,6 @@ if __name__ == "__main__":
                       + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
 
         create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
-                        file, plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
+                        plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
 
         wsi_idx += 1
