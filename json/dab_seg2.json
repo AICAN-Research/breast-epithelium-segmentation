@@ -1,0 +1,84 @@
+{
+  "pixel_classifier_type": "OpenCVPixelClassifier",
+  "metadata": {
+    "inputPadding": 0,
+    "inputResolution": {
+      "pixelWidth": {
+        "value": 0.34482717228885845,
+        "unit": "µm"
+      },
+      "pixelHeight": {
+        "value": 0.34482967157847016,
+        "unit": "µm"
+      },
+      "zSpacing": {
+        "value": 1.0,
+        "unit": "z-slice"
+      },
+      "timeUnit": "SECONDS",
+      "timepoints": []
+    },
+    "inputWidth": 512,
+    "inputHeight": 512,
+    "inputNumChannels": 3,
+    "outputType": "CLASSIFICATION",
+    "outputChannels": [],
+    "classificationLabels": {
+      "1": {
+        "name": "Tumor",
+        "colorRGB": -3670016
+      }
+    }
+  },
+  "op": {
+    "type": "data.op.channels",
+    "colorTransforms": [
+      {
+        "stains": {
+          "name": "H-DAB default",
+          "stain1": {
+            "r": 0.6511112717767477,
+            "g": 0.7011913719134059,
+            "b": 0.29049057079268853,
+            "name": "Hematoxylin",
+            "isResidual": false
+          },
+          "stain2": {
+            "r": 0.2691706198738795,
+            "g": 0.5682413097337492,
+            "b": 0.7775917896356576,
+            "name": "DAB",
+            "isResidual": false
+          },
+          "stain3": {
+            "r": 0.6330421014233871,
+            "g": -0.7128614881593863,
+            "b": 0.3018048981124184,
+            "name": "Residual",
+            "isResidual": true
+          },
+          "maxRed": 255.0,
+          "maxGreen": 255.0,
+          "maxBlue": 255.0
+        },
+        "stainNumber": 2
+      }
+    ],
+    "op": {
+      "type": "op.core.sequential",
+      "ops": [
+        {
+          "type": "op.filters.gaussian",
+          "sigmaX": 3.0,
+          "sigmaY": 3.0
+        },
+        {
+          "type": "op.threshold.constant",
+          "thresholds": [
+            0.25
+          ]
+        }
+      ]
+    }
+  }
+}
