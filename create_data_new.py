@@ -124,10 +124,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
             HE_counter += 1
             CK_counter += 1
 
-            # skip if one of the "position" cores
-            if position_HE_y < 5000:
-                continue
-
             # @TODO: need to get TMA from coordinates
             # CK_TMA = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
             #                               False)
