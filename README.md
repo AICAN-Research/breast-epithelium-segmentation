@@ -23,3 +23,7 @@ Exit screen session:
 ```
 ctr ad
 ```
+## Troubleshoot: 
+### QuPath: 
+Error when exporting annotations to geojson with QuPath script: 
+Make sure "Include default imports" under "Run" in Script Editor is toggled.
