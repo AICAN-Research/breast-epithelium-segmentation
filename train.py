@@ -38,6 +38,7 @@ nb_classes = 4
 
 name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
+"""
 # paths
 dataset_path = './datasets/081222_135917_level_2_psize_512_ds_4/'  # path to directory
 train_path = dataset_path + 'ds_train'
@@ -46,9 +47,56 @@ test_path = dataset_path + 'ds_test'
 history_path = './output/history/'  # path to directory
 model_path = './output/models/'  # path to directory
 save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
-
+"""
 N_train_tot = 1000
 N_val_tot = 200
+
+# Cross-validation for division into train, val, test:
+# The numbers corresponds to wsi-numbers created in create data
+k = 5  # number of folds in cross-validation
+nbr_files = len(os.listdir(dataset_path))  # number of slides in total dataset (24 including zero, 0-23)
+nbr_val = int(np.floor(nbr_files / k))
+nbr_test = int(np.floor(nbr_files / k))
+print("nbr_val", nbr_val)
+print("nbr_test", nbr_test)
+
+order = np.arange(nbr_files)
+np.random.shuffle(order)
+
+for fold in range(k):
+    ds_val = order[nbr_val * fold:nbr_val * (fold + 1)]
+    if fold == (k - 1):
+        ds_test = order[0:nbr_test]
+        ds_train = order[nbr_test:nbr_val * (fold + 1)]
+    else:
+        ds_test = order[nbr_test * (fold + 1): nbr_test * (fold + 2)]
+        ds_train = np.concatenate([order[:nbr_val * fold], order[nbr_test * (fold + 2):]])
+
+    train_paths = []; val_paths = []; test_paths = []
+    train_invasive = []; val_invasive = []; test_invasive = []
+    train_benign = []; val_benign = []; test_benign = []
+    train_inSitu = []; val_inSitu = []; test_inSitu = []
+
+    ds_ = [ds_train, ds_val, ds_test]
+    folders = [train_invasive, val_invasive, test_invasive,train_benign, val_benign, test_benign,train_inSitu,
+               val_inSitu, test_inSitu]
+
+    def place_patch(count, class_type, file_path):  # count 0 = train, count 1 = val, count 2 = test
+
+
+    for image in os.listdir(dataset_path):
+        image_path = dataset_path + "/" + image + "/"
+        for class_ in os.listdir(image_path): # files in either invasive, benign or inSitu
+            class_path = image_path + "/" + class_ + "/"
+            for file_ in os.listdir(class_path):  # patch
+                file_path = class_path + file_
+                nbr_ = file_.split("_wsi_")[1]  # number between 0 and 23
+                class_type = file_.split("_wsi_")[0]  # invasive, benign or inSitu
+                count = 0
+                for ds_set in ds_:
+                    if nbr_ in ds_set:
+                        place_patch(count, class_type, file_path)
+                    count += 1
 
 # --------------------
 train_paths = []
