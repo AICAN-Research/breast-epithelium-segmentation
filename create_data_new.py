@@ -348,10 +348,10 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                         count_invasive += 1
 
                     # create folder if not exists
-                    os.makedirs(dataset_path + file_name + "/" + add_to_path, exist_ok=True)
+                    os.makedirs(dataset_path + "/" + add_to_path, exist_ok=True)
 
                     # insert saving patches as hdf5 (h5py) here:
-                    with h5py.File(dataset_path + "/" + add_to_path + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                    with h5py.File(dataset_path + "/" + add_to_path + "/" + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                         f.create_dataset(name="input", data=patch_HE.astype("uint8"))
                         f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
             except RuntimeError as e:
