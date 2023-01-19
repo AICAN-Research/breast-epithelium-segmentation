@@ -38,7 +38,7 @@ nb_classes = 4
 
 name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
-"""
+
 # paths
 dataset_path = './datasets/081222_135917_level_2_psize_512_ds_4/'  # path to directory
 train_path = dataset_path + 'ds_train'
@@ -47,7 +47,7 @@ test_path = dataset_path + 'ds_test'
 history_path = './output/history/'  # path to directory
 model_path = './output/models/'  # path to directory
 save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
-"""
+
 N_train_tot = 1000
 N_val_tot = 200
 
@@ -98,121 +98,123 @@ for fold in range(k):
                         place_patch(count, class_type, file_path)
                     count += 1
 
-# --------------------
-train_paths = []
-for directory in os.listdir(train_path):
-    dir_path = train_path + "/" + directory + "/"
-    dir_paths = []
-    for file_ in os.listdir(dir_path):
-        file_path = dir_path + file_
-        dir_paths.append(file_path)
-    train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+    # --------------------
+    """
+    train_paths = []
+    for directory in os.listdir(train_path):
+        dir_path = train_path + "/" + directory + "/"
+        dir_paths = []
+        for file_ in os.listdir(dir_path):
+            file_path = dir_path + file_
+            dir_paths.append(file_path)
+        train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+    
+    val_paths = []
+    for directory in os.listdir(val_path):
+        dir_path = train_path + "/" + directory + "/"
+        dir_paths = []
+        for file_ in os.listdir(dir_path):
+            file_path = dir_path + file_
+            dir_paths.append(file_path)
+        val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+    
+    """
+    # combine all train/val paths
+    ds_train = tf.data.Dataset.from_generator(
+        get_random_path_from_random_class,
+        output_shapes=tf.TensorShape([]),
+        output_types=tf.string,
+        args=train_paths
+    )
 
-val_paths = []
-for directory in os.listdir(val_path):
-    dir_path = train_path + "/" + directory + "/"
-    dir_paths = []
-    for file_ in os.listdir(dir_path):
-        file_path = dir_path + file_
-        dir_paths.append(file_path)
-    val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+    ds_val = tf.data.Dataset.from_generator(
+        get_random_path_from_random_class,
+        output_shapes=tf.TensorShape([]),
+        output_types=tf.string,
+        args=val_paths
+    )
 
-# combine all train/val paths
-ds_train = tf.data.Dataset.from_generator(
-    get_random_path_from_random_class,
-    output_shapes=tf.TensorShape([]),
-    output_types=tf.string,
-    args=train_paths
-)
-
-ds_val = tf.data.Dataset.from_generator(
-    get_random_path_from_random_class,
-    output_shapes=tf.TensorShape([]),
-    output_types=tf.string,
-    args=val_paths
-)
-
-# load patch from randomly selected patch
-ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
-ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
-
-
-#ds_train = ds_train.shuffle(buffer_size=N_train)  # is this correct, do I need to "reshuffle_each_iteration"?
-ds_train = ds_train.batch(ret.batch_size)
-ds_train = ds_train.prefetch(1)
-ds_train = ds_train.repeat(-1)  # repeat indefinitely (?)
-
-#ds_val = ds_val.shuffle(buffer_size=N_val)  # is this correct, do I need to "reshuffle_each_iteration"?
-ds_val = ds_val.batch(ret.batch_size)
-ds_val = ds_val.prefetch(1)
-ds_val = ds_val.repeat(-1)  # repeat indefinitely (?)  # TODO: Remove! no longer needed as we have infinite generator
+    # load patch from randomly selected patch
+    ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
+    ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
 
 
-# normalize intensities
-ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
-ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
+    #ds_train = ds_train.shuffle(buffer_size=N_train)  # is this correct, do I need to "reshuffle_each_iteration"?
+    ds_train = ds_train.batch(ret.batch_size)
+    ds_train = ds_train.prefetch(1)
+    ds_train = ds_train.repeat(-1)  # repeat indefinitely (?)
 
-# --------------------
-# TODO: Put all above in a function and call them for both train/val to generate generators
+    #ds_val = ds_val.shuffle(buffer_size=N_val)  # is this correct, do I need to "reshuffle_each_iteration"?
+    ds_val = ds_val.batch(ret.batch_size)
+    ds_val = ds_val.prefetch(1)
+    ds_val = ds_val.repeat(-1)  # repeat indefinitely (?)  # TODO: Remove! no longer needed as we have infinite generator
 
-# only augment train data
-# shift last
-ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=4)
-ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=4)
-ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=4)  # ADDITIVE
-ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=4)  # ADDITIVE
-ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
-                        num_parallel_calls=4)  # @TODO: MULTIPLICATIVE?
-ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=4)
-ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=4)
-# shift last
 
-convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
-convs = convs + convs[:-1][::-1]
+    # normalize intensities
+    ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
+    ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
 
-network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # binary = 2
-network.set_convolutions(convs)
-model = network.create()
+    # --------------------
+    # TODO: Put all above in a function and call them for both train/val to generate generators
 
-# print(model.summary())
+    # only augment train data
+    # shift last
+    ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=4)
+    ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=4)
+    ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=4)  # ADDITIVE
+    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=4)  # ADDITIVE
+    ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
+                            num_parallel_calls=4)  # @TODO: MULTIPLICATIVE?
+    ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=4)
+    ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=4)
+    # shift last
 
-history = CSVLogger(
-    history_path + "history_" + name + ".csv",
-    append=True
-)
+    convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
+    convs = convs + convs[:-1][::-1]
 
-early = EarlyStopping(
-    monitor="val_loss",
-    min_delta=0,  # 0: any improvement is considered an improvement
-    patience=50,  # if not improved for 50 epochs, stops
-    verbose=1,
-    mode="min",  # set "min" for catching the lowest val_loss
-    restore_best_weights=False,
-)
+    network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # binary = 2
+    network.set_convolutions(convs)
+    model = network.create()
 
-save_best = ModelCheckpoint(
-    model_path + "model_" + name,
-    monitor="val_loss",
-    verbose=2,  #
-    save_best_only=True,
-    save_weights_only=False,
-    mode="min",  # use "auto" with "f1_score", "auto" with "val_loss" (or "min")
-    save_freq="epoch"
-)
+    # print(model.summary())
 
-model.compile(
-    optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
-    loss=network.get_dice_loss(),
-    # metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
-    run_eagerly=False,
-)
+    history = CSVLogger(
+        history_path + "history_" + name + ".csv",
+        append=True
+    )
 
-history = model.fit(
-    ds_train,
-    steps_per_epoch=N_train_tot // ret.batch_size,
-    epochs=ret.epochs,
-    validation_data=ds_val,
-    validation_steps=N_val_tot // ret.batch_size,
-    callbacks=[save_best, history, early],
-    verbose=1,
-)
+    early = EarlyStopping(
+        monitor="val_loss",
+        min_delta=0,  # 0: any improvement is considered an improvement
+        patience=50,  # if not improved for 50 epochs, stops
+        verbose=1,
+        mode="min",  # set "min" for catching the lowest val_loss
+        restore_best_weights=False,
+    )
+
+    save_best = ModelCheckpoint(
+        model_path + "model_" + name,
+        monitor="val_loss",
+        verbose=2,  #
+        save_best_only=True,
+        save_weights_only=False,
+        mode="min",  # use "auto" with "f1_score", "auto" with "val_loss" (or "min")
+        save_freq="epoch"
+    )
+
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
+        loss=network.get_dice_loss(),
+        # metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
+        run_eagerly=False,
+    )
+
+    history = model.fit(
+        ds_train,
+        steps_per_epoch=N_train_tot // ret.batch_size,
+        epochs=ret.epochs,
+        validation_data=ds_val,
+        validation_steps=N_val_tot // ret.batch_size,
+        callbacks=[save_best, history, early],
+        verbose=1,
+    )
