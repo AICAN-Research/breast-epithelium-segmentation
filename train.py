@@ -63,158 +63,124 @@ print("nbr_test", nbr_test)
 order = np.arange(nbr_files)
 np.random.shuffle(order)
 
-for fold in range(k):
-    ds_val = order[nbr_val * fold:nbr_val * (fold + 1)]
-    if fold == (k - 1):
-        ds_test = order[0:nbr_test]
-        ds_train = order[nbr_test:nbr_val * (fold + 1)]
-    else:
-        ds_test = order[nbr_test * (fold + 1): nbr_test * (fold + 2)]
-        ds_train = np.concatenate([order[:nbr_val * fold], order[nbr_test * (fold + 2):]])
+# --------------------
 
-    train_paths = []; val_paths = []; test_paths = []
-    train_invasive = []; val_invasive = []; test_invasive = []
-    train_benign = []; val_benign = []; test_benign = []
-    train_inSitu = []; val_inSitu = []; test_inSitu = []
-
-    ds_ = [ds_train, ds_val, ds_test]
-    folders = [train_invasive, val_invasive, test_invasive,train_benign, val_benign, test_benign,train_inSitu,
-               val_inSitu, test_inSitu]
-
-    def place_patch(count, class_type, file_path):  # count 0 = train, count 1 = val, count 2 = test
-
-
-    for image in os.listdir(dataset_path):
-        image_path = dataset_path + "/" + image + "/"
-        for class_ in os.listdir(image_path): # files in either invasive, benign or inSitu
-            class_path = image_path + "/" + class_ + "/"
-            for file_ in os.listdir(class_path):  # patch
-                file_path = class_path + file_
-                nbr_ = file_.split("_wsi_")[1]  # number between 0 and 23
-                class_type = file_.split("_wsi_")[0]  # invasive, benign or inSitu
-                count = 0
-                for ds_set in ds_:
-                    if nbr_ in ds_set:
-                        place_patch(count, class_type, file_path)
-                    count += 1
-
-    # --------------------
-    """
-    train_paths = []
-    for directory in os.listdir(train_path):
-        dir_path = train_path + "/" + directory + "/"
-        dir_paths = []
-        for file_ in os.listdir(dir_path):
-            file_path = dir_path + file_
-            dir_paths.append(file_path)
-        train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+train_paths = []
+for directory in os.listdir(train_path):
+    dir_path = train_path + "/" + directory + "/"
+    dir_paths = []
+    for file_ in os.listdir(dir_path):
+        file_path = dir_path + file_
+        dir_paths.append(file_path)
+    train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
     
-    val_paths = []
-    for directory in os.listdir(val_path):
-        dir_path = train_path + "/" + directory + "/"
-        dir_paths = []
-        for file_ in os.listdir(dir_path):
-            file_path = dir_path + file_
-            dir_paths.append(file_path)
-        val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+val_paths = []
+for directory in os.listdir(val_path):
+    dir_path = train_path + "/" + directory + "/"
+    dir_paths = []
+    for file_ in os.listdir(dir_path):
+        file_path = dir_path + file_
+        dir_paths.append(file_path)
+    val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
     
-    """
-    # combine all train/val paths
-    ds_train = tf.data.Dataset.from_generator(
-        get_random_path_from_random_class,
-        output_shapes=tf.TensorShape([]),
-        output_types=tf.string,
-        args=train_paths
-    )
 
-    ds_val = tf.data.Dataset.from_generator(
-        get_random_path_from_random_class,
-        output_shapes=tf.TensorShape([]),
-        output_types=tf.string,
-        args=val_paths
-    )
+# combine all train/val paths
+ds_train = tf.data.Dataset.from_generator(
+    get_random_path_from_random_class,
+    output_shapes=tf.TensorShape([]),
+    output_types=tf.string,
+    args=train_paths
+)
 
-    # load patch from randomly selected patch
-    ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
-    ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
+ds_val = tf.data.Dataset.from_generator(
+    get_random_path_from_random_class,
+    output_shapes=tf.TensorShape([]),
+    output_types=tf.string,
+    args=val_paths
+)
 
-
-    #ds_train = ds_train.shuffle(buffer_size=N_train)  # is this correct, do I need to "reshuffle_each_iteration"?
-    ds_train = ds_train.batch(ret.batch_size)
-    ds_train = ds_train.prefetch(1)
-    ds_train = ds_train.repeat(-1)  # repeat indefinitely (?)
-
-    #ds_val = ds_val.shuffle(buffer_size=N_val)  # is this correct, do I need to "reshuffle_each_iteration"?
-    ds_val = ds_val.batch(ret.batch_size)
-    ds_val = ds_val.prefetch(1)
-    ds_val = ds_val.repeat(-1)  # repeat indefinitely (?)  # TODO: Remove! no longer needed as we have infinite generator
+# load patch from randomly selected patch
+ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
+ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=ret.proc)
 
 
-    # normalize intensities
-    ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
-    ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
+#ds_train = ds_train.shuffle(buffer_size=N_train)  # is this correct, do I need to "reshuffle_each_iteration"?
+ds_train = ds_train.batch(ret.batch_size)
+ds_train = ds_train.prefetch(1)
+ds_train = ds_train.repeat(-1)  # repeat indefinitely (?)
 
-    # --------------------
-    # TODO: Put all above in a function and call them for both train/val to generate generators
+#ds_val = ds_val.shuffle(buffer_size=N_val)  # is this correct, do I need to "reshuffle_each_iteration"?
+ds_val = ds_val.batch(ret.batch_size)
+ds_val = ds_val.prefetch(1)
+ds_val = ds_val.repeat(-1)  # repeat indefinitely (?)  # TODO: Remove! no longer needed as we have infinite generator
 
-    # only augment train data
-    # shift last
-    ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=4)
-    ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=4)
-    ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=4)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=4)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
+
+# normalize intensities
+ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
+ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
+
+# --------------------
+# TODO: Put all above in a function and call them for both train/val to generate generators
+
+# only augment train data
+# shift last
+ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=4)
+ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=4)
+ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=4)  # ADDITIVE
+ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=4)  # ADDITIVE
+ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
                             num_parallel_calls=4)  # @TODO: MULTIPLICATIVE?
-    ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=4)
-    ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=4)
-    # shift last
+ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=4)
+ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=4)
+# shift last
 
-    convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
-    convs = convs + convs[:-1][::-1]
+convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
+convs = convs + convs[:-1][::-1]
 
-    network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # binary = 2
-    network.set_convolutions(convs)
-    model = network.create()
+network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # binary = 2
+network.set_convolutions(convs)
+model = network.create()
 
-    # print(model.summary())
+# print(model.summary())
+# @TODO: Plot loss for each class (invasive, benign and inSitu seperately)
 
-    history = CSVLogger(
-        history_path + "history_" + name + ".csv",
-        append=True
-    )
+history = CSVLogger(
+    history_path + "history_" + name + ".csv",
+    append=True
+)
 
-    early = EarlyStopping(
-        monitor="val_loss",
-        min_delta=0,  # 0: any improvement is considered an improvement
-        patience=50,  # if not improved for 50 epochs, stops
-        verbose=1,
-        mode="min",  # set "min" for catching the lowest val_loss
-        restore_best_weights=False,
-    )
+early = EarlyStopping(
+    monitor="val_loss",
+    min_delta=0,  # 0: any improvement is considered an improvement
+    patience=50,  # if not improved for 50 epochs, stops
+    verbose=1,
+     mode="min",  # set "min" for catching the lowest val_loss
+    restore_best_weights=False,
+)
 
-    save_best = ModelCheckpoint(
-        model_path + "model_" + name,
-        monitor="val_loss",
-        verbose=2,  #
-        save_best_only=True,
-        save_weights_only=False,
-        mode="min",  # use "auto" with "f1_score", "auto" with "val_loss" (or "min")
-        save_freq="epoch"
-    )
+save_best = ModelCheckpoint(
+    model_path + "model_" + name,
+    monitor="val_loss",
+    verbose=2,  #
+    save_best_only=True,
+    save_weights_only=False,
+    mode="min",  # use "auto" with "f1_score", "auto" with "val_loss" (or "min")
+    save_freq="epoch"
+)
 
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
-        loss=network.get_dice_loss(),
-        # metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
-        run_eagerly=False,
-    )
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
+    loss=network.get_dice_loss(),
+    # metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
+    run_eagerly=False,
+)
 
-    history = model.fit(
-        ds_train,
-        steps_per_epoch=N_train_tot // ret.batch_size,
-        epochs=ret.epochs,
-        validation_data=ds_val,
-        validation_steps=N_val_tot // ret.batch_size,
-        callbacks=[save_best, history, early],
-        verbose=1,
-    )
+history = model.fit(
+    ds_train,
+    steps_per_epoch=N_train_tot // ret.batch_size,
+    epochs=ret.epochs,
+    validation_data=ds_val,
+    validation_steps=N_val_tot // ret.batch_size,
+    callbacks=[save_best, history, early],
+    verbose=1,
+)
