@@ -19,19 +19,9 @@ nbr_files = len(files)
 train_set = []
 
 N = nbr_files  # remaining files after manually put some in train set
-N_train = 6
-N_val = 2
-N_test = 2
-
-# ECD and HUNT2_2 needs to be placed in the training set
-for file in files[:]:  # copy to avoid skipping element in list after removed elements
-    if ("ECD" in file) or ("HUNT2_EFI_CK_BC_2" in file):
-        train_set.append(file)
-        files.remove(file)
-
-N_train = N_train - len(train_set)
-
-nbr_files = len(files)
+N_train = int(N * 0.75)
+N_val = int(np.floor(N * 0.15))
+N_test = int(N - N_train - N_val)
 
 # shuffle
 order = np.arange(nbr_files)
@@ -39,7 +29,7 @@ np.random.shuffle(order)
 shuffled_files = [files[x] for x in order]
 
 # files in train, validation and test set
-train_set = train_set + shuffled_files[:N_train]
+train_set = shuffled_files[:N_train]
 val_set = shuffled_files[N_train:(N_train + N_val)]
 test_set = shuffled_files[(N_train + N_val):]
 
@@ -49,7 +39,7 @@ df = pd.DataFrame(data=labels, columns=['train', 'val', 'test'])
 
 # create folder if not exists
 os.makedirs(data_split_path, exist_ok=True)
-exit()
+
 # save df as csv:
 df.to_csv(data_split_path)
 
