@@ -1,5 +1,6 @@
 import fast
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import cv2
@@ -10,7 +11,7 @@ from datetime import datetime, date
 import os
 
 
-def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
+def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
                     plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit):
 
     # fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
@@ -351,7 +352,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                     os.makedirs(dataset_path + "/" + add_to_path, exist_ok=True)
 
                     # insert saving patches as hdf5 (h5py) here:
-                    with h5py.File(dataset_path + "/" + add_to_path + "/" + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                    with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                         f.create_dataset(name="input", data=patch_HE.astype("uint8"))
                         f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
             except RuntimeError as e:
@@ -386,9 +387,17 @@ if __name__ == "__main__":
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
 
     # find number of slides in total
-    mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/'
+    #mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/'
 
     HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
+
+    # paths to wsis included in train and validation sets
+    data_splits = pd.read_csv('./data_splits/')
+    train_path = pd.DataFrame(data_splits, columns='train')
+    val_path = pd.DataFrame(data_splits, columns='val')
+
+    # path to wsis included in test set
+    # @TODO: create patches for test set when time for it
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
@@ -399,27 +408,34 @@ if __name__ == "__main__":
 
     os.makedirs(dataset_path, exist_ok=True)
 
-    files = os.listdir(mask_path)
-    file_set = files.copy()
+    #files = os.listdir(mask_path)
+    train_set = os.listdir(train_path)
+    val_set = os.listdir(val_path)
+
+    file_set = train_set, val_set
+    set_names = ['ds_train', 'ds_val']
 
     print("file set", file_set)
     print("length file set", len(file_set))
+    count = 0
+    for files in file_set:
+        set_name = set_names[count]  # ds_train or ds_val
+        for file in files:
+            file_front = file.split("_EFI_CK")[0]
+            id_ = file.split("BC_")[1].split(".tiff")[0]
 
-    for file in file_set:
-        file_front = file.split("_EFI_CK")[0]
-        id_ = file.split("BC_")[1].split(".tiff")[0]
+            HE_path = HE_CK_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_HE_BC_' + str(id_) + '.vsi'
+            CK_path = HE_CK_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_CK_BC_' + str(id_) + '.vsi'
 
-        HE_path = HE_CK_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_HE_BC_' + str(id_) + '.vsi'
-        CK_path = HE_CK_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_CK_BC_' + str(id_) + '.vsi'
+            mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/' + str(file_front) + \
+                        '_EFI_CK_BC_' + str(id_) + '.tiff'
+            annot_path = '/data/Maren_P1/data/annotations_converted/TMA/' + str(file_front) + \
+                         '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
+            remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/'+ str(file_front) \
+                          + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
 
-        mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/' + str(file_front) + \
-                    '_EFI_CK_BC_' + str(id_) + '.tiff'
-        annot_path = '/data/Maren_P1/data/annotations_converted/TMA/' + str(file_front) + \
-                     '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
-        remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/'+ str(file_front) \
-                      + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
+            create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
+                            plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
 
-        create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path,
-                        plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
-
-        wsi_idx += 1
+            wsi_idx += 1
+        count += 1
