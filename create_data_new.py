@@ -386,9 +386,6 @@ if __name__ == "__main__":
     wsi_idx = 0
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
 
-    # find number of slides in total
-    #mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/'
-
     HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
     # paths to wsis included in train and validation sets
@@ -408,7 +405,6 @@ if __name__ == "__main__":
 
     os.makedirs(dataset_path, exist_ok=True)
 
-    #files = os.listdir(mask_path)
     train_set = os.listdir(train_path)
     val_set = os.listdir(val_path)
 
