@@ -338,6 +338,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
 
                     # check if patch includes benign or in situ
                     # How to deal with patches with multiple classes??
+                    # @TODO: change to only include in inSitu/benign if pixel number above a threshold
                     if np.count_nonzero(patch_in_situ) > 0:
                         add_to_path = 'inSitu/'
                         count_inSitu += 1
@@ -349,7 +350,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                         count_invasive += 1
 
                     # create folder if not exists
-                    os.makedirs(dataset_path + "/" + add_to_path, exist_ok=True)
+                    os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
 
                     # insert saving patches as hdf5 (h5py) here:
                     with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
@@ -384,12 +385,12 @@ if __name__ == "__main__":
     patch_size = 512
     downsample_factor = 4  # tested with 8, but not sure if better
     wsi_idx = 0
-    dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
+    dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed  # @TODO: Check if okay
 
     HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
     # paths to wsis included in train and validation sets
-    data_splits = pd.read_csv('./data_splits/')
+    data_splits = pd.read_csv('./data_splits/')  # @TODO: Full path after split is performed
     train_path = pd.DataFrame(data_splits, columns='train')
     val_path = pd.DataFrame(data_splits, columns='val')
 
