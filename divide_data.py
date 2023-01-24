@@ -16,9 +16,8 @@ data_split_path = './data_splits/' + curr_date + "_" + curr_time + "/"
 
 files = os.listdir(mask_path)
 nbr_files = len(files)
-train_set = []
 
-N = nbr_files  # remaining files after manually put some in train set
+N = nbr_files
 N_train = int(N * 0.75)
 N_val = int(np.floor(N * 0.15))
 N_test = int(N - N_train - N_val)
@@ -41,6 +40,6 @@ df = pd.DataFrame(data=labels, columns=['train', 'val', 'test'])
 os.makedirs(data_split_path, exist_ok=True)
 
 # save df as csv:
-df.to_csv(data_split_path)
+df.to_csv(data_split_path + 'data_split.csv')
 
 
