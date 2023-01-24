@@ -1,6 +1,5 @@
 # Divide data into train/validation and test set. The test set should not be used during development of the model.
 # This script should only be run to divide once.
-# Use fraction of wsis to begin with, then these have to be correctly placed when using all
 # Wait with cross-validation to later
 from datetime import datetime, date
 import os
