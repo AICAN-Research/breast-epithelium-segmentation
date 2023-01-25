@@ -9,6 +9,18 @@ import h5py
 from datetime import datetime, date
 import os
 
+def minmax(x):
+    """
+    normalizes intensities to range float [0, 1]
+    :param x: intensity image
+    :return: normalized x
+    """
+    x = x.astype("float32")
+    if np.amax(x) > 0:
+        x -= np.amin(x)
+        x /= np.amax(x)
+    return x
+
 
 def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
                     plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit):
@@ -31,8 +43,10 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     mask = importerMask.runAndGetOutputData()
     annot = importerAnnot.runAndGetOutputData()
     annotRemove = importerRemove.runAndGetOutputData()
+
     height_mask = mask.getLevelHeight(level)
     width_mask = mask.getLevelWidth(level)
+
     access = mask.getAccess(fast.ACCESS_READ)
     accessAnnot = annot.getAccess(fast.ACCESS_READ)
     accessRemove = annotRemove.getAccess(fast.ACCESS_READ)
@@ -70,7 +84,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     # get CK TMA cores
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerCK)
     CK_TMAs = []
-    for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "CK TMA:"):
+    for j, TMA in enumerate(fast.DataStream(extractor)):
         CK_TMAs.append(TMA)
         if j == nb_iters:
             break
@@ -78,27 +92,25 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     # get HE TMA cores
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerHE)
     HE_TMAs = []
-    for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "HE TMA:"):
+    for j, TMA in enumerate(fast.DataStream(extractor)):
         HE_TMAs.append(TMA)
         if j == nb_iters:
             break
 
     # init tqdm
-    pbar = tqdm(total=max([len(CK_TMAs), len(HE_TMAs)]))
+    # pbar = tqdm(total=max([len(CK_TMAs), len(HE_TMAs)]))
     tma_idx = 0
 
     count_invasive = 0
     count_benign = 0
     count_inSitu = 0
-
     count = 0
-
 
     for HE_counter in range(len(HE_TMAs)):
         for CK_counter in range(len(CK_TMAs)):
 
             # update tqdm
-            pbar.update(1)
+            #pbar.update(1)
             # position_HE_x, position_HE_y, position_HE_z = HE_TMAs[HE_counter]  # HE TMA at place HE_counter in HE_TMAs. HE_TMA and IHC_TMA are Image objects
             # position_CK_x, position_CK_y, position_CK_z = CK_TMAs[CK_counter]  # IHC TMA at place IHC_counter in IHC_TMAs
 
@@ -164,7 +176,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                     continue
 
                 patch_remove = np.asarray(remove_annot)
-                patch_remove = patch_remove[..., 0:3]
+                patch_remove = patch_remove[..., :3]
                 remove_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
                 remove_TMA_padded[:patch_remove.shape[0], :patch_remove.shape[1]] = patch_remove
                 remove_TMA_padded = remove_TMA_padded[:patch_remove.shape[0], :patch_remove.shape[1]]
@@ -176,6 +188,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                         axes[1].imshow(HE_TMA_padded, cmap="gray")
                         plt.show()
                     continue
+
                 # downsample image before registration
                 curr_shape = CK_TMA_padded.shape[:2]
                 CK_TMA_padded_ds = cv2.resize(CK_TMA_padded,
@@ -221,18 +234,18 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 patch_annot = np.asarray(patch_annot)
 
                 # patch = patch[..., 0]  # used to do this, and probably still should
-                patch = patch[..., 0:3]
-                patch_annot = patch_annot[..., 0:3]
+                patch = patch[..., 0]
+                patch_annot = patch_annot[..., 0]  # annotation image is RGB (gray) -> keep only first dim to get intensity image -> single class uint8
                 patch = np.flip(patch, axis=0)  # since annotation is flipped
 
-                mask_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
-                annot_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
+                annot_TMA_padded = np.zeros((longest_height, longest_width), dtype="uint8")
+                mask_TMA_padded = np.zeros((longest_height, longest_width), dtype="uint8")
                 mask_TMA_padded[:patch.shape[0], :patch.shape[1]] = patch
 
                 # the correctly placed manual annotation:
                 annot_TMA_padded[:patch_annot.shape[0], :patch_annot.shape[1]] = patch_annot
 
-                mask_padded_shifted = ndi.shift(mask_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
+                mask_padded_shifted = ndi.shift(mask_TMA_padded, shifts[:2], order=0, mode="constant", cval=0, prefilter=False)
 
                 # the correctly placed blue channel threshold:
                 mask = mask_padded_shifted[:patch.shape[0], :patch.shape[1]]  # should I have CK_TMA.shape here instead?
@@ -243,11 +256,11 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 if plot_flag:
                     f, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
                     axes[0, 0].imshow(y)
-                    axes[0, 1].imshow(mask[..., 0], cmap="gray")
-                    axes[1, 0].imshow(annot_TMA_padded[..., 0], cmap='jet', interpolation="none")
+                    axes[0, 1].imshow(mask, cmap="gray")
+                    axes[1, 0].imshow(annot_TMA_padded, cmap='jet', interpolation="none")
                     axes[1, 0].imshow(x, alpha=0.5)
-                    axes[1, 1].imshow(mask[..., 0], cmap='gray', interpolation="none")
-                    axes[1, 1].imshow(annot_TMA_padded[..., 0], alpha=0.5)
+                    axes[1, 1].imshow(mask, cmap='gray', interpolation="none")
+                    axes[1, 1].imshow(annot_TMA_padded, alpha=0.5)
                     plt.show()
 
                 # Visualize TMAs:
@@ -256,8 +269,8 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                     axes[0, 0].imshow(y)
                     axes[0, 1].imshow(x)
                     axes[0, 1].imshow(y, alpha=0.5)
-                    axes[1, 0].imshow(mask[..., 0], cmap="gray")
-                    axes[1, 1].imshow(annot_TMA_padded[..., 0], cmap="jet")
+                    axes[1, 0].imshow(mask, cmap="gray")
+                    axes[1, 1].imshow(annot_TMA_padded, cmap="jet")
                     #axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray")
                     plt.show()
 
@@ -266,27 +279,18 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 healthy_ep = ((marit_annot == 1) & (mask == 1)).astype("float32")
                 in_situ = ((marit_annot == 2) & (mask == 1)).astype("float32")
 
-                if plot_flag:
-                    fig, ax = plt.subplots(2, 2, figsize=(30, 30))  # Figure of the two patches on top of each other
-                    ax[0, 0].imshow(marit_annot[..., 0], cmap="jet")
-                    ax[0, 1].imshow(healthy_ep[..., 0], cmap="gray")
-                    ax[1, 0].imshow(in_situ[..., 0], cmap="gray")
-                    plt.show()
-
                 # subtract fixed healthy and in situ from invasive tissue
                 mask[healthy_ep == 1] = 0
                 mask[in_situ == 1] = 0
-
                 
                 data = [x, mask, healthy_ep, in_situ]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=0.25).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
-    
+
                 # @TODO: find out why the error below sometimes happens
                 try:
                     for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
-    
                         try:
                             # convert from FAST image to numpy array
                             patch_HE = np.array(patch_HE)
@@ -297,14 +301,23 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                             print(e)
                             #print("shape", patch_HE.shape)
                             continue
-    
+
+                        # normalizing intesities for patches
+                        patch_mask = minmax(patch_mask)
+                        patch_healthy = minmax(patch_healthy)
+                        patch_in_situ = minmax(patch_in_situ)
+
                         # create one-hot, one channel for each class
                         #TODO: is the background class correct, should it be 1 - (patch_mask - patch_healthy - patch_in_situ)?
-                        gt_one_hot = np.stack([1 - patch_mask - patch_healthy - patch_in_situ, patch_mask, patch_healthy, patch_in_situ], axis=-1)
+                        gt_one_hot = np.stack([1 - (patch_mask.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)), patch_mask, patch_healthy, patch_in_situ], axis=-1)
     
                         if np.any(gt_one_hot[..., 0] < 0):
+                            [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
                             raise ValueError("Negative values occurred in the background class, check the segmentations...")
-    
+
+                        if np.any(np.sum(gt_one_hot, axis=-1) > 1):
+                            raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
+
                         # check if either of the shapes are empty, if yes, continue
                         if (len(patch_HE) == 0) or (len(patch_mask) == 0):
                             continue
@@ -347,7 +360,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                         os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
     
                         # insert saving patches as hdf5 (h5py) here:
-                        with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                        with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_HE.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
                 except RuntimeError as e:
@@ -355,19 +368,8 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                     continue
     
                 tma_idx += 1
-                
-            elif dist_x > dist_limit and dist_y < dist_limit:  # if HE position has passed IHC position
-                CK_counter += 1
-            elif dist_y > dist_limit:
-                CK_counter += 1
-            elif dist_x < -dist_limit and dist_y < dist_limit:
-                HE_counter += 1
-            elif dist_y < -dist_limit:  # if IHC position has passed HE position
-                HE_counter += 1
-            else:
-                raise ValueError("Logical error in distance calculation")
     
-    pbar.close()
+    # pbar.close()
     print("count", count)
 
 
@@ -415,9 +417,9 @@ if __name__ == "__main__":
     print("file set", file_set)
     print("length file set", len(file_set))
     count = 0
-    for files in file_set:
+    for files in tqdm(file_set, "Cohort"):
         set_name = set_names[count]  # ds_train or ds_val
-        for file in files:
+        for file in tqdm(files, "WSI"):
 
             file_front = file.split("_EFI_CK")[0]
             id_ = file.split("BC_")[1].split(".tiff")[0]
