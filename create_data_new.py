@@ -1,6 +1,5 @@
 import fast
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import cv2
@@ -73,7 +72,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     CK_TMAs = []
     for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "CK TMA:"):
         CK_TMAs.append(TMA)
-        # CK_TMAs.append(get_positions(TMA))
         if j == nb_iters:
             break
 
@@ -82,304 +80,301 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     HE_TMAs = []
     for j, TMA in tqdm(enumerate(fast.DataStream(extractor)), "HE TMA:"):
         HE_TMAs.append(TMA)
-        # HE_TMAs.append(get_positions(TMA))
         if j == nb_iters:
             break
 
     # init tqdm
     pbar = tqdm(total=max([len(CK_TMAs), len(HE_TMAs)]))
     tma_idx = 0
-    HE_counter = 0
-    CK_counter = 0
 
     count_invasive = 0
     count_benign = 0
     count_inSitu = 0
 
-    while True:
-        if HE_counter == len(HE_TMAs) or CK_counter == len(CK_TMAs):
-            break
+    count = 0
 
-        # update tqdm
-        pbar.update(1)
-        # position_HE_x, position_HE_y, position_HE_z = HE_TMAs[HE_counter]  # HE TMA at place HE_counter in HE_TMAs. HE_TMA and IHC_TMA are Image objects
-        # position_CK_x, position_CK_y, position_CK_z = CK_TMAs[CK_counter]  # IHC TMA at place IHC_counter in IHC_TMAs
 
-        HE_TMA = HE_TMAs[HE_counter]
-        CK_TMA = CK_TMAs[CK_counter]
+    for HE_counter in range(len(HE_TMAs)):
+        for CK_counter in range(len(CK_TMAs)):
 
-        position_HE = HE_TMA.getTransform().getTranslation()  # position of HE TMA at position HE_counter.
-        position_CK = CK_TMA.getTransform().getTranslation()  # position of IHC TMA at position IHC_counter.
+            # update tqdm
+            pbar.update(1)
+            # position_HE_x, position_HE_y, position_HE_z = HE_TMAs[HE_counter]  # HE TMA at place HE_counter in HE_TMAs. HE_TMA and IHC_TMA are Image objects
+            # position_CK_x, position_CK_y, position_CK_z = CK_TMAs[CK_counter]  # IHC TMA at place IHC_counter in IHC_TMAs
 
-        position_HE_x = position_HE[0][0]
-        position_HE_y = position_HE[1][0]
+            HE_TMA = HE_TMAs[HE_counter]
+            CK_TMA = CK_TMAs[CK_counter]
 
-        position_CK_x = position_CK[0][0]
-        position_CK_y = position_CK[1][0]
+            position_HE = HE_TMA.getTransform().getTranslation()  # position of HE TMA at position HE_counter.
+            position_CK = CK_TMA.getTransform().getTranslation()  # position of IHC TMA at position IHC_counter.
 
-        dist_x = position_HE_x - position_CK_x
-        dist_y = position_HE_y - position_CK_y
+            position_HE_x = position_HE[0][0]
+            position_HE_y = position_HE[1][0]
 
-        if np.abs(dist_x) < dist_limit and np.abs(dist_y) < dist_limit:  # if positions are close we have a pair
+            position_CK_x = position_CK[0][0]
+            position_CK_y = position_CK[1][0]
 
-            HE_counter += 1
-            CK_counter += 1
+            dist_x = position_HE_x - position_CK_x
+            dist_y = position_HE_y - position_CK_y
 
-            # @TODO: need to get TMA from coordinates
-            # CK_TMA = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
-            #                               False)
+            if np.abs(dist_x) < dist_limit and np.abs(dist_y) < dist_limit:  # if positions are close we have a pair
+                count += 1
+                # @TODO: need to get TMA from coordinates
+                # CK_TMA = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
+                #                               False)
 
-            # @TODO: why do I need to do this, should not be necessary
-            try:
-                CK_TMA = np.asarray(CK_TMA)
-                HE_TMA = np.asarray(HE_TMA)
-            except RuntimeError as e:
-                print(e)
-                continue
+                # @TODO: why do I need to do this, should not be necessary
+                try:
+                    CK_TMA = np.asarray(CK_TMA)
+                    HE_TMA = np.asarray(HE_TMA)
+                except RuntimeError as e:
+                    print(e)
+                    continue
 
-            #TODO: is this what happens at TODO at about row 290 as well?
-            #if (CK_TMA.dtype == "object") or (HE_TMA.dtype == "object"):
-                #print("TMA was 'corrupt', either HE or CK")
-            #    continue
+                #TODO: is this what happens at TODO at about row 290 as well?
+                #if (CK_TMA.dtype == "object") or (HE_TMA.dtype == "object"):
+                    #print("TMA was 'corrupt', either HE or CK")
+                #    continue
 
-            shapes_CK_TMA = CK_TMA.shape
-            shapes_HE_TMA = HE_TMA.shape
+                shapes_CK_TMA = CK_TMA.shape
+                shapes_HE_TMA = HE_TMA.shape
 
-            height, width, _ = CK_TMA.shape  # need when finding TMA in mask slide
-            height_HE, width_HE, _ = HE_TMA.shape
+                height, width, _ = CK_TMA.shape  # need when finding TMA in mask slide
+                height_HE, width_HE, _ = HE_TMA.shape
 
-            longest_height = max([shapes_CK_TMA[0], shapes_HE_TMA[0]])
-            longest_width = max([shapes_CK_TMA[1], shapes_HE_TMA[1]])
+                longest_height = max([shapes_CK_TMA[0], shapes_HE_TMA[0]])
+                longest_width = max([shapes_CK_TMA[1], shapes_HE_TMA[1]])
 
-            CK_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
-            HE_TMA_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
+                CK_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
+                HE_TMA_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
 
-            CK_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]] = CK_TMA
-            HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
+                CK_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]] = CK_TMA
+                HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
 
-            # skip cores that should be removed
-            position_HE_x /= (2 ** level)
-            position_HE_y /= (2 ** level)
+                # skip cores that should be removed
+                position_HE_x /= (2 ** level)
+                position_HE_y /= (2 ** level)
 
-            try:
-                remove_annot = accessRemove.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
-                                                      int(height_HE),
-                                                      False)
-            except RuntimeError as e:
-                print(e)
-                continue
+                try:
+                    remove_annot = accessRemove.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
+                                                          int(height_HE),
+                                                          False)
+                except RuntimeError as e:
+                    print(e)
+                    continue
 
-            patch_remove = np.asarray(remove_annot)
-            patch_remove = patch_remove[..., 0:3]
-            remove_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
-            remove_TMA_padded[:patch_remove.shape[0], :patch_remove.shape[1]] = patch_remove
-            remove_TMA_padded = remove_TMA_padded[:patch_remove.shape[0], :patch_remove.shape[1]]
+                patch_remove = np.asarray(remove_annot)
+                patch_remove = patch_remove[..., 0:3]
+                remove_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
+                remove_TMA_padded[:patch_remove.shape[0], :patch_remove.shape[1]] = patch_remove
+                remove_TMA_padded = remove_TMA_padded[:patch_remove.shape[0], :patch_remove.shape[1]]
 
-            if np.count_nonzero(remove_TMA_padded) > 0:
-                if plot_flag:
-                    f, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
-                    axes[0].imshow(remove_TMA_padded[..., 0], cmap="gray")
-                    axes[1].imshow(HE_TMA_padded, cmap="gray")
-                    plt.show()
-                continue
-
-            # downsample image before registration
-            curr_shape = CK_TMA_padded.shape[:2]
-            CK_TMA_padded_ds = cv2.resize(CK_TMA_padded,
-                                          np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
-                                          interpolation=cv2.INTER_NEAREST)
-            HE_TMA_padded_ds = cv2.resize(HE_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
-                                          interpolation=cv2.INTER_NEAREST)
-
-            detected_shift = phase_cross_correlation(HE_TMA_padded_ds, CK_TMA_padded_ds)  # detect shift between IHC and HE
-
-            # print(detected_shift)
-            shifts = detected_shift[0]
-            shifts[2] = 0
-
-            # scale shifts back and apply to original resolution
-            shifts = (np.round(downsample_factor * shifts)).astype("int32")
-
-            tma_padded_shifted = ndi.shift(CK_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
-
-            # Pad TMAs:
-            x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
-            y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
-
-            # Get TMA from mask slide
-            position_CK_x /= (2 ** level)
-            position_CK_y /= (2 ** level)
-
-            position_CK_y = height_mask - position_CK_y - height
-
-            # get corresponding TMA core in the annotated image as in the CK:
-            # get corresponding TMA core in manual annotated image as in the HE:
-            # skip TMA cores when area is outside mask area
-            if position_CK_x + width > width_mask or position_CK_y + height > height_mask:
-                # print("TMA core boundary outside mask boundary")
-                continue
-
-            patch = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
-                                           False)
-            patch_annot = accessAnnot.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
-                                                      int(height_HE),
-                                                      False)
-            patch = np.asarray(patch)
-            patch_annot = np.asarray(patch_annot)
-
-            # patch = patch[..., 0]  # used to do this, and probably still should
-            patch = patch[..., 0:3]
-            patch_annot = patch_annot[..., 0:3]
-            patch = np.flip(patch, axis=0)  # since annotation is flipped
-
-            mask_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
-            annot_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
-            mask_TMA_padded[:patch.shape[0], :patch.shape[1]] = patch
-
-            # the correctly placed manual annotation:
-            annot_TMA_padded[:patch_annot.shape[0], :patch_annot.shape[1]] = patch_annot
-
-            mask_padded_shifted = ndi.shift(mask_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
-
-            # the correctly placed blue channel threshold:
-            mask = mask_padded_shifted[:patch.shape[0], :patch.shape[1]]  # should I have CK_TMA.shape here instead?
-
-            # do the same for manual annotations
-            annot_TMA_padded = annot_TMA_padded[:patch.shape[0], :patch.shape[1]]  # is this necessary?
-
-            if plot_flag:
-                f, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
-                axes[0, 0].imshow(y)
-                axes[0, 1].imshow(mask[..., 0], cmap="gray")
-                axes[1, 0].imshow(annot_TMA_padded[..., 0], cmap='jet', interpolation="none")
-                axes[1, 0].imshow(x, alpha=0.5)
-                axes[1, 1].imshow(mask[..., 0], cmap='gray', interpolation="none")
-                axes[1, 1].imshow(annot_TMA_padded[..., 0], alpha=0.5)
-                plt.show()
-
-            # Visualize TMAs:
-            if plot_flag:
-                fig, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
-                axes[0, 0].imshow(y)
-                axes[0, 1].imshow(x)
-                axes[0, 1].imshow(y, alpha=0.5)
-                axes[1, 0].imshow(mask[..., 0], cmap="gray")
-                axes[1, 1].imshow(annot_TMA_padded[..., 0], cmap="jet")
-                #axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray")
-                plt.show()
-
-            # get each GT annotation as its own binary image + fix manual annotations
-            marit_annot = np.asarray(annot_TMA_padded)
-            healthy_ep = ((marit_annot == 1) & (mask == 1)).astype("float32")
-            in_situ = ((marit_annot == 2) & (mask == 1)).astype("float32")
-
-            if plot_flag:
-                fig, ax = plt.subplots(2, 2, figsize=(30, 30))  # Figure of the two patches on top of each other
-                ax[0, 0].imshow(marit_annot[..., 0], cmap="jet")
-                ax[0, 1].imshow(healthy_ep[..., 0], cmap="gray")
-                ax[1, 0].imshow(in_situ[..., 0], cmap="gray")
-                plt.show()
-
-            # subtract fixed healthy and in situ from invasive tissue
-            mask[healthy_ep == 1] = 0
-            mask[in_situ == 1] = 0
-
-            data = [x, mask, healthy_ep, in_situ]
-            data_fast = [fast.Image.createFromArray(curr) for curr in data]
-            generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=0.25).connect(0, curr) for curr in data_fast]
-            streamers = [fast.DataStream(curr) for curr in generators]
-
-            # @TODO: find out why the error below sometimes happens
-            try:
-                for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
-
-                    try:
-                        # convert from FAST image to numpy array
-                        patch_HE = np.array(patch_HE)
-                        patch_mask = np.array(patch_mask)[..., 0]
-                        patch_healthy = np.array(patch_healthy)[..., 0]
-                        patch_in_situ = np.array(patch_in_situ)[..., 0]
-                    except RuntimeError as e:
-                        print(e)
-                        #print("shape", patch_HE.shape)
-                        continue
-
-                    # create one-hot, one channel for each class
-                    #TODO: is the background class correct, should it be 1 - (patch_mask - patch_healthy - patch_in_situ)?
-                    gt_one_hot = np.stack([1 - patch_mask - patch_healthy - patch_in_situ, patch_mask, patch_healthy, patch_in_situ], axis=-1)
-
-                    if np.any(gt_one_hot[..., 0] < 0):
-                        raise ValueError("Negative values occurred in the background class, check the segmentations...")
-
-                    # check if either of the shapes are empty, if yes, continue
-                    if (len(patch_HE) == 0) or (len(patch_mask) == 0):
-                        continue
-
-                    #TODO: pad patches with incorrect shape, now they are just skipped
-                    if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
-                        continue
-                        patch_HE_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
-                        patch_mask_padded = np.zeros((patch_size, patch_size, 3), dtype="uint8")
-
-                        patch_HE_padded[:patch_HE.shape[0], :patch_HE.shape[1]] = patch_HE.astype("uint8")
-                        patch_mask_padded[:patch_mask.shape[0], :patch_mask.shape[1]] = patch_mask.astype("uint8")
-
-                        patch_HE = patch_HE_padded
-                        patch_mask = patch_mask_padded
-
+                if np.count_nonzero(remove_TMA_padded) > 0:
                     if plot_flag:
-                        fig, ax = plt.subplots(2, 3, figsize=(30, 30))  # Figure of the two patches on top of each other
-                        ax[0, 0].imshow(patch_HE)
-                        ax[0, 1].imshow(gt_one_hot[..., 0], cmap="gray")
-                        ax[0, 2].imshow(gt_one_hot[..., 1], cmap="gray")
-                        ax[1, 1].imshow(gt_one_hot[..., 2], cmap="gray")
-                        ax[1, 2].imshow(gt_one_hot[..., 3], cmap="gray")
-                        plt.show()  # Show the two images on top of each other
+                        f, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
+                        axes[0].imshow(remove_TMA_padded[..., 0], cmap="gray")
+                        axes[1].imshow(HE_TMA_padded, cmap="gray")
+                        plt.show()
+                    continue
+                # downsample image before registration
+                curr_shape = CK_TMA_padded.shape[:2]
+                CK_TMA_padded_ds = cv2.resize(CK_TMA_padded,
+                                              np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
+                                              interpolation=cv2.INTER_NEAREST)
+                HE_TMA_padded_ds = cv2.resize(HE_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
+                                              interpolation=cv2.INTER_NEAREST)
 
-                    # check if patch includes benign or in situ
-                    # How to deal with patches with multiple classes??
-                    # @TODO: change to only include in inSitu/benign if pixel number above a threshold
-                    if np.count_nonzero(patch_in_situ) > 0:
-                        add_to_path = 'inSitu/'
-                        count_inSitu += 1
-                    elif np.count_nonzero(patch_healthy) > 0:
-                        add_to_path = 'benign/'
-                        count_benign += 1
-                    else:
-                        add_to_path = 'invasive/'
-                        count_invasive += 1
+                detected_shift = phase_cross_correlation(HE_TMA_padded_ds, CK_TMA_padded_ds)  # detect shift between IHC and HE
 
-                    # create folder if not exists
-                    os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
+                # print(detected_shift)
+                shifts = detected_shift[0]
+                shifts[2] = 0
 
-                    # insert saving patches as hdf5 (h5py) here:
-                    with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
-                        f.create_dataset(name="input", data=patch_HE.astype("uint8"))
-                        f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
-            except RuntimeError as e:
-                print(e)
-                continue
+                # scale shifts back and apply to original resolution
+                shifts = (np.round(downsample_factor * shifts)).astype("int32")
 
-            tma_idx += 1
+                tma_padded_shifted = ndi.shift(CK_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
-        elif dist_x > dist_limit and dist_y < dist_limit:  # if HE position has passed IHC position
-            CK_counter += 1
-        elif dist_y > dist_limit:
-            CK_counter += 1
-        elif dist_x < -dist_limit and dist_y < dist_limit:
-            HE_counter += 1
-        elif dist_y < -dist_limit:  # if IHC position has passed HE position
-            HE_counter += 1
-        else:
-            raise ValueError("Logical error in distance calculation")
+                # Pad TMAs:
+                x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
+                y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
 
+                # Get TMA from mask slide
+                position_CK_x /= (2 ** level)
+                position_CK_y /= (2 ** level)
+
+                position_CK_y = height_mask - position_CK_y - height
+
+                # get corresponding TMA core in the annotated image as in the CK:
+                # get corresponding TMA core in manual annotated image as in the HE:
+                # skip TMA cores when area is outside mask area
+                if position_CK_x + width > width_mask or position_CK_y + height > height_mask:
+                    # print("TMA core boundary outside mask boundary")
+                    continue
+
+                patch = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
+                                               False)
+                patch_annot = accessAnnot.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
+                                                          int(height_HE),
+                                                          False)
+                patch = np.asarray(patch)
+                patch_annot = np.asarray(patch_annot)
+
+                # patch = patch[..., 0]  # used to do this, and probably still should
+                patch = patch[..., 0:3]
+                patch_annot = patch_annot[..., 0:3]
+                patch = np.flip(patch, axis=0)  # since annotation is flipped
+
+                mask_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
+                annot_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
+                mask_TMA_padded[:patch.shape[0], :patch.shape[1]] = patch
+
+                # the correctly placed manual annotation:
+                annot_TMA_padded[:patch_annot.shape[0], :patch_annot.shape[1]] = patch_annot
+
+                mask_padded_shifted = ndi.shift(mask_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
+
+                # the correctly placed blue channel threshold:
+                mask = mask_padded_shifted[:patch.shape[0], :patch.shape[1]]  # should I have CK_TMA.shape here instead?
+
+                # do the same for manual annotations
+                annot_TMA_padded = annot_TMA_padded[:patch.shape[0], :patch.shape[1]]  # is this necessary?
+
+                if plot_flag:
+                    f, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
+                    axes[0, 0].imshow(y)
+                    axes[0, 1].imshow(mask[..., 0], cmap="gray")
+                    axes[1, 0].imshow(annot_TMA_padded[..., 0], cmap='jet', interpolation="none")
+                    axes[1, 0].imshow(x, alpha=0.5)
+                    axes[1, 1].imshow(mask[..., 0], cmap='gray', interpolation="none")
+                    axes[1, 1].imshow(annot_TMA_padded[..., 0], alpha=0.5)
+                    plt.show()
+
+                # Visualize TMAs:
+                if plot_flag:
+                    fig, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
+                    axes[0, 0].imshow(y)
+                    axes[0, 1].imshow(x)
+                    axes[0, 1].imshow(y, alpha=0.5)
+                    axes[1, 0].imshow(mask[..., 0], cmap="gray")
+                    axes[1, 1].imshow(annot_TMA_padded[..., 0], cmap="jet")
+                    #axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray")
+                    plt.show()
+
+                # get each GT annotation as its own binary image + fix manual annotations
+                marit_annot = np.asarray(annot_TMA_padded)
+                healthy_ep = ((marit_annot == 1) & (mask == 1)).astype("float32")
+                in_situ = ((marit_annot == 2) & (mask == 1)).astype("float32")
+
+                if plot_flag:
+                    fig, ax = plt.subplots(2, 2, figsize=(30, 30))  # Figure of the two patches on top of each other
+                    ax[0, 0].imshow(marit_annot[..., 0], cmap="jet")
+                    ax[0, 1].imshow(healthy_ep[..., 0], cmap="gray")
+                    ax[1, 0].imshow(in_situ[..., 0], cmap="gray")
+                    plt.show()
+
+                # subtract fixed healthy and in situ from invasive tissue
+                mask[healthy_ep == 1] = 0
+                mask[in_situ == 1] = 0
+
+                
+                data = [x, mask, healthy_ep, in_situ]
+                data_fast = [fast.Image.createFromArray(curr) for curr in data]
+                generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=0.25).connect(0, curr) for curr in data_fast]
+                streamers = [fast.DataStream(curr) for curr in generators]
+    
+                # @TODO: find out why the error below sometimes happens
+                try:
+                    for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
+    
+                        try:
+                            # convert from FAST image to numpy array
+                            patch_HE = np.array(patch_HE)
+                            patch_mask = np.array(patch_mask)[..., 0]
+                            patch_healthy = np.array(patch_healthy)[..., 0]
+                            patch_in_situ = np.array(patch_in_situ)[..., 0]
+                        except RuntimeError as e:
+                            print(e)
+                            #print("shape", patch_HE.shape)
+                            continue
+    
+                        # create one-hot, one channel for each class
+                        #TODO: is the background class correct, should it be 1 - (patch_mask - patch_healthy - patch_in_situ)?
+                        gt_one_hot = np.stack([1 - patch_mask - patch_healthy - patch_in_situ, patch_mask, patch_healthy, patch_in_situ], axis=-1)
+    
+                        if np.any(gt_one_hot[..., 0] < 0):
+                            raise ValueError("Negative values occurred in the background class, check the segmentations...")
+    
+                        # check if either of the shapes are empty, if yes, continue
+                        if (len(patch_HE) == 0) or (len(patch_mask) == 0):
+                            continue
+    
+                        #TODO: pad patches with incorrect shape, now they are just skipped
+                        if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
+                            continue
+                            patch_HE_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
+                            patch_mask_padded = np.zeros((patch_size, patch_size, 3), dtype="uint8")
+    
+                            patch_HE_padded[:patch_HE.shape[0], :patch_HE.shape[1]] = patch_HE.astype("uint8")
+                            patch_mask_padded[:patch_mask.shape[0], :patch_mask.shape[1]] = patch_mask.astype("uint8")
+    
+                            patch_HE = patch_HE_padded
+                            patch_mask = patch_mask_padded
+    
+                        if plot_flag:
+                            fig, ax = plt.subplots(2, 3, figsize=(30, 30))  # Figure of the two patches on top of each other
+                            ax[0, 0].imshow(patch_HE)
+                            ax[0, 1].imshow(gt_one_hot[..., 0], cmap="gray")
+                            ax[0, 2].imshow(gt_one_hot[..., 1], cmap="gray")
+                            ax[1, 1].imshow(gt_one_hot[..., 2], cmap="gray")
+                            ax[1, 2].imshow(gt_one_hot[..., 3], cmap="gray")
+                            plt.show()  # Show the two images on top of each other
+    
+                        # check if patch includes benign or in situ
+                        # How to deal with patches with multiple classes??
+                        # @TODO: change to only include in inSitu/benign if pixel number above a threshold
+                        if np.count_nonzero(patch_in_situ) > 0:
+                            add_to_path = 'inSitu/'
+                            count_inSitu += 1
+                        elif np.count_nonzero(patch_healthy) > 0:
+                            add_to_path = 'benign/'
+                            count_benign += 1
+                        else:
+                            add_to_path = 'invasive/'
+                            count_invasive += 1
+    
+                        # create folder if not exists
+                        os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
+    
+                        # insert saving patches as hdf5 (h5py) here:
+                        with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "_wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                            f.create_dataset(name="input", data=patch_HE.astype("uint8"))
+                            f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                except RuntimeError as e:
+                    print(e)
+                    continue
+    
+                tma_idx += 1
+                
+            elif dist_x > dist_limit and dist_y < dist_limit:  # if HE position has passed IHC position
+                CK_counter += 1
+            elif dist_y > dist_limit:
+                CK_counter += 1
+            elif dist_x < -dist_limit and dist_y < dist_limit:
+                HE_counter += 1
+            elif dist_y < -dist_limit:  # if IHC position has passed HE position
+                HE_counter += 1
+            else:
+                raise ValueError("Logical error in distance calculation")
+    
     pbar.close()
+    print("count", count)
 
 
 if __name__ == "__main__":
 
     # --- HYPER PARAMS
-    plot_flag = True
+    plot_flag = False
     level = 2  # image pyramid level
     nb_iters = -1
     patch_size = 512
@@ -390,9 +385,7 @@ if __name__ == "__main__":
     HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
     # paths to wsis included in train and validation sets
-    data_splits = pd.read_csv('./data_splits/')  # @TODO: Full path after split is performed
-    train_path = pd.DataFrame(data_splits, columns='train')
-    val_path = pd.DataFrame(data_splits, columns='val')
+    data_splits_path = "./data_splits/250123_093254/dataset_split.h5"
 
     # path to wsis included in test set
     # @TODO: create patches for test set when time for it
@@ -406,8 +399,15 @@ if __name__ == "__main__":
 
     os.makedirs(dataset_path, exist_ok=True)
 
-    train_set = os.listdir(train_path)
-    val_set = os.listdir(val_path)
+    # define datasets (train/val/test) - always uses predefined dataset
+    with h5py.File(data_splits_path, "r") as f:
+        train_set = np.array(f['train']).astype(str)
+        val_set = np.array(f['val']).astype(str)
+        test_set = np.array(f['test']).astype(str)
+
+    # get elements in each dataset
+    N_train = len(list(train_set))
+    N_val = len(list(val_set))
 
     file_set = train_set, val_set
     set_names = ['ds_train', 'ds_val']
@@ -418,6 +418,7 @@ if __name__ == "__main__":
     for files in file_set:
         set_name = set_names[count]  # ds_train or ds_val
         for file in files:
+
             file_front = file.split("_EFI_CK")[0]
             id_ = file.split("BC_")[1].split(".tiff")[0]
 
