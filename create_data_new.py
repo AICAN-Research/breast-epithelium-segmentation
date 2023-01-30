@@ -1,4 +1,4 @@
-import fast
+#import fast
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -7,7 +7,8 @@ from skimage.registration import phase_cross_correlation
 from scipy import ndimage as ndi
 import h5py
 from datetime import datetime, date
-import os
+import multiprocessing as mp
+
 
 def minmax(x):
     """
@@ -24,10 +25,18 @@ def minmax(x):
     return x
 
 
-def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
-                    plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit):
+def create_datasets_wrapper(some_inputs_):
+    # give all arguements from wrapper to create_datasets to begin processing WSI
+    create_datasets(*some_inputs_)
 
-    # fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
+
+def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
+                    plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap):
+
+    #fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
+
+    # import fast here to free memory when this is done (if running in a separate process)
+    import fast
 
     # import CK and annotated (in qupath) image:
     importerHE = fast.WholeSlideImageImporter.create(
@@ -45,9 +54,13 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     mask = importerMask.runAndGetOutputData()
     annot = importerAnnot.runAndGetOutputData()
     annotRemove = importerRemove.runAndGetOutputData()
+    annot_for_width = importerAnnot.runAndGetOutputData()
 
     height_mask = mask.getLevelHeight(level)
     width_mask = mask.getLevelWidth(level)
+
+    height_annot = annot_for_width.getLevelHeight(level)
+    width_annot = annot_for_width.getLevelWidth(level)
 
     access = mask.getAccess(fast.ACCESS_READ)
     accessAnnot = annot.getAccess(fast.ACCESS_READ)
@@ -82,22 +95,27 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
         plt.imshow(numpy_image[..., 0], cmap='jet', interpolation="none")
         plt.show()
 
-
     # get CK TMA cores
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerCK)
     CK_TMAs = []
-    for j, TMA in enumerate(fast.DataStream(extractor)):
+    CK_stream = fast.DataStream(extractor)
+    for j, TMA in enumerate(CK_stream):
         CK_TMAs.append(TMA)
         if j == nb_iters:
             break
+    #del CK_stream
+    del extractor
 
     # get HE TMA cores
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerHE)
     HE_TMAs = []
-    for j, TMA in enumerate(fast.DataStream(extractor)):
+    HE_stream = fast.DataStream(extractor)
+    for j, TMA in enumerate(HE_stream):
         HE_TMAs.append(TMA)
         if j == nb_iters:
             break
+    #del HE_stream
+    del extractor
 
     print("length HE TMAs:", len(HE_TMAs))
     print("length CK TMAs:", len(CK_TMAs))
@@ -228,6 +246,9 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 if position_CK_x + width > width_mask or position_CK_y + height > height_mask:
                     # print("TMA core boundary outside mask boundary")
                     continue
+                if position_HE_x + width_HE > width_annot or position_HE_y + height_HE > height_annot:
+                    # print("TMA core boundary outside mask boundary")
+                    continue
 
                 patch = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
                                                False)
@@ -289,21 +310,22 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 
                 data = [x, mask, healthy_ep, in_situ]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
-                generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=0.25).connect(0, curr) for curr in data_fast]
+                generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
 
                 # @TODO: find out why the error below sometimes happens
                 for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
                     try:
+                        # print(patch_idx)
                         # convert from FAST image to numpy array
-                        patch_HE = np.array(patch_HE)
-                        patch_mask = np.array(patch_mask)[..., 0]
-                        patch_healthy = np.array(patch_healthy)[..., 0]
-                        patch_in_situ = np.array(patch_in_situ)[..., 0]
+                        patch_HE = np.asarray(patch_HE)
+                        patch_mask = np.asarray(patch_mask)[..., 0]
+                        patch_healthy = np.asarray(patch_healthy)[..., 0]
+                        patch_in_situ = np.asarray(patch_in_situ)[..., 0]
                     except RuntimeError as e:
                         print(e)
                         #print("shape", patch_HE.shape)
-                        break  # @TODO: Change to break?
+                        continue  # @TODO: Change to break?
 
                     # normalizing intesities for patches
                     patch_mask = minmax(patch_mask)
@@ -371,12 +393,32 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 del data_fast, generators, streamers
     
                 tma_idx += 1
-    
-    # pbar.close()
+
+    #try:
+    HE_TMAs.clear()
+    CK_TMAs.clear()
+    del HE_TMAs, CK_TMAs
+    del mask, annot, annotRemove, annot_for_width
+    del remove_annot, patch, patch_annot, patch_remove
+    del importerHE, importerCK, importerMask, importerAnnot, importerRemove
+    del access, accessAnnot, accessRemove
+    del patch_healthy, patch_in_situ, patch_mask, patch_HE
+    del HE_TMA, CK_TMA, HE_TMA_padded, CK_TMA_padded
+    del data
+
+    import gc
+    gc.collect()
+    #except Exception:
+    #    pass
+
+    #pbar.close()
     print("count", count)
 
 
 if __name__ == "__main__":
+    import os
+    # from multiprocessing import Process
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # GPU is cringe
 
     # --- HYPER PARAMS
     plot_flag = False
@@ -386,6 +428,7 @@ if __name__ == "__main__":
     downsample_factor = 4  # tested with 8, but not sure if better
     wsi_idx = 0
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed  # @TODO: Check if okay
+    overlap = 0.25
 
     HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
@@ -434,11 +477,23 @@ if __name__ == "__main__":
                         '_EFI_CK_BC_' + str(id_) + '.tiff'
             annot_path = '/data/Maren_P1/data/annotations_converted/TMA/' + str(file_front) + \
                          '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
-            remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/'+ str(file_front) \
+            remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/' + str(file_front) \
                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
 
-            create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
-                            plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
+            #
+            #create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
+            #                plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
+
+            # create dataset for current WSI in a separate process
+            # this process will be killed when it is done, hence, all memory will be freed
+            inputs_ = [[HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
+                       plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap]]
+            p = mp.Pool(1)
+            p.map(create_datasets_wrapper, inputs_)
+            p.terminate()
+            p.join()
+            del p, inputs_
 
             wsi_idx += 1
+
         count += 1
