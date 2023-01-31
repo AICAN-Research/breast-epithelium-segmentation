@@ -1,12 +1,11 @@
-import numpy as np
 import tensorflow as tf
 import os
 from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
-from augment import random_brightness, random_rot90, random_fliplr, random_flipud, \
+from augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
-from utils import normalize_img, patchReader, get_random_path_from_random_class
+from source.utils import normalize_img, patchReader, get_random_path_from_random_class
 from argparse import ArgumentParser
 import sys
 
@@ -40,19 +39,20 @@ name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # +
 
 
 # paths
-dataset_path = './datasets/081222_135917_level_2_psize_512_ds_4/'  # path to directory
+dataset_path = './datasets/310123_130125_level_2_psize_512_ds_4/'  # path to directory
 train_path = dataset_path + 'ds_train'
 val_path = dataset_path + 'ds_val'
-test_path = dataset_path + 'ds_test'
+#test_path = dataset_path + 'ds_test'
 history_path = './output/history/'  # path to directory
 model_path = './output/models/'  # path to directory
 save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
 
-N_train_tot = 1000
+N_train_tot = 1000  # @TODO: Change this number
 N_val_tot = 200
 
 # Cross-validation for division into train, val, test:
 # The numbers corresponds to wsi-numbers created in create data
+"""
 k = 5  # number of folds in cross-validation
 nbr_files = len(os.listdir(dataset_path))  # number of slides in total dataset (24 including zero, 0-23)
 nbr_val = int(np.floor(nbr_files / k))
@@ -62,7 +62,7 @@ print("nbr_test", nbr_test)
 
 order = np.arange(nbr_files)
 np.random.shuffle(order)
-
+"""
 # --------------------
 
 train_paths = []
@@ -107,12 +107,12 @@ ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.f
 #ds_train = ds_train.shuffle(buffer_size=N_train)  # is this correct, do I need to "reshuffle_each_iteration"?
 ds_train = ds_train.batch(ret.batch_size)
 ds_train = ds_train.prefetch(1)
-ds_train = ds_train.repeat(-1)  # repeat indefinitely (?)
+#ds_train = ds_train.repeat(-1)  # repeat indefinitely (?)
 
 #ds_val = ds_val.shuffle(buffer_size=N_val)  # is this correct, do I need to "reshuffle_each_iteration"?
 ds_val = ds_val.batch(ret.batch_size)
 ds_val = ds_val.prefetch(1)
-ds_val = ds_val.repeat(-1)  # repeat indefinitely (?)  # TODO: Remove! no longer needed as we have infinite generator
+#ds_val = ds_val.repeat(-1)  # repeat indefinitely (?)  # TODO: Remove! no longer needed as we have infinite generator
 
 
 # normalize intensities
