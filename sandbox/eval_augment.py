@@ -1,3 +1,8 @@
+"""
+Script for evaluating augmentation of histopathological tissue slides
+Remember to change dataset name (ds_name)
+"""
+
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
