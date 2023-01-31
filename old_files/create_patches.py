@@ -34,6 +34,7 @@ def patches(image, gt, size): #size = patch size
     return image_patches, gt_patches
 
 # Fix edges
+# Put into create_data, not necessary to make list then.
 def patches_overlap(image, gt, size): #size = patch size
     image_patches = []
     gt_patches = []
