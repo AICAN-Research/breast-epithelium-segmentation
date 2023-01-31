@@ -1,4 +1,7 @@
-# Plot training/validation loss
+"""
+Plot training/validation loss
+Remember to change history path
+"""
 
 import pandas as pd
 import matplotlib.pyplot as plt
