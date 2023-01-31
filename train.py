@@ -76,7 +76,7 @@ for directory in os.listdir(train_path):
     
 val_paths = []
 for directory in os.listdir(val_path):
-    dir_path = train_path + "/" + directory + "/"
+    dir_path = val_path + "/" + directory + "/"
     dir_paths = []
     for file_ in os.listdir(dir_path):
         file_path = dir_path + file_
