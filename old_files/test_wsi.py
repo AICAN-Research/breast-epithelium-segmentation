@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 import scipy.ndimage.morphology as morph
 
-import utils
+from source import utils
 
 #  Import IHC and HE image:
 importer = fast.WholeSlideImageImporter.create(
