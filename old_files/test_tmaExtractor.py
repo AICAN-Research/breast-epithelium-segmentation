@@ -1,12 +1,8 @@
 import fast
-import matplotlib.pyplot as plt
-import utils
 import numpy as np
 from skimage.registration import phase_cross_correlation
 from scipy import ndimage as ndi
 import cv2
-import scipy.ndimage.morphology as morph
-from skimage.transform import rescale
 
 #  Import IHC and HE image:
 importerIHC = fast.WholeSlideImageImporter.create(
@@ -119,26 +115,38 @@ while True:   # Use this, HE_counter < 4 just for testing
         print("y thresh shape", y_thresh.shape)
         print("y thresh min max", np.amin(y_thresh), np.amax(y_thresh))
 
-        f, axes = plt.subplots(1, 2)  # Figure of IHC with and without thresholding
-        axes[0].imshow(y.astype("uint8"))  # IHC without thresholding
-        axes[1].imshow(y_thresh, cmap="gray")  # IHC with thresholding
-        plt.show()
+        #f, axes = plt.subplots(1, 2)  # Figure of IHC with and without thresholding
+        #axes[0].imshow(y.astype("uint8"))  # IHC without thresholding
+        #axes[1].imshow(y_thresh, cmap="gray")  # IHC with thresholding
+        #plt.show()
 
         y_hsv = cv2.cvtColor(y, cv2.COLOR_RGB2HSV)  # rgb to hsv color space
         print("y hsv shape", y_hsv.shape)
-        y_hsv = y_hsv[:, :, 1]  # hue, saturation, value
-        print("y hsv min max",np.amin(y_hsv), np.amax(y_hsv))
+        y_hsv_1 = y_hsv[:, :, 1]  # hue, saturation, value
+        y_hsv_0 = y_hsv[:, :, 0]  # hue, saturation, value
+        y_hsv_2 = y_hsv[:, :, 2]  # hue, saturation, value
+        print("y hsv 1 min max",np.amin(y_hsv_1), np.amax(y_hsv_1))
+        print("y hsv 0 min max", np.amin(y_hsv_0), np.amax(y_hsv_0))
+        print("y hsv 2 min max", np.amin(y_hsv_2), np.amax(y_hsv_2))
+        print("y hsv channel shape", y_hsv_1.shape)
+        print("y hsv channel 0 shape", y_hsv_0.shape)
+        print("y hsv channel 2 shape", y_hsv_2.shape)
         y_hsv_temp = (y_hsv > 60).astype('uint8')  # threshold
         print(np.amin(y_hsv_temp), np.amax(y_hsv_temp))
+
         print("y hsv temp shape",y_hsv_temp.shape)
 
-        f, axes = plt.subplots(1, 2)  # Figure of IHC with and without threshold
-        axes[0].imshow(y.astype("uint8"))
-        axes[1].imshow(y_hsv_temp, cmap="gray")
-        plt.show()
+        #f, axes = plt.subplots(1, 2)  # Figure of IHC with and without threshold
+        #axes[0].imshow(y.astype("uint8"))
+        #axes[1].imshow(y_hsv_temp, cmap="gray")
+        #plt.show()
+
+        exit()
+
 
         # resize both to fixed size ex: (512, 512), image bilinear, gt nearest
         x = cv2.resize(x, (512, 512), interpolation=cv2.INTER_LINEAR)
+
         y = cv2.resize(y, (512, 512), interpolation=cv2.INTER_NEAREST)
 
         # One-hot TMA (IHC) binary, 01
@@ -147,6 +155,7 @@ while True:   # Use this, HE_counter < 4 just for testing
 
         print(x.shape)
         print(y.shape)
+        print(x.shape)
 
         input("Press ENTER To go next:")
         #exit()
