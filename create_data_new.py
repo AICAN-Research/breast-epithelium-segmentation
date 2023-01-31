@@ -1,3 +1,8 @@
+"""
+Script for creating patches from histopathological images and saving them in hdf5 format.
+The patches are either placed in an invasive, benign or inSitu folder depending on their content.
+"""
+
 #import fast
 import numpy as np
 from tqdm import tqdm
