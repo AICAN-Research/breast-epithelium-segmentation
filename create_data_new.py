@@ -103,10 +103,10 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
         CK_TMAs.append(TMA)
         if j == nb_iters:
             break
-    #del CK_stream
-    del extractor
+    del extractor, CK_stream
 
     # get HE TMA cores
+    #fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerHE)
     HE_TMAs = []
     HE_stream = fast.DataStream(extractor)
@@ -114,8 +114,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
         HE_TMAs.append(TMA)
         if j == nb_iters:
             break
-    #del HE_stream
-    del extractor
+    del extractor, HE_stream
 
     print("length HE TMAs:", len(HE_TMAs))
     print("length CK TMAs:", len(CK_TMAs))
@@ -394,7 +393,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     
                 tma_idx += 1
 
-    #try:
     HE_TMAs.clear()
     CK_TMAs.clear()
     del HE_TMAs, CK_TMAs
@@ -408,8 +406,6 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
 
     import gc
     gc.collect()
-    #except Exception:
-    #    pass
 
     #pbar.close()
     print("count", count)
