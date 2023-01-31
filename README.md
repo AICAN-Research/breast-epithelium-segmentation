@@ -5,23 +5,31 @@ Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using
 
 Create a screen session: 
 ```
-screen -S "name of session"
+screen -S session-name
+```
+Reenter existing screen session: 
+```
+screen -r session-name
 ```
 Activate virtual environment: 
 ```
-source "name of environment"/bin/activate
+source environment-name/bin/activate
 ```
 Start training: 
 ```
-python "name of script.py"
+python /path/to/script.py
 ```
 If you want to change arguments in script that has argparse (from default) then f.ex do:
 ```
-python "name of script.py" --batch_size 16 --learning_rate 0.001
+python /path/to/script.py --batch_size 16 --learning_rate 0.001
 ```
 Exit screen session: 
 ```
 ctr ad
+```
+Check if in screen session: 
+```
+ctr at
 ```
 ## Troubleshoot: 
 ### QuPath: 
