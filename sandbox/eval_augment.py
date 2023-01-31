@@ -4,7 +4,7 @@ import numpy as np
 import os
 from tqdm import tqdm
 from source.utils import normalize_img, patchReader
-from augment import random_rot90, random_fliplr, \
+from source.augment import random_rot90, random_fliplr, \
     random_flipud, random_hue, random_saturation, random_brightness, random_blur
 
 
