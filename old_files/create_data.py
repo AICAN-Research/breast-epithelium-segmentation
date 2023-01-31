@@ -1,14 +1,10 @@
 import os
 import fast
 import matplotlib.pyplot as plt
-import utils
 import numpy as np
 from skimage.registration import phase_cross_correlation
 from scipy import ndimage as ndi
 import cv2
-import h5py
-import scipy.ndimage.morphology as morph
-from skimage.transform import rescale
 from tqdm import tqdm
 from skimage.morphology import binary_dilation, binary_erosion, disk, \
     remove_small_objects, remove_small_holes
