@@ -3,7 +3,6 @@
 import subprocess as sp
 import os
 
-
 # choose image to convert
 loc = "/data/Maren_P1/epithelium/CK/ECD_EFI_CK_BC_4.vsi"
 
@@ -31,22 +30,23 @@ comp2 = "jpeg"  # "jpeg" #"lzw", "jpeg", "deflate" (zip), "none" # <----- Best t
 Q2 = 85  # default: 75 (quality of compression)
 
 # output paths (mid-step and final converted and compressed output)
-file1 = out_path + image + ".tif"
-# file2 = out_path + image + "_fixed.tif"
+file1 = out_path + image + ".btf"
+file2 = out_path + image + "_fixed.tif"
 
 # get metadata
 sp.check_call(["sh", showinf_path, "-nopix", loc])
 
 # vsi -> btf
-#sp.check_call(["sh", bfconvert_path, "-tilex", str(tz), "-tiley", str(tz), "-nogroup", "-no-upgrade",
-#               "-overwrite", "-bigtiff", "-series", str(plane), loc, file1])
 sp.check_call(["sh", bfconvert_path, "-tilex", str(tz), "-tiley", str(tz), "-nogroup", "-no-upgrade",
-               "-overwrite", "-bigtiff", "-pyramid-resolutions", "6", "-compression", "JPEG-2000", loc, file1])
+               "-overwrite", "-bigtiff", "-series", str(plane), loc, file1])
+
+#sp.check_call(["sh", bfconvert_path, "-tilex", str(tz), "-tiley", str(tz), "-nogroup", "-no-upgrade",
+#               "-overwrite", "-bigtiff", "-pyramid-resolutions", "6", "-compression", "JPEG-2000", loc, file1])
 # -compression, comp1 <- choose no compression instead in this mid-step
 
 # btf -> tif
-#sp.check_call(["vips", "tiffsave", file1, file2, "--bigtiff", "--tile", "--pyramid",
-#               "--compression=" + comp2, "--Q=" + str(Q2)])
+sp.check_call(["vips", "tiffsave", file1, file2, "--bigtiff", "--tile", "--pyramid",
+               "--compression=" + comp2, "--Q=" + str(Q2)])
 
 # delete btf file
 os.remove(file1)
