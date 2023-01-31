@@ -3,7 +3,7 @@ import os
 from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
-from augment import random_brightness, random_fliplr, random_flipud, \
+from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class
 from argparse import ArgumentParser
