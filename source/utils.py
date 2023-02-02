@@ -5,6 +5,46 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import h5py
 
+
+def dice_metric(pred, gt):
+    smooth = 1.
+    intersection1 = tf.reduce_sum(pred * gt)
+    union1 = tf.reduce_sum(pred * pred) + tf.reduce_sum(gt * gt)
+    dice = (2. * intersection1 + smooth) / (union1 + smooth)
+    return dice
+
+
+# Used guide for custom_callbacks (https://www.tensorflow.org/guide/keras/custom_callback) and
+# custom metrics (https://www.tensorflow.org/guide/keras/train_and_evaluate) from
+# tensorflow keras
+class LossMetrics():
+    """
+    Create state variables for metric
+    """
+    def __init__(self, name="train_invasive_loss"):
+        self.train_invasive_loss =
+        self.train_benign_loss =
+        self.train_insitu_loss =
+        self.val_invasive_loss =
+        self.val_benign_loss =
+        self.val_insitu_loss =
+
+    def update_state(self, y_true, y_pred):
+    """
+    Update state variables using model predictions (y_pred) and target (y_true)
+    """
+    def result(self):
+    """
+    Compute final results
+    """
+
+    def reset_state(self):
+    """
+    Reinitializes state of metric
+    """
+
+
+
 # from tensorflow example, modified
 def normalize_img(image, label):
     """Normalizes images: `uint8` -> `float32`."""
