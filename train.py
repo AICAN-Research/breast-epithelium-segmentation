@@ -5,7 +5,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
-from source.utils import normalize_img, patchReader, get_random_path_from_random_class, dice_loss
+from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss
 from argparse import ArgumentParser
 import sys
 
@@ -15,6 +15,7 @@ def main(ret):
 
     img_size = 512
     nb_classes = 4
+    class_names = ["invasive", "benign", "insitu"]
 
     name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
@@ -27,8 +28,8 @@ def main(ret):
     model_path = './output/models/'  # path to directory
     save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
 
-    N_train_batches = 200  # @TODO: Change this number
-    N_val_batches = 50
+    N_train_batches = 60  # @TODO: Change this number
+    N_val_batches = 15
 
     # Cross-validation for division into train, val, test:
     # The numbers corresponds to wsi-numbers created in create data
@@ -150,7 +151,7 @@ def main(ret):
     model.compile(
         optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
         loss=network.get_dice_loss(),
-        metrics=[dice_loss()],
+        metrics=[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)],
         run_eagerly=False,
     )
 
@@ -172,9 +173,9 @@ if __name__ == "__main__":
                         help="set which batch size to use for training.")
     parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0005,
                         help="set which learning rate to use for training.")
-    parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=10,
+    parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
                         help="number of epochs to train.")
-    parser.add_argument('--patience', metavar='--pa', type=int, nargs='?', default=1,
+    parser.add_argument('--patience', metavar='--pa', type=int, nargs='?', default=50,
                         help="number of epochs to wait (patience) for early stopping.")
     parser.add_argument('--proc', metavar='--pr', type=int, nargs='?', default=4,
                         help="number of workers to use with tf.data.")
