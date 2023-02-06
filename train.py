@@ -1,7 +1,7 @@
 import tensorflow as tf
 import os
 from deep_learning_tools.network import Unet
-from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
+from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping, TensorBoard
 from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
@@ -129,6 +129,9 @@ def main(ret):
         append=True
     )
 
+    # tensorboard history logger
+    tb_logger = TensorBoard(log_dir="output/logs/" + name + "/", histogram_freq=0, update_freq="epoch")
+
     early = EarlyStopping(
         monitor="val_loss",
         min_delta=0,  # 0: any improvement is considered an improvement
@@ -161,7 +164,7 @@ def main(ret):
         epochs=ret.epochs,
         validation_data=ds_val,
         validation_steps=N_val_batches,
-        callbacks=[save_best, history, early],
+        callbacks=[save_best, history, early, tb_logger],
         verbose=1,
     )
 
@@ -171,7 +174,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=32,
                         help="set which batch size to use for training.")
-    parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0005,
+    parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
                         help="set which learning rate to use for training.")
     parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
                         help="number of epochs to train.")
