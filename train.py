@@ -5,7 +5,8 @@ from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
-from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss
+from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss, \
+    class_categorical_focal_dice_loss, categorical_focal_dice_loss
 from argparse import ArgumentParser
 import sys
 
@@ -153,8 +154,8 @@ def main(ret):
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
-        loss=network.get_dice_loss(),
-        metrics=[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)],
+        loss=categorical_focal_dice_loss(nb_classes=nb_classes),  # network.get_dice_loss(),
+        metrics=[class_categorical_focal_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)],
         run_eagerly=False,
     )
 
