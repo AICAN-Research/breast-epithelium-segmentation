@@ -248,6 +248,12 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
                     ax[1, 1].imshow(gt_one_hot[..., 3], cmap="gray")
                     plt.show()
 
+                he_path = dataset_path + "tmas_he/"
+                ck_path = dataset_path + "tmas_ck/"
+
+                # os.makedirs(he_path, exist_ok=True)
+                # os.makedirs(ck_path, exist_ok=True)
+
                 # save cores as tiff images
                 #he_image = pyvips.Image.new_from_array(large_image)
                 #he_image.tiffsave(f'{args.out_dir}/{tiffname}.tif', tile=True, tile_width=args.psize,
@@ -278,7 +284,7 @@ if __name__ == "__main__":
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
-    dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
+    dataset_path = "./datasets_tma_cores/" + curr_date + "_" + curr_time + \
                    "_level_" + str(level) + \
                    "_ds_" + str(downsample_factor) + "/"
 
@@ -317,6 +323,8 @@ if __name__ == "__main__":
                          '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
             remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/' + str(file_front) \
                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
+
+            dataset_path = dataset_path + "/" + file_front + "/" + file + "/"
 
             create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, dataset_path, set_name,
                              plot_flag, nb_iters, level, downsample_factor, wsi_idx, dist_limit)
