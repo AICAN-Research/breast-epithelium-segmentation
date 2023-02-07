@@ -248,8 +248,8 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
                     ax[1, 1].imshow(gt_one_hot[..., 3], cmap="gray")
                     plt.show()
 
-                he_path = dataset_path + "tmas_he/"
-                ck_path = dataset_path + "tmas_ck/"
+                he_path = dataset_path + "tmas_he/" + "_wsi_idx_" + str(wsi_idx) + "_tma_idx_" + str(tma_idx)
+                ck_path = dataset_path + "tmas_ck/" + "_wsi_idx_" + str(wsi_idx) + "_tma_idx_" + str(tma_idx)
 
                 # os.makedirs(he_path, exist_ok=True)
                 # os.makedirs(ck_path, exist_ok=True)
