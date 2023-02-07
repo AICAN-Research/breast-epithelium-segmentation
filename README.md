@@ -31,6 +31,11 @@ Check if in screen session:
 ```
 ctr at
 ```
+Convert model to onnx for FastPathology
+```
+pip install tf2onnx
+python -m tf2onnx.convert --saved-model output/models/model_060223_122342_unet_bs_32/ --output output/converted_models/model_060223_122342_unet_bs_32.onnx
+```
 ## Troubleshoot: 
 ### QuPath: 
 Error when exporting annotations to geojson with QuPath script: 
