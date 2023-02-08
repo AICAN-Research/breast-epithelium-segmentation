@@ -428,3 +428,39 @@ def categorical_focal_tversky_loss(delta=0.7, gamma=0.75, nb_classes=4):
         loss /= nb_classes
         return K.clip(loss, epsilon, 1. - epsilon)
     return focal_tversky
+
+def categorical_focal_tversky_loss_2(delta=0.7, gamma=0.75, smooth=0.000001, nb_classes=4):
+    """A Novel Focal Tversky loss function with improved Attention U-Net for lesion segmentation
+    Link: https://arxiv.org/abs/1810.07842
+    Parameters
+    ----------
+    gamma : float, optional
+        focal parameter controls degree of down-weighting of easy examples, by default 0.75
+    """
+
+    def loss_function(y_true, y_pred):
+        # Clip values to prevent division by zero error
+        epsilon = K.epsilon()
+        y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
+        axis = [1, 2]
+
+        # Calculate true positives (tp), false negatives (fn) and false positives (fp)
+        tp = K.sum(y_true * y_pred, axis=axis)
+        fn = K.sum(y_true * (1 - y_pred), axis=axis)
+        fp = K.sum((1 - y_true) * y_pred, axis=axis)
+        tversky_class = (tp + smooth) / (tp + delta * fn + (1 - delta) * fp + smooth)
+        # Average class scores
+        #focal_tversky_loss = K.mean(K.pow((1 - tversky_class), gamma))
+
+        # calculate losses separately for each class, enhancing both classes
+        loss = 0
+        for class_val in range(1, nb_classes):
+            loss += (K.pow(1 - tversky_class[:, class_val], (1/gamma)))
+
+        # Average class scores
+        loss = loss/(nb_classes - 1)
+        return K.clip(loss, epsilon, 1. - epsilon)
+
+        return focal_tversky_loss
+
+    return loss_function
