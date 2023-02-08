@@ -7,6 +7,7 @@ from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss, \
     class_categorical_focal_dice_loss, categorical_focal_dice_loss
+from source.losses import categorical_focal_tversky_loss, categorical_focal_tversky_loss_2
 from argparse import ArgumentParser
 import sys
 
@@ -14,7 +15,7 @@ def main(ret):
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 
-    img_size = 512
+    img_size = 512  #@TODO: None not allowed with convolutions, why?
     nb_classes = 4
     class_names = ["invasive", "benign", "insitu"]
 
@@ -82,10 +83,11 @@ def main(ret):
 
     # load patch from randomly selected patch
     ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]),
-                            num_parallel_calls=ret.proc)
+                            num_parallel_calls=ret.proc, deterministic=False)
     ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]),
-                        num_parallel_calls=ret.proc)
+                        num_parallel_calls=ret.proc, deterministic=False)
 
+    # @TODO: Check if good idea to do deterministic=False here as well (as in lines above)
     # normalize intensities
     ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
     ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
@@ -98,6 +100,7 @@ def main(ret):
     # TODO: Put all above in a function and call them for both train/val to generate generators
 
     # only augment train data
+
     # shift last
     ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
@@ -154,8 +157,11 @@ def main(ret):
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
-        loss=categorical_focal_dice_loss(nb_classes=nb_classes),  # network.get_dice_loss(),
-        metrics=[class_categorical_focal_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)],
+        loss=categorical_focal_tversky_loss_2(nb_classes=nb_classes), #categorical_focal_tversky_loss(nb_classes=nb_classes),  # network.get_dice_loss(),
+        metrics=[
+            network.get_dice_loss(),
+            *[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)]
+        ],
         run_eagerly=False,
     )
 
