@@ -51,6 +51,8 @@ def categorical_focal_tversky_loss(delta=0.7, gamma=0.75, nb_classes=4):
         return K.clip(loss, epsilon, 1. - epsilon)
     return focal_tversky
 
+# based on code from https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py and
+# equation (12) in https://arxiv.org/pdf/2102.04525.pdf
 def categorical_focal_tversky_loss_2(delta=0.7, gamma=0.75, smooth=0.000001, nb_classes=4):
     """A Novel Focal Tversky loss function with improved Attention U-Net for lesion segmentation
     Link: https://arxiv.org/abs/1810.07842
@@ -71,8 +73,6 @@ def categorical_focal_tversky_loss_2(delta=0.7, gamma=0.75, smooth=0.000001, nb_
         fn = K.sum(y_true * (1 - y_pred), axis=axis)
         fp = K.sum((1 - y_true) * y_pred, axis=axis)
         tversky_class = (tp + smooth) / (tp + delta * fn + (1 - delta) * fp + smooth)
-        # Average class scores
-        #focal_tversky_loss = K.mean(K.pow((1 - tversky_class), gamma))
 
         # calculate losses separately for each class, enhancing both classes
         loss = 0
