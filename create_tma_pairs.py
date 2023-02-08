@@ -53,8 +53,6 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
     annot_for_width = importer_annot.runAndGetOutputData()
     annot_remove = importer_remove.runAndGetOutputData()
 
-    print("*****************")
-
     height_mask = mask.getLevelHeight(level)
     width_mask = mask.getLevelWidth(level)
 
@@ -64,8 +62,6 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
     access = mask.getAccess(fast.ACCESS_READ)
     access_annot = annot.getAccess(fast.ACCESS_READ)
     access_remove = annot_remove.getAccess(fast.ACCESS_READ)
-
-    print('-------------------------')
 
     # get CK TMA cores at level 0
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importer_ck)
@@ -130,12 +126,14 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
                 height_ck, width_ck, _ = ck_tma.shape  # need when finding TMA in mask slide
                 height_he, width_he, _ = he_tma.shape
 
+                # find size of rectangle to fit both ck and he tma core
                 longest_height = max([shapes_ck_tma[0], shapes_he_tma[0]])
                 longest_width = max([shapes_ck_tma[1], shapes_he_tma[1]])
 
                 ck_tma_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
                 he_tma_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
 
+                # insert ck and he tma in padded array
                 ck_tma_padded[:ck_tma.shape[0], :ck_tma.shape[1]] = ck_tma
                 he_tma_padded[:he_tma.shape[0], :he_tma.shape[1]] = he_tma
 
@@ -150,7 +148,7 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
                     continue
 
                 patch_remove = np.asarray(remove_annot)
-                patch_remove = patch_remove[..., :3]
+                patch_remove = patch_remove[..., :3]  #@TODO: check if this is correct
                 remove_tma_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
                 remove_tma_padded[:patch_remove.shape[0], :patch_remove.shape[1]] = patch_remove
                 remove_tma_padded = remove_tma_padded[:patch_remove.shape[0], :patch_remove.shape[1]]
@@ -168,6 +166,7 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
                                               interpolation=cv2.INTER_NEAREST)
 
                 # detect shift between IHC and HE
+                #@TODO: try other registration methods. Also, check output from this, what are the two last outputs
                 detected_shift = phase_cross_correlation(he_tma_padded_ds, ck_tma_padded_ds)
                 shifts = detected_shift[0]
                 shifts[2] = 0
