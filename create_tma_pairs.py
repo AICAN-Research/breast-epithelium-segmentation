@@ -252,17 +252,17 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
 
                 # os.makedirs(he_path, exist_ok=True)
                 # os.makedirs(ck_path, exist_ok=True)
-
+                exit()
                 # save cores as tiff images
-                #he_image = pyvips.Image.new_from_array(large_image)
-                #he_image.tiffsave(f'{args.out_dir}/{tiffname}.tif', tile=True, tile_width=args.psize,
-                #                     tile_height=args.psize, pyramid=True, compression='lzw', bigtiff=True)
+                he_image = pyvips.Image.new_from_array(large_image)
+                he_image.tiffsave(he_path + '.tif', tile=True, tile_width=longest_width, tile_height=longest_height,
+                                  pyramid=True, compression='lzw', bigtiff=True)
 
-                #ck_image = pyvips.Image.new_from_array(large_image)
-                #ck_image.tiffsave(f'{args.out_dir}/{tiffname}.tif', tile=True, tile_width=args.psize,
-                #                     tile_height=args.psize, pyramid=True, compression='lzw', bigtiff=True)
+                ck_image = pyvips.Image.new_from_array(large_image)
+                ck_image.tiffsave(ck_path + '.tif', tile=True, tile_width=longest_width, tile_height=longest_height,
+                                  pyramid=True, compression='lzw', bigtiff=True)
 
-                #del he_image, ck_image
+                del he_image, ck_image
 
 
 if __name__ == "__main__":
