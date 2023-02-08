@@ -6,10 +6,10 @@ from tensorflow.keras import backend as K
 # Helper function to enable loss function to be flexibly used for
 # both 2D or 3D image segmentation - source: https://github.com/frankkramer-lab/MIScnn
 def identify_axis(shape):
-    # Three dimensional
+    # Three-dimensional
     if len(shape) == 5:
         return [1, 2, 3]
-    # Two dimensional
+    # Two-dimensional
     elif len(shape) == 4:
         return [1, 2]
     # Exception - Unknown
@@ -18,15 +18,15 @@ def identify_axis(shape):
 
 
 def categorical_focal_tversky_loss(delta=0.7, gamma=0.75, nb_classes=4):
-    """This is the implementation for multiclass segmentation.
-    Parameters
-    ----------
-    delta : float, optional
-        controls weight given to false positive and false negatives, by default 0.7
-    gamma : float, optional
-        focal parameter controls degree of down-weighting of easy examples, by default 0.75
     """
-   # based on: https://github.com/mlyg/unified-focal-loss/issues/13
+    :param delta: float, optional
+       controls weight given to false positive and false negatives, by default 0.7
+    :param gamma: float, optional
+       focal parameter controls degree of down-weighting of easy examples, by default 0.75
+    :param nb_classes:
+    :return:
+    """
+    # based on: https://github.com/mlyg/unified-focal-loss/issues/13
     def focal_tversky(y_true, y_pred):
         # Clip values to prevent division by zero error
         epsilon = K.epsilon()
@@ -49,19 +49,23 @@ def categorical_focal_tversky_loss(delta=0.7, gamma=0.75, nb_classes=4):
         # Average class scores
         loss /= nb_classes
         return K.clip(loss, epsilon, 1. - epsilon)
+
     return focal_tversky
+
 
 # based on code from https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py and
 # equation (12) in https://arxiv.org/pdf/2102.04525.pdf
 def categorical_focal_tversky_loss_2(delta=0.7, gamma=0.75, smooth=0.000001, nb_classes=4):
-    """A Novel Focal Tversky loss function with improved Attention U-Net for lesion segmentation
-    Link: https://arxiv.org/abs/1810.07842
-    Parameters
-    ----------
-    gamma : float, optional
-        focal parameter controls degree of down-weighting of easy examples, by default 0.75
     """
-
+    A Novel Focal Tversky loss function with improved Attention U-Net for lesion segmentation
+    Link: https://arxiv.org/abs/1810.07842
+     :param gamma : float, optional
+        focal parameter controls degree of down-weighting of easy examples, by default 0.75
+    :param delta:
+    :param smooth:
+    :param nb_classes:
+    :return:
+    """
     def loss_function(y_true, y_pred):
         # Clip values to prevent division by zero error
         epsilon = K.epsilon()
@@ -82,7 +86,5 @@ def categorical_focal_tversky_loss_2(delta=0.7, gamma=0.75, smooth=0.000001, nb_
         # Average class scores
         loss = loss/(nb_classes - 1)
         return K.clip(loss, epsilon, 1. - epsilon)
-
-        return focal_tversky_loss
 
     return loss_function
