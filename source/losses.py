@@ -1,8 +1,6 @@
 #code from: https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py
 
 from tensorflow.keras import backend as K
-#import numpy as np
-import tensorflow as tf
 
 
 # Helper function to enable loss function to be flexibly used for
