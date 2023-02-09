@@ -13,6 +13,7 @@ from scipy import ndimage as ndi
 import h5py
 from datetime import datetime, date
 import multiprocessing as mp
+from skimage.exposure import equalize_hist
 
 
 def minmax(x):
@@ -42,6 +43,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
 
     # import fast here to free memory when this is done (if running in a separate process)
     import fast
+    test = False
 
     # import CK and annotated (in qupath) image:
     importerHE = fast.WholeSlideImageImporter.create(
@@ -132,6 +134,8 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     count_inSitu = 0
     count = 0
 
+    #exit()
+
     for HE_counter in range(len(HE_TMAs)):
         for CK_counter in range(len(CK_TMAs)):
 
@@ -183,7 +187,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 longest_height = max([shapes_CK_TMA[0], shapes_HE_TMA[0]])
                 longest_width = max([shapes_CK_TMA[1], shapes_HE_TMA[1]])
 
-                CK_TMA_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
+                CK_TMA_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
                 HE_TMA_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
 
                 CK_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]] = CK_TMA
@@ -223,20 +227,62 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 HE_TMA_padded_ds = cv2.resize(HE_TMA_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
                                               interpolation=cv2.INTER_NEAREST)
 
-                detected_shift = phase_cross_correlation(HE_TMA_padded_ds, CK_TMA_padded_ds)  # detect shift between IHC and HE
+                CK_TMA_padded_ds_histeq = equalize_hist(CK_TMA_padded_ds)
+
+                shifts, reg_error, phase_diff = phase_cross_correlation(HE_TMA_padded_ds, CK_TMA_padded_ds_histeq, return_error=True)  # detect shift between IHC and HE
 
                 # print(detected_shift)
-                shifts = detected_shift[0]
+                # shifts = detected_shift
                 shifts[2] = 0
 
                 # scale shifts back and apply to original resolution
                 shifts = (np.round(downsample_factor * shifts)).astype("int32")
+                tma_padded_shifted = ndi.shift(CK_TMA_padded, shifts, order=0, mode="constant", cval=255, prefilter=False)
 
-                tma_padded_shifted = ndi.shift(CK_TMA_padded, shifts, order=0, mode="constant", cval=0, prefilter=False)
-
+                # @TODO: x,y is incorrect?:
                 # Pad TMAs:
-                x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
-                y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
+                #x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
+                #y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
+
+                # to get real shift we need to accumulate the zero padding with the registration shift
+                #zero_padded_shift = np.array(CK_TMA.shape) - np.array(HE_TMA.shape)
+                #corrected_shift = shifts + zero_padded_shift
+                #print(shifts, zero_padded_shift, corrected_shift)
+
+                def DSC(pred, target):
+                    intersection = np.sum(pred * target)
+                    union = np.sum(pred * pred) + np.sum(target * target)
+                    return np.clip((2 * intersection + 1) / (union + 1), 0, 1)
+
+                intensity_away_from_white_thresh = 20
+                CK_tma_padded_shifted_tissue = (np.mean(tma_padded_shifted, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+                HE_TMA_padded_tissue = (np.mean(HE_TMA_padded, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+
+                dsc_value = DSC(HE_TMA_padded_tissue, CK_tma_padded_shifted_tissue)
+
+                shift_thresh = 200
+
+                if np.abs(shifts[0]) > shift_thresh or np.abs(shifts[1]) > shift_thresh:
+
+                    if dsc_value < 80:
+                        continue
+
+                    print("---")
+                    print(dsc_value)  # Dice th=80  -> remove if dsc_value < 80  (81.13 good, 77.x bad)
+                    print(shifts)
+                    fig, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
+                    axes[0].imshow(CK_TMA)
+                    axes[1].imshow(HE_TMA)
+                    plt.show()
+                    fig, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
+                    axes[0].imshow(CK_TMA_padded)
+                    axes[1].imshow(HE_TMA_padded)
+                    plt.show()
+                    fig, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
+                    axes[0].imshow(tma_padded_shifted)
+                    axes[1].imshow(HE_TMA_padded)
+                    plt.show()
+                    test = True
 
                 # Get TMA from mask slide
                 position_CK_x /= (2 ** level)
@@ -282,6 +328,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 # do the same for manual annotations
                 annot_TMA_padded = annot_TMA_padded[:patch.shape[0], :patch.shape[1]]  # is this necessary?
 
+                """
                 if plot_flag:
                     f, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
                     axes[0, 0].imshow(y)
@@ -291,17 +338,21 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                     axes[1, 1].imshow(mask, cmap='gray', interpolation="none")
                     axes[1, 1].imshow(annot_TMA_padded, alpha=0.5)
                     plt.show()
+                """
 
                 # Visualize TMAs:
-                if plot_flag:
+                if test:
                     fig, axes = plt.subplots(2, 2, figsize=(30, 30))  # Figure of TMAs
-                    axes[0, 0].imshow(y)
-                    axes[0, 1].imshow(x)
-                    axes[0, 1].imshow(y, alpha=0.5)
+                    axes[0, 0].imshow(tma_padded_shifted)
+                    axes[0, 1].imshow(HE_TMA_padded)
                     axes[1, 0].imshow(mask, cmap="gray")
-                    axes[1, 1].imshow(annot_TMA_padded, cmap="jet")
+                    axes[1, 1].imshow(HE_TMA_padded)
+                    axes[1, 1].imshow(tma_padded_shifted, alpha=0.5)
                     #axes[1, 1].imshow(mask[..., 0], alpha=0.5, cmap="gray")
                     plt.show()
+                    test = False
+
+                    # exit()
 
                 # get each GT annotation as its own binary image + fix manual annotations
                 marit_annot = np.asarray(annot_TMA_padded)
@@ -311,12 +362,12 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 # subtract fixed healthy and in situ from invasive tissue
                 mask[healthy_ep == 1] = 0
                 mask[in_situ == 1] = 0
-                
+                """
                 data = [x, mask, healthy_ep, in_situ]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
-
+                
                 # @TODO: find out why the error below sometimes happens
                 for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
                     try:
@@ -397,6 +448,7 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
                 del data_fast, generators, streamers
     
                 tma_idx += 1
+                """
 
     HE_TMAs.clear()
     CK_TMAs.clear()
@@ -405,9 +457,9 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     del remove_annot, patch, patch_annot, patch_remove
     del importerHE, importerCK, importerMask, importerAnnot, importerRemove
     del access, accessAnnot, accessRemove
-    del patch_healthy, patch_in_situ, patch_mask, patch_HE
+    #del patch_healthy, patch_in_situ, patch_mask, patch_HE
     del HE_TMA, CK_TMA, HE_TMA_padded, CK_TMA_padded
-    del data
+    # del data
 
     import gc
     gc.collect()
@@ -446,7 +498,7 @@ if __name__ == "__main__":
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(downsample_factor) + "/"
 
-    os.makedirs(dataset_path, exist_ok=True)
+    #os.makedirs(dataset_path, exist_ok=True)
 
     # define datasets (train/val/test) - always uses predefined dataset
     with h5py.File(data_splits_path, "r") as f:
@@ -464,6 +516,7 @@ if __name__ == "__main__":
     print("file set", file_set)
     print("length file set", len(file_set))
     count = 0
+    #exit()
     for files in tqdm(file_set, "Cohort"):
         set_name = set_names[count]  # ds_train or ds_val
         for file in tqdm(files, "WSI"):
@@ -490,7 +543,7 @@ if __name__ == "__main__":
             inputs_ = [[HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
                        plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap]]
             p = mp.Pool(1)
-            p.map(create_datasets_wrapper, inputs_)
+            output = p.map(create_datasets_wrapper, inputs_)
             p.terminate()
             p.join()
             del p, inputs_
