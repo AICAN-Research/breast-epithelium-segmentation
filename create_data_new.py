@@ -195,7 +195,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 remove_tma_padded[:tma_remove.shape[0], :tma_remove.shape[1]] = tma_remove
                 remove_tma_padded = remove_tma_padded[:tma_remove.shape[0], :tma_remove.shape[1]]
                 if np.count_nonzero(remove_tma_padded) > 0:
-                    if True:
+                    if plot_flag:
                         f, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
                         axes[0].imshow(remove_tma_padded[..., 0], cmap="gray")
                         axes[1].imshow(remove_tma_padded, cmap="gray")
@@ -220,12 +220,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 # scale shifts back and apply to original resolution
                 shifts = (np.round(downsample_factor * shifts)).astype("int32")
                 ck_tma_padded_shifted = ndi.shift(ck_tma_padded, shifts, order=0, mode="constant", cval=255,
-                                               prefilter=False)
-
-                # @TODO: x,y is incorrect?:
-                # Pad TMAs:
-                #x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
-                #y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
+                                                  prefilter=False)
 
                 # find dice score and shift to determine if core pair should be skipped
                 def dsc(pred, target):
@@ -248,10 +243,15 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     if dsc_value < 80:
                         continue
 
+                # @TODO: is incorrect?:
+                he_core_correctly_placed = he_tma_padded[:longest_height, :longest_width]
+                ck_core_correctly_placed = ck_tma_padded_shifted[:longest_height, :longest_width]
+
                 # Get TMA from mask slide
                 position_ck_x /= (2 ** level)
                 position_ck_y /= (2 ** level)
 
+                # @TODO: should heigh_mask be longest_height?
                 position_ck_y = height_mask - position_ck_y - height_ck
 
                 # get corresponding TMA core in the dab image as in the CK:
@@ -262,58 +262,56 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 if position_he_x + width_he > width_annot or position_he_y + height_he > height_annot:
                     continue
 
-                patch = access.getPatchAsImage(int(level), int(position_ck_x), int(position_ck_y), int(width_ck),
-                                               int(height_ck), False)
-                patch_annot = access_annot.getPatchAsImage(int(level), int(position_he_x), int(position_he_y),
-                                                           int(width_he), int(height_he), False)
-                patch = np.asarray(patch)
-                patch_annot = np.asarray(patch_annot)
+                # get dab and manual annotation tma cores as images
+                dab_core = access.getPatchAsImage(int(level), int(position_ck_x), int(position_ck_y), int(width_ck),
+                                                  int(height_ck), False)
+                annot_core = access_annot.getPatchAsImage(int(level), int(position_he_x), int(position_he_y),
+                                                          int(width_he), int(height_he), False)
+                dab_core = np.asarray(dab_core)
+                annot_core = np.asarray(annot_core)
 
-                patch = patch[..., 0]
-                patch_annot = patch_annot[..., 0]  # annotation image is RGB (gray) -> keep only first dim to get intensity image -> single class uint8
-                patch = np.flip(patch, axis=0)  # since annotation is flipped
+                dab_core = dab_core[..., 0]
+                annot_core = annot_core[..., 0]  # annotation image is RGB (gray) -> keep only first dim to get intensity image -> single class uint8
+                dab_core = np.flip(dab_core, axis=0)  # since dab annotation is flipped
 
-                annot_tma_padded = np.zeros((longest_height, longest_width), dtype="uint8")
-                mask_tma_padded = np.zeros((longest_height, longest_width), dtype="uint8")
+                annot_core_padded = np.zeros((longest_height, longest_width), dtype="uint8")
+                dab_core_padded = np.zeros((longest_height, longest_width), dtype="uint8")
 
                 # the correctly placed dab and manual annotation:
-                mask_tma_padded[:patch.shape[0], :patch.shape[1]] = patch
-                annot_tma_padded[:patch_annot.shape[0], :patch_annot.shape[1]] = patch_annot
+                dab_core_padded[:dab_core.shape[0], :dab_core.shape[1]] = dab_core
+                annot_core_padded[:annot_core.shape[0], :annot_core.shape[1]] = annot_core
 
-                mask_padded_shifted = ndi.shift(mask_tma_padded, shifts[:2], order=0, mode="constant", cval=0, prefilter=False)
+                dab_core_padded_shifted = ndi.shift(dab_core_padded, shifts[:2], order=0, mode="constant", cval=0, prefilter=False)
 
-                # the correctly placed blue channel threshold:
-                mask = mask_padded_shifted[:patch.shape[0], :patch.shape[1]]  # should I have CK_TMA.shape here instead?
-
-                # do the same for manual annotations
-                annot_tma_padded = annot_tma_padded[:patch.shape[0], :patch.shape[1]]  # is this necessary?
+                # the correctly placed dab and manual annot:
+                dab_core_correctly_placed = dab_core_padded_shifted[:dab_core.shape[0], :dab_core.shape[1]]
+                annot_core_correctly_placed = annot_core_padded[:annot_core.shape[0], :annot_core.shape[1]]
 
                 # get each GT annotation as its own binary image + fix manual annotations
-                marit_annot = np.asarray(annot_tma_padded)
-                healthy_ep = ((marit_annot == 1) & (mask == 1)).astype("float32")
-                in_situ = ((marit_annot == 2) & (mask == 1)).astype("float32")
+                manual_annot = np.asarray(annot_core_correctly_placed)
+                healthy_ep = ((manual_annot == 1) & (dab_core_correctly_placed == 1)).astype("float32")
+                in_situ_ep = ((manual_annot == 2) & (dab_core_correctly_placed == 1)).astype("float32")
 
                 # subtract fixed healthy and in situ from invasive tissue
-                mask[healthy_ep == 1] = 0
-                mask[in_situ == 1] = 0
-                """
-                data = [x, mask, healthy_ep, in_situ]
+                dab_core_correctly_placed[healthy_ep == 1] = 0
+                dab_core_correctly_placed[in_situ_ep == 1] = 0
+
+                data = [he_core_correctly_placed, dab_core_correctly_placed, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
                 
                 # @TODO: find out why the error below sometimes happens
-                for patch_idx, (patch_HE, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
+                for patch_idx, (patch_he, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
                     try:
                         # print(patch_idx)
                         # convert from FAST image to numpy array
-                        patch_HE = np.asarray(patch_HE)
+                        patch_he = np.asarray(patch_he)
                         patch_mask = np.asarray(patch_mask)[..., 0]
                         patch_healthy = np.asarray(patch_healthy)[..., 0]
                         patch_in_situ = np.asarray(patch_in_situ)[..., 0]
                     except RuntimeError as e:
                         print(e)
-                        #print("shape", patch_HE.shape)
                         continue  # @TODO: Change to break?
 
                     # normalizing intesities for patches
@@ -333,24 +331,24 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
 
                     # check if either of the shapes are empty, if yes, continue
-                    if (len(patch_HE) == 0) or (len(patch_mask) == 0):
+                    if (len(patch_he) == 0) or (len(patch_mask) == 0):
                         continue
 
                     #TODO: pad patches with incorrect shape, now they are just skipped
-                    if np.array(patch_HE).shape[0] < patch_size or np.array(patch_HE).shape[1] < patch_size:
+                    if np.array(patch_he).shape[0] < patch_size or np.array(patch_he).shape[1] < patch_size:
                         continue
-                        patch_HE_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
+                        patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
                         patch_mask_padded = np.zeros((patch_size, patch_size, 3), dtype="uint8")
 
-                        patch_HE_padded[:patch_HE.shape[0], :patch_HE.shape[1]] = patch_HE.astype("uint8")
+                        patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he.astype("uint8")
                         patch_mask_padded[:patch_mask.shape[0], :patch_mask.shape[1]] = patch_mask.astype("uint8")
 
-                        patch_HE = patch_HE_padded
+                        patch_he = patch_he_padded
                         patch_mask = patch_mask_padded
 
                     if plot_flag:
                         fig, ax = plt.subplots(2, 3, figsize=(30, 30))  # Figure of the two patches on top of each other
-                        ax[0, 0].imshow(patch_HE)
+                        ax[0, 0].imshow(patch_he)
                         ax[0, 1].imshow(gt_one_hot[..., 0], cmap="gray")
                         ax[0, 2].imshow(gt_one_hot[..., 1], cmap="gray")
                         ax[1, 1].imshow(gt_one_hot[..., 2], cmap="gray")
@@ -371,28 +369,28 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         count_invasive += 1
 
                     # create folder if not exists
+                    """
                     os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
 
                     # insert saving patches as hdf5 (h5py) here:
                     with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
-                        f.create_dataset(name="input", data=patch_HE.astype("uint8"))
+                        f.create_dataset(name="input", data=patch_he.astype("uint8"))
                         f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
-
+                    """
                 # delete streamers and stuff to potentially avoid threading issues in FAST
                 del data_fast, generators, streamers
     
                 tma_idx += 1
-                """
 
-    HE_TMAs.clear()
-    CK_TMAs.clear()
-    del HE_TMAs, CK_TMAs
-    del mask, annot, annotRemove, annot_for_width
+
+    he_tmas.clear()
+    ck_tmas.clear()
+    del he_tmas, ck_tmas
+    del mask, annot, annot_remove, annot_for_width
     del remove_annot, patch, patch_annot, patch_remove
-    del importerHE, importerCK, importerMask, importerAnnot, importerRemove
+    del importer_he, importer_ck, importer_mask, importer_annot, importer_remove
     del access, accessAnnot, accessRemove
-    #del patch_healthy, patch_in_situ, patch_mask, patch_HE
-    del HE_TMA, CK_TMA, HE_TMA_padded, CK_TMA_padded
+    del he_tma, ck_tma, he_tma_padded, ck_tma_padded
     # del data
 
     import gc
@@ -409,6 +407,7 @@ if __name__ == "__main__":
 
     # --- HYPER PARAMS
     plot_flag = False
+    plot_flag_test = True
     level = 2  # image pyramid level
     nb_iters = -1
     patch_size = 512
