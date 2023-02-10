@@ -136,66 +136,53 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
     #exit()
 
-    for HE_counter in range(len(HE_TMAs)):
-        for CK_counter in range(len(CK_TMAs)):
+    for he_counter in range(len(he_tmas)):
+        for ck_counter in range(len(ck_tmas)):
 
-            # update tqdm
-            #pbar.update(1)
-            # position_HE_x, position_HE_y, position_HE_z = HE_TMAs[HE_counter]  # HE TMA at place HE_counter in HE_TMAs. HE_TMA and IHC_TMA are Image objects
-            # position_CK_x, position_CK_y, position_CK_z = CK_TMAs[CK_counter]  # IHC TMA at place IHC_counter in IHC_TMAs
+            he_tma = he_tmas[he_counter]
+            ck_tma = ck_tmas[ck_counter]
 
-            HE_TMA = HE_TMAs[HE_counter]
-            CK_TMA = CK_TMAs[CK_counter]
+            position_he = he_tma.getTransform().getTranslation()  # position of HE TMA at position HE_counter.
+            position_ck = ck_tma.getTransform().getTranslation()  # position of IHC TMA at position IHC_counter.
 
-            position_HE = HE_TMA.getTransform().getTranslation()  # position of HE TMA at position HE_counter.
-            position_CK = CK_TMA.getTransform().getTranslation()  # position of IHC TMA at position IHC_counter.
+            position_he_x = position_he[0][0]
+            position_he_y = position_he[1][0]
 
-            position_HE_x = position_HE[0][0]
-            position_HE_y = position_HE[1][0]
+            position_ck_x = position_ck[0][0]
+            position_ck_y = position_ck[1][0]
 
-            position_CK_x = position_CK[0][0]
-            position_CK_y = position_CK[1][0]
-
-            dist_x = position_HE_x - position_CK_x
-            dist_y = position_HE_y - position_CK_y
+            dist_x = position_he_x - position_ck_x
+            dist_y = position_he_y - position_ck_y
 
             if np.abs(dist_x) < dist_limit and np.abs(dist_y) < dist_limit:  # if positions are close we have a pair
                 count += 1
-                # @TODO: need to get TMA from coordinates
-                # CK_TMA = access.getPatchAsImage(int(level), int(position_CK_x), int(position_CK_y), int(width), int(height),
-                #                               False)
 
                 # @TODO: why do I need to do this, should not be necessary
                 try:
-                    CK_TMA = np.asarray(CK_TMA)
-                    HE_TMA = np.asarray(HE_TMA)
+                    ck_tma = np.asarray(ck_tma)
+                    he_tma = np.asarray(he_tma)
                 except RuntimeError as e:
                     print(e)
                     continue
 
-                #TODO: is this what happens at TODO at about row 290 as well?
-                #if (CK_TMA.dtype == "object") or (HE_TMA.dtype == "object"):
-                    #print("TMA was 'corrupt', either HE or CK")
-                #    continue
+                shapes_ck_tma = ck_tma.shape
+                shapes_he_tma = he_tma.shape
 
-                shapes_CK_TMA = CK_TMA.shape
-                shapes_HE_TMA = HE_TMA.shape
+                height_ck, width_ck, _ = ck_tma.shape  # need when finding TMA in mask slide
+                height_he, width_he, _ = he_tma.shape
 
-                height, width, _ = CK_TMA.shape  # need when finding TMA in mask slide
-                height_HE, width_HE, _ = HE_TMA.shape
+                longest_height = max([shapes_ck_tma[0], shapes_he_tma[0]])
+                longest_width = max([shapes_ck_tma[1], shapes_he_tma[1]])
 
-                longest_height = max([shapes_CK_TMA[0], shapes_HE_TMA[0]])
-                longest_width = max([shapes_CK_TMA[1], shapes_HE_TMA[1]])
+                ck_tma_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
+                he_tma_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
 
-                CK_TMA_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
-                HE_TMA_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
-
-                CK_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]] = CK_TMA
-                HE_TMA_padded[:HE_TMA.shape[0], :HE_TMA.shape[1]] = HE_TMA
+                ck_tma_padded[:ck_tma.shape[0], :ck_tma.shape[1]] = ck_tma
+                he_tma_padded[:he_tma.shape[0], :he_tma.shape[1]] = he_tma
 
                 # skip cores that should be removed
-                position_HE_x /= (2 ** level)
-                position_HE_y /= (2 ** level)
+                position_he_x /= (2 ** level)
+                position_he_y /= (2 ** level)
 
                 try:
                     remove_annot = accessRemove.getPatchAsImage(int(level), int(position_HE_x), int(position_HE_y), int(width_HE),
