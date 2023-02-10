@@ -181,24 +181,21 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 he_tma_padded[:he_tma.shape[0], :he_tma.shape[1]] = he_tma
 
                 # skip cores that should be removed
-                position_he_x /= (2 ** level)
-                position_he_y /= (2 ** level)
-
+                position_ck_x /= (2 ** level)
+                position_ck_y /= (2 ** level)
                 try:
-                    remove_annot = access_remove.getPatchAsImage(int(level), int(position_he_x), int(position_he_y),
-                                                                 int(width_he), int(height_he), False)
+                    remove_annot = access_remove.getPatchAsImage(int(level), int(position_ck_x), int(position_ck_y),
+                                                                 int(width_ck), int(height_ck), False)
                 except RuntimeError as e:
                     print(e)
                     continue
-
-                patch_remove = np.asarray(remove_annot)
-                patch_remove = patch_remove[..., :3]
+                tma_remove = np.asarray(remove_annot)
+                tma_remove = tma_remove[..., :3]
                 remove_tma_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
-                remove_tma_padded[:patch_remove.shape[0], :patch_remove.shape[1]] = patch_remove
-                remove_tma_padded = remove_tma_padded[:patch_remove.shape[0], :patch_remove.shape[1]]
-
+                remove_tma_padded[:tma_remove.shape[0], :tma_remove.shape[1]] = tma_remove
+                remove_tma_padded = remove_tma_padded[:tma_remove.shape[0], :tma_remove.shape[1]]
                 if np.count_nonzero(remove_tma_padded) > 0:
-                    if plot_flag:
+                    if True:
                         f, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
                         axes[0].imshow(remove_tma_padded[..., 0], cmap="gray")
                         axes[1].imshow(remove_tma_padded, cmap="gray")
@@ -213,14 +210,16 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 he_tma_padded_ds = cv2.resize(he_tma_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
                                               interpolation=cv2.INTER_NEAREST)
 
+                # detect shift between ck and he, histogram equalization for better shift in tmas with few
+                # distinct landmarks
                 ck_tma_padded_ds_histeq = equalize_hist(ck_tma_padded_ds)
                 shifts, reg_error, phase_diff = phase_cross_correlation(he_tma_padded_ds, ck_tma_padded_ds_histeq,
-                                                                        return_error=True)  # detect shift between IHC and HE
-                shifts[2] = 0
+                                                                        return_error=True)
+                shifts[2] = 0  # set z-axis to zero (should be from beginning)
 
                 # scale shifts back and apply to original resolution
                 shifts = (np.round(downsample_factor * shifts)).astype("int32")
-                tma_padded_shifted = ndi.shift(ck_tma_padded, shifts, order=0, mode="constant", cval=255,
+                ck_tma_padded_shifted = ndi.shift(ck_tma_padded, shifts, order=0, mode="constant", cval=255,
                                                prefilter=False)
 
                 # @TODO: x,y is incorrect?:
@@ -228,21 +227,20 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 #x = HE_TMA_padded[:CK_TMA.shape[0], :CK_TMA.shape[1]]
                 #y = tma_padded_shifted[:CK_TMA.shape[0], :CK_TMA.shape[1]]
 
-                # to get real shift we need to accumulate the zero padding with the registration shift
-                #zero_padded_shift = np.array(CK_TMA.shape) - np.array(HE_TMA.shape)
-                #corrected_shift = shifts + zero_padded_shift
-                #print(shifts, zero_padded_shift, corrected_shift)
-
-                def DSC(pred, target):
+                # find dice score and shift to determine if core pair should be skipped
+                def dsc(pred, target):
                     intersection = np.sum(pred * target)
                     union = np.sum(pred * pred) + np.sum(target * target)
                     return np.clip((2 * intersection + 1) / (union + 1), 0, 1)
 
                 intensity_away_from_white_thresh = 20
-                ck_tma_padded_shifted_tissue = (np.mean(tma_padded_shifted, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+
+                # tissue segmentation
+                ck_tma_padded_shifted_tissue = (np.mean(ck_tma_padded_shifted, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
                 he_tma_padded_tissue = (np.mean(he_tma_padded, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
 
-                dsc_value = DSC(he_tma_padded_tissue, ck_tma_padded_shifted_tissue)
+                # dice value for tissue segmentation of he and ck
+                dsc_value = dsc(he_tma_padded_tissue, ck_tma_padded_shifted_tissue)
 
                 shift_thresh = 200
                 # skip tma core if above shift threshold or dsc too low
@@ -256,14 +254,12 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                 position_ck_y = height_mask - position_ck_y - height_ck
 
-                # get corresponding TMA core in the annotated image as in the CK:
+                # get corresponding TMA core in the dab image as in the CK:
                 # get corresponding TMA core in manual annotated image as in the HE:
                 # skip TMA cores when area is outside mask area
                 if position_ck_x + width_ck > width_mask or position_ck_y + height_ck > height_mask:
-                    # print("TMA core boundary outside mask boundary")
                     continue
                 if position_he_x + width_he > width_annot or position_he_y + height_he > height_annot:
-                    # print("TMA core boundary outside mask boundary")
                     continue
 
                 patch = access.getPatchAsImage(int(level), int(position_ck_x), int(position_ck_y), int(width_ck),
@@ -273,16 +269,15 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 patch = np.asarray(patch)
                 patch_annot = np.asarray(patch_annot)
 
-                # patch = patch[..., 0]  # used to do this, and probably still should
                 patch = patch[..., 0]
                 patch_annot = patch_annot[..., 0]  # annotation image is RGB (gray) -> keep only first dim to get intensity image -> single class uint8
                 patch = np.flip(patch, axis=0)  # since annotation is flipped
 
                 annot_tma_padded = np.zeros((longest_height, longest_width), dtype="uint8")
                 mask_tma_padded = np.zeros((longest_height, longest_width), dtype="uint8")
-                mask_tma_padded[:patch.shape[0], :patch.shape[1]] = patch
 
-                # the correctly placed manual annotation:
+                # the correctly placed dab and manual annotation:
+                mask_tma_padded[:patch.shape[0], :patch.shape[1]] = patch
                 annot_tma_padded[:patch_annot.shape[0], :patch_annot.shape[1]] = patch_annot
 
                 mask_padded_shifted = ndi.shift(mask_tma_padded, shifts[:2], order=0, mode="constant", cval=0, prefilter=False)
