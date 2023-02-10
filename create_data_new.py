@@ -241,7 +241,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     if dsc_value < 80:
                         continue
 
-                # @TODO: is incorrect?:
+                # @TODO: is incorrect? or should I do it:
                 #he_core_correctly_placed = he_tma_padded[:longest_height, :longest_width]
                 #ck_core_correctly_placed = ck_tma_padded_shifted[:longest_height, :longest_width]
 
@@ -300,11 +300,10 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     fig, ax = plt.subplots(2, 2, figsize=(30, 30))  # Figure of the two patches on top of each other
                     ax[0, 0].imshow(he_tma_padded[0:height_he, 0:width_he, :])
                     ax[0, 1].imshow(dab_core_correctly_placed)
-                    ax[1, 0].imshow(healthy_ep)
+                    ax[1, 0].imshow(he_tma_padded[0:height_he, 0:width_he, :])
+                    ax[1, 0].imshow(dab_core_correctly_placed, alpha=0.5)
                     ax[1, 1].imshow(in_situ_ep)
                     plt.show()  # Show the two images on top of each other
-
-                exit()
 
                 data = [he_tma_padded[0:height_he, 0:width_he, :], dab_core_correctly_placed, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
@@ -314,7 +313,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 # @TODO: find out why the error below sometimes happens
                 for patch_idx, (patch_he, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
                     try:
-                        # print(patch_idx)
                         # convert from FAST image to numpy array
                         patch_he = np.asarray(patch_he)
                         patch_mask = np.asarray(patch_mask)[..., 0]
@@ -324,7 +322,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         print(e)
                         continue  # @TODO: Change to break?
 
-                    # normalizing intesities for patches
+                    # normalizing intensities for patches
                     patch_mask = minmax(patch_mask)
                     patch_healthy = minmax(patch_healthy)
                     patch_in_situ = minmax(patch_in_situ)
@@ -356,15 +354,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         patch_he = patch_he_padded
                         patch_mask = patch_mask_padded
 
-                    if plot_flag_test:
-                        fig, ax = plt.subplots(2, 3, figsize=(30, 30))  # Figure of the two patches on top of each other
-                        ax[0, 0].imshow(patch_he)
-                        ax[0, 1].imshow(gt_one_hot[..., 0], cmap="gray")
-                        ax[0, 2].imshow(gt_one_hot[..., 1], cmap="gray")
-                        ax[1, 1].imshow(gt_one_hot[..., 2], cmap="gray")
-                        ax[1, 2].imshow(gt_one_hot[..., 3], cmap="gray")
-                        plt.show()  # Show the two images on top of each other
-
                     # check if patch includes benign or in situ
                     # How to deal with patches with multiple classes??
                     # @TODO: change to only include in inSitu/benign if pixel number above a threshold
@@ -379,14 +368,14 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         count_invasive += 1
 
                     # create folder if not exists
-                    """
+
                     os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
 
                     # insert saving patches as hdf5 (h5py) here:
                     with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                         f.create_dataset(name="input", data=patch_he.astype("uint8"))
                         f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
-                    """
+
                 # delete streamers and stuff to potentially avoid threading issues in FAST
                 del data_fast, generators, streamers
     
