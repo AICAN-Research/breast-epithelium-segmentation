@@ -249,7 +249,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 position_he_x /= (2 ** level)
                 position_he_y /= (2 ** level)
 
-                # @TODO: should heigh_mask be longest_height?
+                # @TODO: should height_mask be longest_height?
                 position_ck_y = height_mask - position_ck_y - height_ck
 
                 # get corresponding TMA core in the dab image as in the CK:
