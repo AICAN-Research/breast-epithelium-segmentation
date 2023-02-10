@@ -36,7 +36,7 @@ def create_datasets_wrapper(some_inputs_):
     create_datasets(*some_inputs_)
 
 
-def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
+def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, dataset_path, set_name,
                     plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap):
 
     #fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
@@ -45,23 +45,23 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     import fast
     test = False
 
-    # import CK and annotated (in qupath) image:
-    importerHE = fast.WholeSlideImageImporter.create(
-        HE_path)  # path to CK image
-    importerCK = fast.WholeSlideImageImporter.create(
-        CK_path)  # path to CK image
-    importerMask = fast.TIFFImagePyramidImporter.create(
-        mask_path)  # path to annotated image
-    importerAnnot = fast.TIFFImagePyramidImporter.create(
+    # import images:
+    importer_he = fast.WholeSlideImageImporter.create(
+        he_path)  # path to CK image
+    importer_ck = fast.WholeSlideImageImporter.create(
+        ck_path)  # path to CK image
+    importer_mask = fast.TIFFImagePyramidImporter.create(
+        mask_path)  # path to dab image
+    importer_annot = fast.TIFFImagePyramidImporter.create(
         annot_path)  # path to annotated image
-    importerRemove = fast.TIFFImagePyramidImporter.create(
-        remove_path)  # path to annotated image
+    importer_remove = fast.TIFFImagePyramidImporter.create(
+        remove_path)  # path to annotated remove cores image
 
-    # access annotated mask (generated from qupath)
-    mask = importerMask.runAndGetOutputData()
-    annot = importerAnnot.runAndGetOutputData()
-    annotRemove = importerRemove.runAndGetOutputData()
-    annot_for_width = importerAnnot.runAndGetOutputData()
+    # access annotated mask (generated from QuPath)
+    mask = importer_mask.runAndGetOutputData()
+    annot = importer_annot.runAndGetOutputData()
+    annot_remove = importer_remove.runAndGetOutputData()
+    annot_for_width = importer_annot.runAndGetOutputData()
 
     height_mask = mask.getLevelHeight(level)
     width_mask = mask.getLevelWidth(level)
@@ -70,61 +70,61 @@ def create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, datase
     width_annot = annot_for_width.getLevelWidth(level)
 
     access = mask.getAccess(fast.ACCESS_READ)
-    accessAnnot = annot.getAccess(fast.ACCESS_READ)
-    accessRemove = annotRemove.getAccess(fast.ACCESS_READ)
+    access_annot = annot.getAccess(fast.ACCESS_READ)
+    access_remove = annot_remove.getAccess(fast.ACCESS_READ)
 
     # plot whole TMA image (does not work on level 0-3, image level too large to convert to FAST image)
     if plot_flag:
-        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerMask)
+        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_mask)
         image = extractor.runAndGetOutputData()
         numpy_image = np.asarray(image)
         plt.imshow(numpy_image[..., 0], cmap='gray')
         plt.show()
 
     if plot_flag:
-        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerCK)
+        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_ck)
         image = extractor.runAndGetOutputData()
         numpy_image = np.asarray(image)
         plt.imshow(numpy_image[..., 0], cmap='gray')
         plt.show()
 
     if plot_flag:
-        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerAnnot)
+        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_annot)
         image = extractor.runAndGetOutputData()
         numpy_image = np.asarray(image)
         plt.imshow(numpy_image[..., 0], cmap='jet', interpolation="none")
         plt.show()
 
     if plot_flag:
-        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importerRemove)
+        extractor = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_remove)
         image = extractor.runAndGetOutputData()
         numpy_image = np.asarray(image)
         plt.imshow(numpy_image[..., 0], cmap='jet', interpolation="none")
         plt.show()
 
     # get CK TMA cores
-    extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerCK)
-    CK_TMAs = []
-    CK_stream = fast.DataStream(extractor)
-    for j, TMA in enumerate(CK_stream):
-        CK_TMAs.append(TMA)
+    extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importer_ck)
+    ck_tmas = []
+    ck_stream = fast.DataStream(extractor)
+    for j, tma in enumerate(ck_stream):
+        ck_tmas.append(tma)
         if j == nb_iters:
             break
-    del extractor, CK_stream
+    del extractor, ck_stream
 
     # get HE TMA cores
     #fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)
-    extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importerHE)
-    HE_TMAs = []
-    HE_stream = fast.DataStream(extractor)
-    for j, TMA in enumerate(HE_stream):
-        HE_TMAs.append(TMA)
+    extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importer_he)
+    he_tmas = []
+    he_stream = fast.DataStream(extractor)
+    for j, tma in enumerate(he_stream):
+        he_tmas.append(tma)
         if j == nb_iters:
             break
-    del extractor, HE_stream
+    del extractor, he_stream
 
-    print("length HE TMAs:", len(HE_TMAs))
-    print("length CK TMAs:", len(CK_TMAs))
+    print("length HE TMAs:", len(he_tmas))
+    print("length CK TMAs:", len(ck_tmas))
     # init tqdm
     # pbar = tqdm(total=max([len(CK_TMAs), len(HE_TMAs)]))
     tma_idx = 0
