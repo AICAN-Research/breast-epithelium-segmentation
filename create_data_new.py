@@ -134,8 +134,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
     count_inSitu = 0
     count = 0
 
-    #exit()
-
     for he_counter in range(len(he_tmas)):
         for ck_counter in range(len(ck_tmas)):
 
@@ -244,12 +242,12 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         continue
 
                 # @TODO: is incorrect?:
-                he_core_correctly_placed = he_tma_padded[:longest_height, :longest_width]
-                ck_core_correctly_placed = ck_tma_padded_shifted[:longest_height, :longest_width]
+                #he_core_correctly_placed = he_tma_padded[:longest_height, :longest_width]
+                #ck_core_correctly_placed = ck_tma_padded_shifted[:longest_height, :longest_width]
 
-                # Get TMA from mask slide
-                position_ck_x /= (2 ** level)
-                position_ck_y /= (2 ** level)
+                # Get TMA from annot slide
+                position_he_x /= (2 ** level)
+                position_he_y /= (2 ** level)
 
                 # @TODO: should heigh_mask be longest_height?
                 position_ck_y = height_mask - position_ck_y - height_ck
@@ -283,8 +281,10 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                 dab_core_padded_shifted = ndi.shift(dab_core_padded, shifts[:2], order=0, mode="constant", cval=0, prefilter=False)
 
+                # @TODO: think about whether just keep padded, otherwise one will be "cut"
+                # @TODO: then that will be the same for he_tma_padded that is cut below too
                 # the correctly placed dab and manual annot:
-                dab_core_correctly_placed = dab_core_padded_shifted[:dab_core.shape[0], :dab_core.shape[1]]
+                dab_core_correctly_placed = dab_core_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]]
                 annot_core_correctly_placed = annot_core_padded[:annot_core.shape[0], :annot_core.shape[1]]
 
                 # get each GT annotation as its own binary image + fix manual annotations
@@ -296,7 +296,17 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 dab_core_correctly_placed[healthy_ep == 1] = 0
                 dab_core_correctly_placed[in_situ_ep == 1] = 0
 
-                data = [he_core_correctly_placed, dab_core_correctly_placed, healthy_ep, in_situ_ep]
+                if plot_flag_test:
+                    fig, ax = plt.subplots(2, 2, figsize=(30, 30))  # Figure of the two patches on top of each other
+                    ax[0, 0].imshow(he_tma_padded[0:height_he, 0:width_he, :])
+                    ax[0, 1].imshow(dab_core_correctly_placed)
+                    ax[1, 0].imshow(healthy_ep)
+                    ax[1, 1].imshow(in_situ_ep)
+                    plt.show()  # Show the two images on top of each other
+
+                exit()
+
+                data = [he_tma_padded[0:height_he, 0:width_he, :], dab_core_correctly_placed, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
@@ -346,7 +356,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         patch_he = patch_he_padded
                         patch_mask = patch_mask_padded
 
-                    if plot_flag:
+                    if plot_flag_test:
                         fig, ax = plt.subplots(2, 3, figsize=(30, 30))  # Figure of the two patches on top of each other
                         ax[0, 0].imshow(patch_he)
                         ax[0, 1].imshow(gt_one_hot[..., 0], cmap="gray")
