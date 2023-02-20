@@ -22,7 +22,7 @@ def main(ret):
     name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
     # paths
-    dataset_path = './datasets/310123_130125_level_2_psize_512_ds_4/'  # path to directory
+    dataset_path = './datasets/200223_132501_level_3_psize_512_ds_4/'  # path to directory
     train_path = dataset_path + 'ds_train'
     val_path = dataset_path + 'ds_val'
     # test_path = dataset_path + 'ds_test'
