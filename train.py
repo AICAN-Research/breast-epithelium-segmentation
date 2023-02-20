@@ -30,8 +30,8 @@ def main(ret):
     model_path = './output/models/'  # path to directory
     save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
 
-    N_train_batches = 60  # @TODO: Change this number
-    N_val_batches = 15
+    N_train_batches = 40  # @TODO: Change this number
+    N_val_batches = 10
 
     # Cross-validation for division into train, val, test:
     # The numbers corresponds to wsi-numbers created in create data
