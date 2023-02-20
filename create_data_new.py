@@ -140,8 +140,10 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
             he_tma = he_tmas[he_counter]
             ck_tma = ck_tmas[ck_counter]
 
-            position_he = he_tma.getTransform().getTranslation()  # position of HE TMA at position HE_counter.
-            position_ck = ck_tma.getTransform().getTranslation()  # position of IHC TMA at position IHC_counter.
+            # positions will change slightly depending on level of TMA extractor even though the positions
+            # are at level 0. Due to upscaling to level 0?
+            position_he = he_tma.getTransform().getTranslation()  # position of he_tma at level 0
+            position_ck = ck_tma.getTransform().getTranslation()  # position of ck_tma at level 0
 
             position_he_x = position_he[0][0]
             position_he_y = position_he[1][0]
@@ -364,7 +366,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         count_invasive += 1
 
                     # create folder if not exists
-
                     os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
 
                     # insert saving patches as hdf5 (h5py) here:
@@ -403,7 +404,7 @@ if __name__ == "__main__":
     # --- HYPER PARAMS
     plot_flag = False
     plot_flag_test = False
-    level = 2  # image pyramid level
+    level = 3  # image pyramid level
     nb_iters = -1
     patch_size = 512
     downsample_factor = 4  # tested with 8, but not sure if better
