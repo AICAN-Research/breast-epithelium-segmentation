@@ -157,9 +157,8 @@ def main(ret):
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
-        loss=categorical_focal_tversky_loss_2(nb_classes=nb_classes), #categorical_focal_tversky_loss(nb_classes=nb_classes),  # network.get_dice_loss(),
+        loss=network.get_dice_loss(),
         metrics=[
-            network.get_dice_loss(),
             *[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)]
         ],
         run_eagerly=False,
@@ -179,7 +178,7 @@ def main(ret):
 if __name__ == "__main__":
 
     parser = ArgumentParser()
-    parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=32,
+    parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=16,
                         help="set which batch size to use for training.")
     parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
                         help="set which learning rate to use for training.")
