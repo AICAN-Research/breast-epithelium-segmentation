@@ -328,7 +328,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     patch_in_situ = minmax(patch_in_situ)
 
                     # create one-hot, one channel for each class
-                    #TODO: is the background class correct, should it be 1 - (patch_mask - patch_healthy - patch_in_situ)?
                     gt_one_hot = np.stack([1 - (patch_mask.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)), patch_mask, patch_healthy, patch_in_situ], axis=-1)
 
                     if np.any(gt_one_hot[..., 0] < 0):
@@ -342,17 +341,15 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     if (len(patch_he) == 0) or (len(patch_mask) == 0):
                         continue
 
-                    #TODO: pad patches with incorrect shape, now they are just skipped
                     if np.array(patch_he).shape[0] < patch_size or np.array(patch_he).shape[1] < patch_size:
-                        continue
                         patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
-                        patch_mask_padded = np.zeros((patch_size, patch_size, 3), dtype="uint8")
+                        patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="uint8")
 
-                        patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he.astype("uint8")
-                        patch_mask_padded[:patch_mask.shape[0], :patch_mask.shape[1]] = patch_mask.astype("uint8")
+                        patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he
+                        patch_gt_padded[:gt_one_hot.shape[0], :gt_one_hot.shape[1]] = gt_one_hot
 
                         patch_he = patch_he_padded
-                        patch_mask = patch_mask_padded
+                        gt_one_hot = patch_gt_padded
 
                     # check if patch includes benign or in situ
                     # How to deal with patches with multiple classes??
@@ -406,7 +403,7 @@ if __name__ == "__main__":
 
     # --- HYPER PARAMS
     plot_flag = False
-    plot_flag_test = True
+    plot_flag_test = False
     level = 2  # image pyramid level
     nb_iters = -1
     patch_size = 512
