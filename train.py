@@ -6,10 +6,12 @@ from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss, \
-    class_categorical_focal_dice_loss, categorical_focal_dice_loss
-from source.losses import categorical_focal_tversky_loss, categorical_focal_tversky_loss_2
+    class_categorical_focal_dice_loss, categorical_focal_dice_loss, create_multiscale_input
+from source.losses import get_dice_loss, categorical_focal_tversky_loss, categorical_focal_tversky_loss_2
 from argparse import ArgumentParser
 import sys
+from AttentionUNet import AttentionUnet
+
 
 def main(ret):
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
@@ -18,6 +20,12 @@ def main(ret):
     img_size = 512  #@TODO: None not allowed with convolutions, why?
     nb_classes = 4
     class_names = ["invasive", "benign", "insitu"]
+
+    # network stuff
+    encoder_convs = [8, 16, 32, 64, 128, 128, 256, 256]
+    nb_downsamples = len(encoder_convs) - 1
+    architecture = "agunet"
+    # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
 
     name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
@@ -30,8 +38,8 @@ def main(ret):
     model_path = './output/models/'  # path to directory
     save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
 
-    N_train_batches = 40  # @TODO: Change this number
-    N_val_batches = 10
+    N_train_batches = 20  # @TODO: Change this number
+    N_val_batches = 5
 
     # Cross-validation for division into train, val, test:
     # The numbers corresponds to wsi-numbers created in create data
@@ -93,8 +101,8 @@ def main(ret):
     ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
 
     # batch data before aug -> faster
-    ds_train = ds_train.batch(ret.batch_size)
-    ds_val = ds_val.batch(ret.batch_size)
+    #ds_train = ds_train.batch(ret.batch_size)
+    #ds_val = ds_val.batch(ret.batch_size)
 
     # --------------------
     # TODO: Put all above in a function and call them for both train/val to generate generators
@@ -113,18 +121,36 @@ def main(ret):
                             num_parallel_calls=1)  # @TODO: DO I need to do shift, is it really necessary?
     # shift last
 
+    # create multiscale input
+    # tf.py_function(patchReader, [x], [tf.float32, tf.float32])
+    ds_train = ds_train.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
+    ds_val = ds_val.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
+
+    # batch data before aug -> faster
+    ds_train = ds_train.batch(ret.batch_size)
+    ds_val = ds_val.batch(ret.batch_size)
+
     # prefetch augmented batches -> GPU does not need to wait -> batch always ready
     ds_train = ds_train.prefetch(1)
     ds_val = ds_val.prefetch(1)
 
-    # define network architecture
-    convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
-    convs = convs + convs[:-1][::-1]
-    network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # binary = 2
-    network.set_convolutions(convs)
-    model = network.create()
+    if architecture == "unet":
+        # define network architecture
+        #convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
+        convs = encoder_convs + encoder_convs[:-1][::-1]
+        network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # binary = 2
+        network.set_convolutions(convs)
+        model = network.create()
+    elif architecture == "agunet":
+        # Test new Attention UNet
+        agunet = AttentionUnet(input_shape=(512, 512, 3), nb_classes=nb_classes, deep_supervision=True, input_pyramid=True)
+        agunet.decoder_dropout = 0.1
+        agunet.set_convolutions(encoder_convs)
+        model = agunet.create()
+    else:
+        raise ValueError("Unsupported architecture chosen. Please, choose either 'unet' or 'agunet'.")
 
-    # print(model.summary())
+    print(model.summary())
     # @TODO: Plot loss for each class (invasive, benign and inSitu seperately)
     # metrics to monitor training and validation loss for each class (invasive, benign and inSitu)
 
@@ -137,7 +163,7 @@ def main(ret):
     tb_logger = TensorBoard(log_dir="output/logs/" + name + "/", histogram_freq=0, update_freq="epoch")
 
     early = EarlyStopping(
-        monitor="val_loss",
+        monitor="val_conv2d_63_loss",  # "val_loss"
         min_delta=0,  # 0: any improvement is considered an improvement
         patience=ret.patience,  # if not improved for 50 epochs, stops
         verbose=1,
@@ -147,7 +173,7 @@ def main(ret):
 
     save_best = ModelCheckpoint(
         model_path + "model_" + name,
-        monitor="val_loss",
+        monitor="val_conv2d_63_loss",  # "val_loss"
         verbose=2,  #
         save_best_only=True,
         save_weights_only=False,
@@ -157,7 +183,7 @@ def main(ret):
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
-        loss=network.get_dice_loss(),
+        loss=get_dice_loss(nb_classes=nb_classes, use_background=False, dims=2),  # network.get_dice_loss(),
         metrics=[
             *[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)]
         ],
@@ -178,7 +204,7 @@ def main(ret):
 if __name__ == "__main__":
 
     parser = ArgumentParser()
-    parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=16,
+    parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=32,
                         help="set which batch size to use for training.")
     parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
                         help="set which learning rate to use for training.")
