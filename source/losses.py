@@ -1,6 +1,30 @@
 #code from: https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py
 
 from tensorflow.keras import backend as K
+import tensorflow as tf
+
+
+# By Erik Smistad (from network.get_dice_loss()
+def get_dice_loss(nb_classes=2, dims=2, use_background=False):
+    def dice_loss(target, output, epsilon=1e-10):
+        smooth = 1.
+        dice = 0
+        for object in range(0 if use_background else 1, nb_classes):
+            if dims == 2:
+                output1 = output[:, :, :, object]
+                target1 = target[:, :, :, object]
+            else:
+                output1 = output[:, :, :, :, object]
+                target1 = target[:, :, :, :, object]
+            intersection1 = tf.reduce_sum(output1 * target1)
+            union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(target1 * target1)
+            dice += (2. * intersection1 + smooth) / (union1 + smooth)
+        if use_background:
+            dice /= nb_classes
+        else:
+            dice /= (nb_classes - 1)
+        return tf.clip_by_value(1. - dice, 0., 1. - epsilon)
+    return dice_loss
 
 
 # Helper function to enable loss function to be flexibly used for
