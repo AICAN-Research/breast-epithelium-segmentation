@@ -344,7 +344,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                     if np.array(patch_he).shape[0] < patch_size or np.array(patch_he).shape[1] < patch_size:
                         patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
-                        patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="uint8")
+                        patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="uint8")  #@TODO: should this also be np.ones?
 
                         patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he
                         patch_gt_padded[:gt_one_hot.shape[0], :gt_one_hot.shape[1]] = gt_one_hot
@@ -383,9 +383,9 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
     ck_tmas.clear()
     del he_tmas, ck_tmas
     del mask, annot, annot_remove, annot_for_width
-    del remove_annot, patch, patch_annot, patch_remove
+    del remove_annot #patch, patch_annot, patch_remove
     del importer_he, importer_ck, importer_mask, importer_annot, importer_remove
-    del access, accessAnnot, accessRemove
+    del access, access_annot, access_remove
     del he_tma, ck_tma, he_tma_padded, ck_tma_padded
     # del data
 
