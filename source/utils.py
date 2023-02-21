@@ -4,6 +4,7 @@ import logging as log
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import h5py
+from copy import deepcopy
 
 
 # focal dice loss to focus on "difficult classes"
@@ -115,6 +116,16 @@ def get_random_path_from_random_class(x1, x2, x3):
 
         yield random_patch
 
+
+# by André Pedersen:
+def create_multiscale_input(gt, nb_downsamples):
+    hierarchical_gt = [gt, ]
+    for i in range(1, nb_downsamples):
+        tmp = tf.identity(gt)
+        limit = int(pow(2, i))
+        new_gt = tmp[0::limit, 0::limit]
+        hierarchical_gt.append(new_gt)
+    return tuple(hierarchical_gt)
 
 def define_logger(verbose=1):
     """
