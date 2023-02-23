@@ -76,8 +76,6 @@ def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, sp
     x = Activation('relu')(x)
     attention = attention_block(g=x, x=cross_over_connection, nr_of_convolutions=int(nr_of_convolutions / 2),
                                 renorm=renorm)
-    # pam = PAM()(attention)
-    # x = Concatenate()([x, attention, pam])
     x = Concatenate()([x, attention])
     x = convolution_block(x, nr_of_convolutions, use_bn, spatial_dropout, renorm=renorm)
 
