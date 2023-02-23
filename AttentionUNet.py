@@ -69,7 +69,8 @@ def encoder_block_pyramid(x, input_ds, nr_of_convolutions, use_bn=False, spatial
 
 
 def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
-    x = Conv2DTranspose(nr_of_convolutions, kernel_size=3, padding='same', strides=2)(x)  #@TODO: Transpose convolution might lead to checkerboard pattern -> upsampling instead (?)
+    #x = Conv2DTranspose(nr_of_convolutions, kernel_size=3, padding='same', strides=2)(x)
+    x = UpSampling2D((2, 2))(x)
     if use_bn:
         x = BatchNormalization(renorm=renorm)(x)
     x = Activation('relu')(x)
