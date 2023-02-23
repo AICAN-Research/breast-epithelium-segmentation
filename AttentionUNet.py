@@ -3,53 +3,9 @@
 
 from tensorflow.keras.layers import Input, Convolution2D, MaxPooling2D, SpatialDropout2D, \
     Activation, AveragePooling2D, BatchNormalization, TimeDistributed, Concatenate, Conv2DTranspose, \
-    multiply, Reshape, Layer
+    UpSampling2D, multiply, Reshape, Layer
 from tensorflow.keras.models import Model
 import tensorflow as tf
-
-
-class PAM(Layer):
-    def __init__(self,
-                 gamma_initializer=tf.zeros_initializer(),
-                 gamma_regularizer=None,
-                 gamma_constraint=None,
-                 **kwargs):
-        super(PAM, self).__init__(**kwargs)
-        self.gamma_initializer = gamma_initializer
-        self.gamma_regularizer = gamma_regularizer
-        self.gamma_constraint = gamma_constraint
-
-    def build(self, input_shape):
-        self.gamma = self.add_weight(shape=(1,),
-                                     initializer=self.gamma_initializer,
-                                     name='gamma',
-                                     regularizer=self.gamma_regularizer,
-                                     constraint=self.gamma_constraint)
-
-        self.built = True
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-    def call(self, x):
-        input_shape = x.get_shape().as_list()
-        _, h, w, filters = input_shape
-        b_layer = Convolution2D(filters // 8, 1, use_bias=False)(x)
-        c_layer = Convolution2D(filters // 8, 1, use_bias=False)(x)
-        d_layer = Convolution2D(filters, 1, use_bias=False)(x)
-
-        b_layer = tf.transpose(Reshape(target_shape=(h * w, filters // 8))(b_layer),
-                               perm=[0, 2, 1])  # @FIXME: Correct for 2D?
-        c_layer = Reshape(target_shape=(h * w, filters // 8))(c_layer)
-        d_layer = Reshape(target_shape=(h * w, filters))(d_layer)
-
-        # The bc_mul matrix should be of size (H*W*D) * (H*W*D)
-        bc_mul = tf.linalg.matmul(c_layer, b_layer)
-        activation_bc_mul = Activation(activation='softmax')(bc_mul)
-        bcd_mul = tf.linalg.matmul(activation_bc_mul, d_layer)
-        bcd_mul = Reshape(target_shape=(h, w, filters))(bcd_mul)
-        out = (self.gamma * bcd_mul) + x
-        return out
 
 
 def convolution_block(x, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
@@ -83,25 +39,6 @@ def attention_block(g, x, nr_of_convolutions, renorm=False):
     return multiply([x, psi])
 
 
-def attention_block_oktay(g, x, nr_of_convolutions, renorm=False):
-    """
-    Following Oktay's paper
-    """
-    g1 = Convolution2D(nr_of_convolutions, kernel_size=1, strides=1, padding='same', use_bias=True)(g)
-    g1 = BatchNormalization(renorm=renorm)(g1)
-
-    x1 = MaxPooling2D([2, 2])(x)
-    x1 = Convolution2D(nr_of_convolutions, kernel_size=1, strides=1, padding='same', use_bias=True)(x1)
-    x1 = BatchNormalization(renorm=renorm)(x1)
-
-    psi = Concatenate()([g1, x1])
-    psi = Activation(activation='relu')(psi)
-    psi = Convolution2D(1, kernel_size=1, strides=1, padding='same', use_bias=True)(psi)
-    psi = BatchNormalization(renorm=renorm)(psi)
-    psi = Activation(activation='sigmoid')(psi)
-
-    return multiply([x, psi])
-
 
 def encoder_block(x, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
     x_before_downsampling = convolution_block(x, nr_of_convolutions, use_bn, spatial_dropout, renorm=renorm)
@@ -132,7 +69,7 @@ def encoder_block_pyramid(x, input_ds, nr_of_convolutions, use_bn=False, spatial
 
 
 def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
-    x = Conv2DTranspose(nr_of_convolutions, kernel_size=3, padding='same', strides=2)(x)
+    x = Conv2DTranspose(nr_of_convolutions, kernel_size=3, padding='same', strides=2)(x)  #@TODO: Transpose convolution might lead to checkerboard pattern -> upsampling instead (?)
     if use_bn:
         x = BatchNormalization(renorm=renorm)(x)
     x = Activation('relu')(x)
@@ -140,20 +77,6 @@ def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, sp
                                 renorm=renorm)
     # pam = PAM()(attention)
     # x = Concatenate()([x, attention, pam])
-    x = Concatenate()([x, attention])
-    x = convolution_block(x, nr_of_convolutions, use_bn, spatial_dropout, renorm=renorm)
-
-    return x
-
-
-def decoder_block_oktay(x, cross_over_connection, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
-    x_down = x
-    x = Conv2DTranspose(nr_of_convolutions, kernel_size=3, padding='same', strides=2)(x)
-    if use_bn:
-        x = BatchNormalization(renorm=renorm)(x)
-    x = Activation('relu')(x)
-    attention = attention_block_oktay(g=x, x=cross_over_connection, nr_of_convolutions=int(nr_of_convolutions / 2),
-                                      renorm=renorm)
     x = Concatenate()([x, attention])
     x = convolution_block(x, nr_of_convolutions, use_bn, spatial_dropout, renorm=renorm)
 
@@ -244,10 +167,3 @@ class AttentionUnet:
 
         return Model(inputs=input_layer, outputs=x)
 
-
-if __name__ == "__main__":
-    network = AttentionUnet(input_shape=(1024, 1024, 4), nb_classes=2, deep_supervision=True, input_pyramid=True)
-    network.decoder_dropout = 0.1
-    network.set_renorm(True)
-    network.set_convolutions([8, 16, 32, 64, 128, 128, 256, 256])
-    model = network.create()
