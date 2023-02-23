@@ -1,8 +1,8 @@
 # Code by André Pedersen
 # https://github.com/andreped/H2G-Net/blob/main/src/architectures/AttentionUNet.py
 
-from tensorflow.keras.layers import Input, Convolution2D, MaxPooling2D, SpatialDropout2D,\
-    Activation, AveragePooling2D, BatchNormalization, TimeDistributed, Concatenate, Conv2DTranspose,\
+from tensorflow.keras.layers import Input, Convolution2D, MaxPooling2D, SpatialDropout2D, \
+    Activation, AveragePooling2D, BatchNormalization, TimeDistributed, Concatenate, Conv2DTranspose, \
     multiply, Reshape, Layer
 from tensorflow.keras.models import Model
 import tensorflow as tf
@@ -20,7 +20,7 @@ class PAM(Layer):
         self.gamma_constraint = gamma_constraint
 
     def build(self, input_shape):
-        self.gamma = self.add_weight(shape=(1, ),
+        self.gamma = self.add_weight(shape=(1,),
                                      initializer=self.gamma_initializer,
                                      name='gamma',
                                      regularizer=self.gamma_regularizer,
@@ -38,7 +38,8 @@ class PAM(Layer):
         c_layer = Convolution2D(filters // 8, 1, use_bias=False)(x)
         d_layer = Convolution2D(filters, 1, use_bias=False)(x)
 
-        b_layer = tf.transpose(Reshape(target_shape=(h * w, filters // 8))(b_layer), perm=[0, 2, 1])  # @FIXME: Correct for 2D?
+        b_layer = tf.transpose(Reshape(target_shape=(h * w, filters // 8))(b_layer),
+                               perm=[0, 2, 1])  # @FIXME: Correct for 2D?
         c_layer = Reshape(target_shape=(h * w, filters // 8))(c_layer)
         d_layer = Reshape(target_shape=(h * w, filters))(d_layer)
 
@@ -101,12 +102,13 @@ def attention_block_oktay(g, x, nr_of_convolutions, renorm=False):
 
     return multiply([x, psi])
 
+
 def encoder_block(x, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
     x_before_downsampling = convolution_block(x, nr_of_convolutions, use_bn, spatial_dropout, renorm=renorm)
     downsample = [2, 2]
     for i in range(1, 3):
         if x.shape[i] <= 3:
-            downsample[i-1] = 1
+            downsample[i - 1] = 1
 
     x = MaxPooling2D(downsample)(x_before_downsampling)
 
@@ -114,14 +116,15 @@ def encoder_block(x, nr_of_convolutions, use_bn=False, spatial_dropout=None, ren
 
 
 def encoder_block_pyramid(x, input_ds, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
-    #pyramid_conv = convolution_block(input_ds, nr_of_convolutions, use_bn, spatial_dropout)
-    pyramid_conv = Convolution2D(filters=nr_of_convolutions, kernel_size=(3, 3), padding='same', activation='relu')(input_ds)
+    # pyramid_conv = convolution_block(input_ds, nr_of_convolutions, use_bn, spatial_dropout)
+    pyramid_conv = Convolution2D(filters=nr_of_convolutions, kernel_size=(3, 3), padding='same', activation='relu')(
+        input_ds)
     x = Concatenate(axis=-1)([pyramid_conv, x])
     x_before_downsampling = convolution_block(x, nr_of_convolutions, use_bn, spatial_dropout, renorm=renorm)
     downsample = [2, 2]
     for i in range(1, 3):
         if x.shape[i] <= 4:
-            downsample[i-1] = 1
+            downsample[i - 1] = 1
 
     x = MaxPooling2D(downsample)(x_before_downsampling)
 
@@ -133,7 +136,8 @@ def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, sp
     if use_bn:
         x = BatchNormalization(renorm=renorm)(x)
     x = Activation('relu')(x)
-    attention = attention_block(g=x, x=cross_over_connection, nr_of_convolutions=int(nr_of_convolutions/2), renorm=renorm)
+    attention = attention_block(g=x, x=cross_over_connection, nr_of_convolutions=int(nr_of_convolutions / 2),
+                                renorm=renorm)
     # pam = PAM()(attention)
     # x = Concatenate()([x, attention, pam])
     x = Concatenate()([x, attention])
@@ -141,19 +145,22 @@ def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, sp
 
     return x
 
+
 def decoder_block_oktay(x, cross_over_connection, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
     x_down = x
     x = Conv2DTranspose(nr_of_convolutions, kernel_size=3, padding='same', strides=2)(x)
     if use_bn:
         x = BatchNormalization(renorm=renorm)(x)
     x = Activation('relu')(x)
-    attention = attention_block_oktay(g=x, x=cross_over_connection, nr_of_convolutions=int(nr_of_convolutions/2), renorm=renorm)
+    attention = attention_block_oktay(g=x, x=cross_over_connection, nr_of_convolutions=int(nr_of_convolutions / 2),
+                                      renorm=renorm)
     x = Concatenate()([x, attention])
     x = convolution_block(x, nr_of_convolutions, use_bn, spatial_dropout, renorm=renorm)
 
     return x
 
-class AttentionUnet():
+
+class AttentionUnet:
     def __init__(self, input_shape, nb_classes, deep_supervision=False, input_pyramid=False):
         if len(input_shape) != 3 and len(input_shape) != 4:
             raise ValueError('Input shape must have 3 or 4 dimensions')
@@ -177,171 +184,6 @@ class AttentionUnet():
     def set_convolutions(self, convolutions):
         self.convolutions = convolutions
 
-    def get_dice_loss(self):
-        def dice_loss(target, output, epsilon=1e-10):
-            smooth = 1.
-            dice = 0
-
-            #for object in range(1, self.nb_classes):
-            for object in range(0, self.nb_classes):
-                if self.dims == 2:
-                    output1 = output[:, :, :, object]
-                    target1 = target[:, :, :, object]
-                else:
-                    output1 = output[:, :, :, :, object]
-                    target1 = target[:, :, :, :, object]
-                intersection1 = tf.reduce_sum(output1 * target1)
-                union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(target1 * target1)
-                dice += (2. * intersection1 + smooth) / (union1 + smooth)
-
-            dice /= (self.nb_classes - 1)
-
-            return tf.clip_by_value(1. - dice, 0., 1. - epsilon)
-
-        return dice_loss
-
-    def get_dice_metric_no_bg(self):
-        def get_dice_metric_no_bg(target, output, epsilon=1e-10):
-            smooth = 1.
-            dice = 0
-
-            for object in range(1, self.nb_classes):
-                if self.dims == 2:
-                    output1 = output[:, :, :, object]
-                    target1 = target[:, :, :, object]
-                    shapes = (1, 2)
-                else:
-                    output1 = output[:, :, :, :, object]
-                    target1 = target[:, :, :, :, object]
-                    shapes = (1, 2, 3)
-                intersection1 = tf.reduce_sum(output1 * target1, axis=shapes)
-                union1 = tf.reduce_sum(output1 * output1, axis=shapes) + tf.reduce_sum(target1 * target1, axis=shapes)
-                dice += (2. * intersection1 + smooth) / (union1 + smooth)
-
-            dice /= (self.nb_classes - 1)
-
-            return tf.clip_by_value(dice, 0., 1. - epsilon)
-
-        return get_dice_metric_no_bg
-
-    def get_dice_loss_no_bg(self):
-        def get_dice_loss_no_bg(target, output, epsilon=1e-10):
-            smooth = 1.
-            dice = 0
-
-            for object in range(1, self.nb_classes):
-                if self.dims == 2:
-                    output1 = output[:, :, :, object]
-                    target1 = target[:, :, :, object]
-                else:
-                    output1 = output[:, :, :, :, object]
-                    target1 = target[:, :, :, :, object]
-                intersection1 = tf.reduce_sum(output1 * target1)
-                union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(target1 * target1)
-                dice += (2. * intersection1 + smooth) / (union1 + smooth)
-
-            dice /= (self.nb_classes - 1)
-
-            return tf.clip_by_value(1. - dice, 0., 1. - epsilon)
-
-        return get_dice_loss_no_bg
-
-    def get_dice_metric(self, use_background=False):
-        def dice(target, output, epsilon=1e-10):
-            smooth = 0  # 1e-8  # 1.
-            dice = 0
-
-            # first threshold output volume
-            output = tf.cast(tf.math.greater_equal(output, tf.constant([0.5])), tf.float32)
-
-            for object in range(0 if use_background else 1, self.nb_classes):
-                if self.dims == 2:
-                    output1 = output[:, :, :, object]
-                    target1 = target[:, :, :, object]
-                    shapes = (1, 2)
-                else:
-                    output1 = output[:, :, :, :, object]
-                    target1 = target[:, :, :, :, object]
-                    shapes = (1, 2, 3)
-                intersection1 = tf.reduce_sum(output1 * target1, axis=shapes)
-                union1 = tf.reduce_sum(output1 * output1, axis=shapes) + tf.reduce_sum(target1 * target1, axis=shapes)
-                dice += (2. * intersection1 + smooth) / (union1 + smooth)
-
-            if use_background:
-                dice /= self.nb_classes
-            else:
-                dice /= (self.nb_classes - 1)
-
-            return dice  # tf.clip_by_value(dice, 0., 1. - epsilon)
-
-        return dice
-
-    def get_focal_dice_loss_no_bg(self):
-        def get_focal_dice_loss_no_bg(target, output, epsilon=1e-10, smooth=1):
-            smooth = 1.
-            dice = 0
-
-            for object in range(1, self.nb_classes):
-                if self.dims == 2:
-                    output1 = output[:, :, :, object]
-                    target1 = target[:, :, :, object]
-                else:
-                    output1 = output[:, :, :, :, object]
-                    target1 = target[:, :, :, :, object]
-                intersection1 = tf.reduce_sum(output1 * target1)
-                union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(target1 * target1)
-                dice += (2. * intersection1 + smooth) / (union1 + smooth)
-
-            dice /= (self.nb_classes - 1)
-            gamma = 2.
-            focal_dice = tf.math.pow((1. - dice), gamma)
-            #return tf.clip_by_value(1. - tversky, 0., 1. - epsilon)
-            return focal_dice
-        return get_focal_dice_loss_no_bg
-
-    def get_tversky_loss_no_bg(self):
-        def get_tversky_loss_no_bg(target, output, epsilon=1e-10, smooth=1):
-            for object in range(1, self.nb_classes):
-                if self.dims == 2:
-                    output1 = output[:, :, :, object]
-                    target1 = target[:, :, :, object]
-                else:
-                    output1 = output[:, :, :, :, object]
-                    target1 = target[:, :, :, :, object]
-            y_true_pos = target1
-            y_pred_pos = output1
-            true_pos = tf.reduce_sum(y_true_pos * y_pred_pos)
-            false_neg = tf.reduce_sum(y_true_pos * (1 - y_pred_pos))
-            false_pos = tf.reduce_sum((1 - y_true_pos) * y_pred_pos)
-            alpha = 0.7
-            tversky = (true_pos + smooth) / (true_pos + alpha * false_neg + (1 - alpha) * false_pos + smooth)
-
-            #return tf.clip_by_value(1. - tversky, 0., 1. - epsilon)
-            return 1. - tversky
-        return get_tversky_loss_no_bg
-
-    def get_focal_tversky_loss_no_bg(self):
-        def get_focal_tversky_loss_no_bg(target, output, epsilon=1e-10, smooth=1):
-            for object in range(1, self.nb_classes):
-                if self.dims == 2:
-                    output1 = output[:, :, :, object]
-                    target1 = target[:, :, :, object]
-                else:
-                    output1 = output[:, :, :, :, object]
-                    target1 = target[:, :, :, :, object]
-            y_true_pos = target1
-            y_pred_pos = output1
-            true_pos = tf.reduce_sum(y_true_pos * y_pred_pos)
-            false_neg = tf.reduce_sum(y_true_pos * (1 - y_pred_pos))
-            false_pos = tf.reduce_sum((1 - y_true_pos) * y_pred_pos)
-            alpha = 0.7
-            tversky = (true_pos + smooth) / (true_pos + alpha * false_neg + (1. - alpha) * false_pos + smooth)
-            gamma = 2.
-            #focal_tversky = tf.python.keras.backend.pow((1. - tversky), gamma)
-            focal_tversky = tf.math.pow((1. - tversky), gamma)
-            #return tf.clip_by_value(1. - tversky, 0., 1. - epsilon)
-            return focal_tversky
-        return get_focal_tversky_loss_no_bg
 
     def create(self):
         """
@@ -369,21 +211,25 @@ class AttentionUnet():
 
         for i, nbc in enumerate(self.convolutions[:-1]):
             if not self.input_pyramid or (i == 0):
-                x, x_before_ds = encoder_block(x, nbc, use_bn=self.encoder_use_bn, spatial_dropout=self.encoder_spatial_dropout, renorm=self.renorm)
+                x, x_before_ds = encoder_block(x, nbc, use_bn=self.encoder_use_bn,
+                                               spatial_dropout=self.encoder_spatial_dropout, renorm=self.renorm)
             else:
-                x, x_before_ds = encoder_block_pyramid(x, scaled_input[i], nbc, use_bn=self.encoder_use_bn, spatial_dropout=self.encoder_spatial_dropout, renorm=self.renorm)
+                x, x_before_ds = encoder_block_pyramid(x, scaled_input[i], nbc, use_bn=self.encoder_use_bn,
+                                                       spatial_dropout=self.encoder_spatial_dropout, renorm=self.renorm)
             connection.insert(0, x_before_ds)  # Append in reverse order for easier use in the next block
 
-        x = convolution_block(x, self.convolutions[-1], self.encoder_use_bn, self.encoder_spatial_dropout, renorm=self.renorm)
+        x = convolution_block(x, self.convolutions[-1], self.encoder_use_bn, self.encoder_spatial_dropout,
+                              renorm=self.renorm)
         connection.insert(0, x)
 
         inverse_conv = self.convolutions[::-1]
         inverse_conv = inverse_conv[1:]
         decoded_layers = []
-        #@TODO. Should Attention Gating be done over the last feature map (i.e. image at the highest resolution)?
+        # @TODO. Should Attention Gating be done over the last feature map (i.e. image at the highest resolution)?
         # Some papers say they don't because the feature map does not represent the data in a high dimensional space.
         for i, nbc in enumerate(inverse_conv):
-            x = decoder_block(x, connection[i+1], nbc, use_bn=self.decoder_use_bn, spatial_dropout=self.decoder_spatial_dropout, renorm=self.renorm)
+            x = decoder_block(x, connection[i + 1], nbc, use_bn=self.decoder_use_bn,
+                              spatial_dropout=self.decoder_spatial_dropout, renorm=self.renorm)
             decoded_layers.append(x)
 
         if not self.deep_supervision:
