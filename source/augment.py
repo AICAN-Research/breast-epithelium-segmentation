@@ -46,7 +46,7 @@ def random_blur(x):
     nbr = tf.random.uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
     sigma_ = np.random.uniform(0, 20)
     sigma_ = int(sigma_)
-    x = tf.cond(nbr < 0.5, lambda: x, lambda: tf.clip_by_value(tfa.image.gaussian_filter2d(
+    x = tf.cond(nbr < 0.2, lambda: x, lambda: tf.clip_by_value(tfa.image.gaussian_filter2d(
         x, filter_shape=15, sigma=sigma_), 0, 1))   # @TODO: get tf warning sometimes, find out why
     return x
 
