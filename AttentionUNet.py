@@ -1,5 +1,8 @@
-# Code by André Pedersen
-# https://github.com/andreped/H2G-Net/blob/main/src/architectures/AttentionUNet.py
+"""
+From:
+https://github.com/andreped/H2G-Net/blob/main/src/architectures/AttentionUNet.py
+Some minor changed made (and removed unused code)
+"""
 
 from tensorflow.keras.layers import Input, Convolution2D, MaxPooling2D, SpatialDropout2D, \
     Activation, AveragePooling2D, BatchNormalization, TimeDistributed, Concatenate, Conv2DTranspose, \
@@ -70,7 +73,7 @@ def encoder_block_pyramid(x, input_ds, nr_of_convolutions, use_bn=False, spatial
 
 def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
     #x = Conv2DTranspose(nr_of_convolutions, kernel_size=3, padding='same', strides=2)(x)
-    x = UpSampling2D((2, 2))(x)
+    x = UpSampling2D((2, 2))(x)  # See if this helps with checkerboard pattern sometimes seen
     if use_bn:
         x = BatchNormalization(renorm=renorm)(x)
     x = Activation('relu')(x)
