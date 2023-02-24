@@ -25,6 +25,9 @@ def main(ret):
     encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
     nb_downsamples = len(encoder_convs) - 1
     architecture = "agunet"
+    agunet_ = True  # to control multiscale input, set to True for agunet and False for unet
+    N_train_batches = 120  # @TODO: Change this number
+    N_val_batches = 30
     # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
 
     name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
@@ -36,10 +39,6 @@ def main(ret):
     # test_path = dataset_path + 'ds_test'
     history_path = './output/history/'  # path to directory
     model_path = './output/models/'  # path to directory
-    save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
-
-    N_train_batches = 120  # @TODO: Change this number
-    N_val_batches = 30
 
     # Cross-validation for division into train, val, test:
     # The numbers corresponds to wsi-numbers created in create data
@@ -100,7 +99,7 @@ def main(ret):
     ds_train = ds_train.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
     ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
 
-    # batch data before aug -> faster
+    # batch data before aug -> faster, can't do with agunet
     #ds_train = ds_train.batch(ret.batch_size)
     #ds_val = ds_val.batch(ret.batch_size)
 
@@ -124,8 +123,9 @@ def main(ret):
 
     # create multiscale input
     # tf.py_function(patchReader, [x], [tf.float32, tf.float32])
-    ds_train = ds_train.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
-    ds_val = ds_val.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
+    if agunet_:
+        ds_train = ds_train.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
+        ds_val = ds_val.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
 
     # batch data before aug -> faster
     ds_train = ds_train.batch(ret.batch_size)
