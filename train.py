@@ -4,7 +4,7 @@ from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping, TensorBoard
 from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
-    random_hue, random_saturation, random_shift, random_blur
+    random_hue, random_saturation, random_shift, random_blur, random_contrast
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss, \
     class_categorical_focal_dice_loss, categorical_focal_dice_loss, create_multiscale_input
 from source.losses import get_dice_loss, categorical_focal_tversky_loss, categorical_focal_tversky_loss_2
@@ -17,20 +17,20 @@ def main(ret):
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 
-    img_size = 512  #@TODO: None not allowed with convolutions, why?
+    img_size = 1024  #@TODO: None not allowed with convolutions, why?
     nb_classes = 4
     class_names = ["invasive", "benign", "insitu"]
 
     # network stuff
-    encoder_convs = [8, 16, 32, 64, 128, 128, 256, 256]
+    encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
     nb_downsamples = len(encoder_convs) - 1
     architecture = "agunet"
     # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
 
-    name = curr_date + "_" + curr_time + "_" + "unet_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
+    name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
     # paths
-    dataset_path = './datasets/200223_132501_level_3_psize_512_ds_4/'  # path to directory
+    dataset_path = './datasets/220223_140143_level_2_psize_1024_ds_4/'  # path to directory
     train_path = dataset_path + 'ds_train'
     val_path = dataset_path + 'ds_val'
     # test_path = dataset_path + 'ds_test'
@@ -38,8 +38,8 @@ def main(ret):
     model_path = './output/models/'  # path to directory
     save_ds_path = './output/datasets/dataset_' + name + '/'  # inni her først en med name, så ds_train og test inni der
 
-    N_train_batches = 20  # @TODO: Change this number
-    N_val_batches = 5
+    N_train_batches = 120  # @TODO: Change this number
+    N_val_batches = 30
 
     # Cross-validation for division into train, val, test:
     # The numbers corresponds to wsi-numbers created in create data
@@ -117,6 +117,7 @@ def main(ret):
     ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
                             num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
+    ds_train = ds_train.map(lambda x, y: (random_contrast(x, low=0.6, up=0.8), y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50),
                             num_parallel_calls=1)  # @TODO: DO I need to do shift, is it really necessary?
     # shift last
@@ -143,7 +144,7 @@ def main(ret):
         model = network.create()
     elif architecture == "agunet":
         # Test new Attention UNet
-        agunet = AttentionUnet(input_shape=(512, 512, 3), nb_classes=nb_classes, deep_supervision=True, input_pyramid=True)
+        agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=nb_classes, deep_supervision=True, input_pyramid=True)
         agunet.decoder_dropout = 0.1
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
@@ -163,7 +164,7 @@ def main(ret):
     tb_logger = TensorBoard(log_dir="output/logs/" + name + "/", histogram_freq=0, update_freq="epoch")
 
     early = EarlyStopping(
-        monitor="val_conv2d_63_loss",  # "val_loss"
+        monitor="val_conv2d_72_loss",  # "val_loss"
         min_delta=0,  # 0: any improvement is considered an improvement
         patience=ret.patience,  # if not improved for 50 epochs, stops
         verbose=1,
@@ -173,7 +174,7 @@ def main(ret):
 
     save_best = ModelCheckpoint(
         model_path + "model_" + name,
-        monitor="val_conv2d_63_loss",  # "val_loss"
+        monitor="val_conv2d_72_loss",  # "val_loss"
         verbose=2,  #
         save_best_only=True,
         save_weights_only=False,
@@ -204,7 +205,7 @@ def main(ret):
 if __name__ == "__main__":
 
     parser = ArgumentParser()
-    parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=32,
+    parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=8,
                         help="set which batch size to use for training.")
     parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
                         help="set which learning rate to use for training.")
@@ -221,7 +222,7 @@ if __name__ == "__main__":
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # due to this: https://github.com/tensorflow/tensorflow/issues/35029
 
     # choose which GPU to use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
     main(ret)
 
