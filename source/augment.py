@@ -44,10 +44,19 @@ def random_saturation(x, saturation):
 
 def random_blur(x):
     nbr = tf.random.uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
-    sigma_ = np.random.uniform(0, 20)
-    sigma_ = int(sigma_)
-    x = tf.cond(nbr < 0.2, lambda: x, lambda: tf.clip_by_value(tfa.image.gaussian_filter2d(
+    sigma_ = np.random.uniform(1, 20)  # @TODO: find a way to avoid numpy, will switch to cpu
+    x = tf.cond(nbr < 0.8, lambda: x, lambda: tf.clip_by_value(tfa.image.gaussian_filter2d(
         x, filter_shape=15, sigma=sigma_), 0, 1))   # @TODO: get tf warning sometimes, find out why
+    return x
+
+
+#  @TODO: consider adding additive gaussian noise too
+
+
+def random_contrast(x, low, up):
+    nbr = tf.random.uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
+    x = tf.cond(nbr < 0.5, lambda: x, lambda: tf.clip_by_value(
+        tf.image.random_contrast(x, lower=low, upper=up), 0, 1))
     return x
 
 
