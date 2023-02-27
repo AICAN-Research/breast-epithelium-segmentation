@@ -20,6 +20,7 @@ def check_units(y_true, y_pred):
 def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
     """
     based on https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
+    and network.get_dice_loss()
     :param y_true: true values
     :param y_pred: predicted values
     :param nb_classes:
@@ -39,12 +40,19 @@ def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
         true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))
         predicted_positives = K.sum(K.round(K.clip(output1, 0, 1)))
         precision_ += true_positives / (predicted_positives + K.epsilon())
+
+        if use_background:
+            precision_ /= nb_classes
+        else:
+            precision_ /= (nb_classes - 1)
+        # @TODO: maybe clip at end instead
     return precision_
 
 
 def recall(y_true, y_pred):
     """
     from https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
+    and network.get_dice_loss()
     :param y_true: true values
     :param y_pred: predicted values
     :return: recall: tp / (tp + fn)
