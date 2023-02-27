@@ -68,10 +68,10 @@ def recall(y_true, y_pred, nb_classes, use_background=False, dims=2):
         else:
             output1 = y_pred[:, :, :, :, object_]
             target1 = y_true[:, :, :, :, object_]
-    #target1, output1 = check_units(target1, output1)  # @TODO: necessary?
-    true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))
-    possible_positives = K.sum(K.round(K.clip(target1, 0, 1)))
-    recall_ += (true_positives / (possible_positives + K.epsilon()))
+        #target1, output1 = check_units(target1, output1)  # @TODO: necessary?
+        true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))
+        possible_positives = K.sum(K.round(K.clip(target1, 0, 1)))
+        recall_ += (true_positives / (possible_positives + K.epsilon()))
 
     if use_background:
         recall_ /= nb_classes
