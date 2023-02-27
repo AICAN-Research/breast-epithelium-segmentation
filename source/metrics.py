@@ -36,7 +36,7 @@ def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
         else:
             output1 = y_pred[:, :, :, :, object_]
             target1 = y_true[:, :, :, :, object_]
-        target1, output1 = check_units(target1, output1)
+        target1, output1 = check_units(target1, output1)  # @TODO: necessary?
         true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))
         predicted_positives = K.sum(K.round(K.clip(output1, 0, 1)))
         precision_ += true_positives / (predicted_positives + K.epsilon())
@@ -49,17 +49,35 @@ def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
     return precision_
 
 
-def recall(y_true, y_pred):
+def recall(y_true, y_pred, nb_classes, use_background=False, dims=2):
     """
     from https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
     and network.get_dice_loss()
     :param y_true: true values
     :param y_pred: predicted values
+    :param nb_classes:
+    :param use_background:
+    :param dims:
     :return: recall: tp / (tp + fn)
     """
-    y_true, y_pred = check_units(y_true, y_pred)
-    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-    recall_ = true_positives / (possible_positives + K.epsilon())
+    recall_ = 0
+    for object_ in range(0 if use_background else 1, nb_classes):
+        if dims == 2:
+            output1 = y_pred[:, :, :, object_]
+            target1 = y_true[:, :, :, object_]
+        else:
+            output1 = y_pred[:, :, :, :, object_]
+            target1 = y_true[:, :, :, :, object_]
+    target1, output1 = check_units(target1, output1)  # @TODO: necessary?
+    true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(target1, 0, 1)))
+    recall_ += true_positives / (possible_positives + K.epsilon())
+
+    if use_background:
+        recall_ /= nb_classes
+    else:
+        recall_ /= (nb_classes - 1)
+    # @TODO: maybe clip at end instead
+
     return recall_
 
