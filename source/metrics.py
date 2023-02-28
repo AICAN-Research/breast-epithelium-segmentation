@@ -2,11 +2,12 @@
 Metrics file for multiclass epithelium segmentation. Recall, precision, dice
 """
 from tensorflow.python.keras import backend as K
+import tensorflow as tf
 
 
 def check_units(y_true, y_pred):
     """
-    based on https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
+    from https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
     :param y_true:
     :param y_pred:
     :return:
@@ -36,10 +37,9 @@ def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
         else:
             output1 = y_pred[:, :, :, :, object_]
             target1 = y_true[:, :, :, :, object_]
-        true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))
-        predicted_positives = K.sum(K.round(K.clip(output1, 0, 1)))
+        true_positives = tf.reduce_sum(target1 * output1)
+        predicted_positives = tf.reduce_sum(output1)
         precision_ += (true_positives / (predicted_positives + K.epsilon()))
-
     if use_background:
         precision_ /= nb_classes
     else:
@@ -50,7 +50,7 @@ def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
 
 def recall(y_true, y_pred, nb_classes, use_background=False, dims=2):
     """
-    from https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
+    based on https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
     and network.get_dice_loss()
     :param y_true: true values
     :param y_pred: predicted values
