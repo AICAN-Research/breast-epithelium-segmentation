@@ -8,6 +8,10 @@ from datetime import datetime, date
 import h5py
 import numpy as np
 import fast
+import cv2
+from skimage.registration import phase_cross_correlation
+from scipy import ndimage as ndi
+from skimage.exposure import equalize_hist
 
 
 def create_dataset(he_path, ck_path, annot_path, dataset_path, level, patch_size, ds_factor):
@@ -16,7 +20,7 @@ def create_dataset(he_path, ck_path, annot_path, dataset_path, level, patch_size
     importer_ck = fast.WholeSlideImageImporter.create(
         ck_path)  # path to CK image
     importer_annot = fast.TIFFImagePyramidImporter.create(
-        annot_path)  # path to annotated image or areas to avoid
+        annot_path)  # path to annotated image or areas to keep
 
     extractor_he = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_he)
     extractor_ck = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_ck)
@@ -41,6 +45,26 @@ def create_dataset(he_path, ck_path, annot_path, dataset_path, level, patch_size
     ck_image_padded[:ck_image.shape[0], :ck_image.shape[1]] = ck_image
     he_image_padded[:he_image.shape[0], :he_image.shape[1]] = he_image
 
+    # REGISTER IMAGES
+    # downsample before registration
+    curr_shape = ck_image_padded.shape[:2]
+    ck_image_padded_ds = cv2.resize(ck_image_padded, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                                    interpolation=cv2.INTER_NEAREST)
+    he_image_padded_ds = cv2.resize(he_image_padded, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                                    interpolation=cv2.INTER_NEAREST)
+
+    # detect shift between ck and he, histogram equalization for better shift in image with few
+    # distinct landmarks
+    ck_image_padded_ds_histeq = equalize_hist(ck_image_padded_ds)
+    shifts, reg_error, phase_diff = phase_cross_correlation(he_image_padded_ds, ck_image_padded_ds_histeq,
+                                                            return_error=True)
+
+    shifts[2] = 0  # set z-axis to zero (should be from beginning)
+
+    # scale shifts back and apply to original resolution
+    shifts = (np.round(ds_factor * shifts)).astype("int32")
+    ck_image_padded_shifted = ndi.shift(ck_image_padded, shifts, order=0, mode="constant", cval=255, prefilter=False)
+
     # create patches
 
     # if patch includes areas in annotated image -> skip
@@ -53,7 +77,7 @@ if __name__ == "__main__":
 
     data_split_path = ""  # split train/val/test
     he_ck_path = ""  # path to he and ck slides
-    annot_path = ""  # area to not extract patches from
+    annot_path = ""  # area to extract patches from
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
