@@ -34,6 +34,13 @@ def create_dataset(he_path, ck_path, annot_path, dataset_path, level, patch_size
     longest_height = max([he_height, ck_height])
     longest_width = max([he_width, ck_width])
 
+    # pad smallest image
+    ck_image_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
+    he_image_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
+
+    ck_image_padded[:ck_image.shape[0], :ck_image.shape[1]] = ck_image
+    he_image_padded[:he_image.shape[0], :he_image.shape[1]] = he_image
+
     # create patches
 
     # if patch includes areas in annotated image -> skip
