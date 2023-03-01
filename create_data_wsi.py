@@ -1,6 +1,6 @@
 """
 Script to create patches from whole slide images
-Annotations from QuPath of which areas to avoid
+Annotations from QuPath of which areas to avoid (from he image)
 Put patches in train/val/test set
 Which wsis into which set is determined previously
 """
@@ -45,7 +45,6 @@ def create_dataset(he_path, ck_path, annot_path, dataset_path, level, patch_size
     ck_image_padded[:ck_image.shape[0], :ck_image.shape[1]] = ck_image
     he_image_padded[:he_image.shape[0], :he_image.shape[1]] = he_image
 
-    # REGISTER IMAGES
     # downsample before registration
     curr_shape = ck_image_padded.shape[:2]
     ck_image_padded_ds = cv2.resize(ck_image_padded, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
@@ -65,6 +64,7 @@ def create_dataset(he_path, ck_path, annot_path, dataset_path, level, patch_size
     shifts = (np.round(ds_factor * shifts)).astype("int32")
     ck_image_padded_shifted = ndi.shift(ck_image_padded, shifts, order=0, mode="constant", cval=255, prefilter=False)
 
+
     # create patches
 
     # if patch includes areas in annotated image -> skip
@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     data_split_path = ""  # split train/val/test
     he_ck_path = ""  # path to he and ck slides
-    annot_path = ""  # area to extract patches from
+    annot_path = ""  # area to extract patches from, from he image to avoid shifting
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
