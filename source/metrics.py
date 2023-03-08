@@ -40,6 +40,8 @@ def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
         true_positives = tf.reduce_sum(target1 * output1)
         predicted_positives = tf.reduce_sum(output1)
         precision_ += (true_positives / (predicted_positives + K.epsilon()))
+        # TODO: consider problem when there are no true positives (or no positives at all) in one of the classes
+        # TODO: it will influence the results a lot. Happens often for at least one class.
     if use_background:
         precision_ /= nb_classes
     else:
@@ -67,7 +69,7 @@ def recall(y_true, y_pred, nb_classes, use_background=False, dims=2):
         else:
             output1 = y_pred[:, :, :, :, object_]
             target1 = y_true[:, :, :, :, object_]
-        true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))
+        true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))  # TODO: consider reduce_sum instead, is there a difference in speed
         possible_positives = K.sum(K.round(K.clip(target1, 0, 1)))
         recall_ += (true_positives / (possible_positives + K.epsilon()))
 
