@@ -1,6 +1,8 @@
 """
 From:
 https://github.com/andreped/H2G-Net/blob/main/src/architectures/AttentionUNet.py
+the AGU-Net was again base on "Meningioma segmentation in T1-weighted MRI leveraging global context
+and attention mechanisms" by Bouget et al (2021)
 Some minor changed made (and removed unused code)
 """
 
