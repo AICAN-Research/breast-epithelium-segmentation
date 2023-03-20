@@ -6,11 +6,12 @@ from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur, random_contrast
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss, \
-    class_categorical_focal_dice_loss, categorical_focal_dice_loss, create_multiscale_input
+    class_categorical_focal_dice_loss, categorical_focal_dice_loss, create_multiscale_input, get_random_path
 from source.losses import get_dice_loss, categorical_focal_tversky_loss, categorical_focal_tversky_loss_2
 from argparse import ArgumentParser
 import sys
 from AttentionUNet import AttentionUnet
+import numpy as np
 
 
 def main(ret):
@@ -19,7 +20,6 @@ def main(ret):
 
     img_size = 1024  #@TODO: None not allowed with convolutions, why?
     nb_classes = 4
-    class_names = ["invasive", "benign", "insitu"]
 
     # network stuff
     encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
@@ -55,38 +55,71 @@ def main(ret):
     """
     # --------------------
 
-    train_paths = []
-    for directory in os.listdir(train_path):
-        dir_path = train_path + "/" + directory + "/"
-        dir_paths = []
-        for file_ in os.listdir(dir_path):
-            file_path = dir_path + file_
-            dir_paths.append(file_path)
-        train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
 
-    val_paths = []
-    for directory in os.listdir(val_path):
-        dir_path = val_path + "/" + directory + "/"
-        dir_paths = []
-        for file_ in os.listdir(dir_path):
-            file_path = dir_path + file_
-            dir_paths.append(file_path)
-        val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+    # use this when only looking at all epithelium as one class
+    if nb_classes == 2:
+        class_names = ["epithelium"]
+        train_paths = []
+        for file_ in os.listdir(train_path + "/"):
+            file_path = train_path + "/" + file_
+            train_paths.append(file_path)  # nested list of three lists containing paths for each folder/class
 
-    # combine all train/val paths
-    ds_train = tf.data.Dataset.from_generator(
-        get_random_path_from_random_class,
-        output_shapes=tf.TensorShape([]),
-        output_types=tf.string,
-        args=train_paths
-    )
+        val_paths = []
+        for file_ in os.listdir(val_path + "/"):
+            file_path = val_path + "/" + file_
+            val_paths.append(file_path)  # nested list of three lists containing paths for each folder/class
 
-    ds_val = tf.data.Dataset.from_generator(
-        get_random_path_from_random_class,
-        output_shapes=tf.TensorShape([]),
-        output_types=tf.string,
-        args=val_paths
-    )
+        # combine all train/val paths
+        ds_train = tf.data.Dataset.from_generator(
+            get_random_path,  # get_random_path_from_random_class, for inv, ins, ben
+            output_shapes=tf.TensorShape([]),
+            output_types=tf.string,
+            args=[train_paths]  # val_paths for inv, ins, ben
+        )
+
+        ds_val = tf.data.Dataset.from_generator(
+            get_random_path,  # get_random_path_from_random_class, for inv, ins, ben
+            output_shapes=tf.TensorShape([]),
+            output_types=tf.string,
+            args=[val_paths]  # val_paths for inv, ins, ben @TODO: why brackets, does not make sense(?)
+        )
+
+    # use this with invasive, benign, insitu
+    if nb_classes == 4:
+        class_names = ["invasive", "benign", "insitu"]
+        train_paths = []
+        for directory in os.listdir(train_path):
+            dir_path = train_path + "/" + directory + "/"
+            dir_paths = []
+            for file_ in os.listdir(dir_path):
+                file_path = dir_path + file_
+                dir_paths.append(file_path)
+            train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+
+        val_paths = []
+        for directory in os.listdir(val_path):
+            dir_path = val_path + "/" + directory + "/"
+            dir_paths = []
+            for file_ in os.listdir(dir_path):
+                file_path = dir_path + file_
+                dir_paths.append(file_path)
+            val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+
+        # combine all train/val paths
+        ds_train = tf.data.Dataset.from_generator(
+            get_random_path_from_random_class,
+            output_shapes=tf.TensorShape([]),
+            output_types=tf.string,
+            args=train_paths
+        )
+
+        ds_val = tf.data.Dataset.from_generator(
+            get_random_path_from_random_class,
+            output_shapes=tf.TensorShape([]),
+            output_types=tf.string,
+            args=val_paths
+        )
+
 
     # load patch from randomly selected patch
     ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]),
@@ -112,11 +145,11 @@ def main(ret):
     ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=1)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
-                            num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
+    #ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
+    #ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
+    #                        num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
-    ds_train = ds_train.map(lambda x, y: (random_contrast(x, low=0.6, up=0.8), y), num_parallel_calls=1)
+    #ds_train = ds_train.map(lambda x, y: (random_contrast(x, low=0.6, up=0.8), y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50),
                             num_parallel_calls=1)  # @TODO: DO I need to do shift, is it really necessary?
     # shift last
@@ -144,10 +177,17 @@ def main(ret):
         model = network.create()
     elif architecture == "agunet":
         # Test new Attention UNet
+        # Use input_pyramind=True for multiscale input
         agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=nb_classes, deep_supervision=True, input_pyramid=True)
         agunet.decoder_dropout = 0.1
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
+
+        # loss weights for deep supervision
+        #loss_weights = np.array([1 / (2 ** i) for i in range(nb_downsamples)])
+        #loss_weights /= sum(loss_weights)
+        loss_weights = np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0, 0, 0])
+        print("loss_weights:", loss_weights)
     else:
         raise ValueError("Unsupported architecture chosen. Please, choose either 'unet' or 'agunet'.")
 
@@ -185,6 +225,7 @@ def main(ret):
     model.compile(
         optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
         loss=get_dice_loss(nb_classes=nb_classes, use_background=False, dims=2),  # network.get_dice_loss(),
+        loss_weights=None if architecture == "unet" else loss_weights,
         metrics=[
             *[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)]
         ],
