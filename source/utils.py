@@ -96,6 +96,10 @@ def patchReader(path):
     with h5py.File(path, "r") as f:
         image = np.asarray(f["input"]).astype("float32")
         gt = np.asarray(f["output"]).astype("float32")
+        # TODO: cpu, gpu issue. Slow?
+        #temp_gt = np.zeros(gt.shape)  # only do if all epithlium as one class
+        #temp_gt = ((gt[:, :, 1] == 1) | (gt[:, :, 2] == 1) | (gt[:, :, 3] == 1))  # only do if all epithelium as one class
+        #gt = temp_gt  # only do if all epithelium as one class
     return image, gt
 
 
@@ -116,6 +120,19 @@ def get_random_path_from_random_class(x1, x2, x3):
 
         yield random_patch
 
+
+# generator to use when all epithelium as one class
+def get_random_path(x1):
+
+    # make infinite generator
+    while True:
+        # get random patch
+        random_patch = np.random.choice(x1, 1)[0].decode('utf-8')
+
+        # convert to tensor
+        random_patch = tf.convert_to_tensor(random_patch, dtype=tf.string)
+
+        yield random_patch
 
 # by André Pedersen:
 def create_multiscale_input(gt, nb_downsamples):
