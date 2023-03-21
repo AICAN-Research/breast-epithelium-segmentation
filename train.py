@@ -12,6 +12,8 @@ from argparse import ArgumentParser
 import sys
 from AttentionUNet import AttentionUnet
 import numpy as np
+from gradient_accumulator import GradientAccumulateModel
+from tensorflow.keras import mixed_precision
 
 
 def main(ret):
@@ -26,8 +28,8 @@ def main(ret):
     nb_downsamples = len(encoder_convs) - 1
     architecture = "agunet"
     agunet_ = True  # to control multiscale input, set to True for agunet and False for unet
-    N_train_batches = 120  # @TODO: Change this number
-    N_val_batches = 30
+    N_train_batches = 200  # @TODO: Change this number
+    N_val_batches = 50
     # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
 
     name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
@@ -185,11 +187,17 @@ def main(ret):
 
         # loss weights for deep supervision
         #loss_weights = np.array([1 / (2 ** i) for i in range(nb_downsamples)])
+        loss_weights = {"conv2d_" + str(72 - i): 1 / (1.3 ** i) for i in range(nb_downsamples)}
         #loss_weights /= sum(loss_weights)
-        loss_weights = np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0, 0, 0])
+        #loss_weights = np.array([1, 1, 1, 1, 1, 1, 1, 0])
         print("loss_weights:", loss_weights)
     else:
         raise ValueError("Unsupported architecture chosen. Please, choose either 'unet' or 'agunet'.")
+
+    if ret.accum_steps > 1:
+        model = GradientAccumulateModel(
+            accum_steps=ret.accum_steps, mixed_precision=ret.mixed_precision, inputs=model.input, outputs=model.outputs
+        )
 
     print(model.summary())
     # @TODO: Plot loss for each class (invasive, benign and inSitu seperately)
@@ -222,8 +230,12 @@ def main(ret):
         save_freq="epoch"
     )
 
+    if ret.mixed_precision:
+        opt = tf.keras.optimizers.Adam(ret.learning_rate)  # , epsilon=1e-4)
+        opt = mixed_precision.LossScaleOptimizer(opt)
+
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(ret.learning_rate),
+        optimizer=opt,
         loss=get_dice_loss(nb_classes=nb_classes, use_background=False, dims=2),  # network.get_dice_loss(),
         loss_weights=None if architecture == "unet" else loss_weights,
         metrics=[
@@ -248,6 +260,10 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=8,
                         help="set which batch size to use for training.")
+    parser.add_argument('--accum_steps', metavar='--as', type=int, nargs='?', default=2,
+                        help="set how many gradient accumulations to perform.")
+    parser.add_argument('--mixed_precision', metavar='--mp', type=int, nargs='?', default=1,
+                        help="whether to perform mixed precision (float16). Default=1 (True).")
     parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
                         help="set which learning rate to use for training.")
     parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
@@ -264,6 +280,9 @@ if __name__ == "__main__":
 
     # choose which GPU to use
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+    if ret.mixed_precision:
+        mixed_precision.set_global_policy('mixed_float16')
 
     main(ret)
 
