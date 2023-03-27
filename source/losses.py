@@ -7,6 +7,7 @@ import tensorflow as tf
 # By Erik Smistad (from network.get_dice_loss()
 def get_dice_loss(nb_classes=2, dims=2, use_background=False):
     def dice_loss(target, output, epsilon=1e-10):
+        # @TODO: could I change the smoothing?
         smooth = 1.
         dice = 0
         for object in range(0 if use_background else 1, nb_classes):
