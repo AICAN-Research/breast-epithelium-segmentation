@@ -161,11 +161,11 @@ class AttentionUnet:
 
         if not self.deep_supervision:
             # Final activation layer
-            x = Convolution2D(self.nb_classes, 1, activation='softmax')(x)
+            x = Convolution2D(self.nb_classes, 1, activation='softmax', dtype=tf.float32)(x)
         else:
             recons_list = []
             for i, lay in enumerate(decoded_layers):
-                x = Convolution2D(self.nb_classes, 1, activation='softmax')(lay)
+                x = Convolution2D(self.nb_classes, 1, activation='softmax', dtype=tf.float32)(lay)
                 recons_list.append(x)
             x = recons_list[::-1]
 
