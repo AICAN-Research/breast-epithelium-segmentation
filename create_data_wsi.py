@@ -1,8 +1,7 @@
 """
 Script to create patches from whole slide images
-Annotations from QuPath of which areas to avoid (from he image)
-Put patches in train/val/test set
-Which wsis into which set is determined previously
+Annotations from QuPath of which areas to exclude (from he image)
+Put patches in train/val set
 """
 from datetime import datetime, date
 import h5py
@@ -14,22 +13,35 @@ from scipy import ndimage as ndi
 from skimage.exposure import equalize_hist
 
 
-def create_dataset(he_path, ck_path, annot_path, dataset_path, level, patch_size, ds_factor):
+def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor):
     importer_he = fast.WholeSlideImageImporter.create(
         he_path)  # path to CK image
     importer_ck = fast.WholeSlideImageImporter.create(
         ck_path)  # path to CK image
+    importer_roi_annot = fast.TIFFImagePyramidImporter.create(
+        roi_annot_path)  # path to annotated image or areas to keep
+    importer_dab = fast.TIFFImagePyramidImporter.create(
+        dab_path)  # path to dab image
     importer_annot = fast.TIFFImagePyramidImporter.create(
-        annot_path)  # path to annotated image or areas to keep
+        annot_path)  # path to manual annotations of in situ lesions and benign epithelium
 
     extractor_he = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_he)
     extractor_ck = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_ck)
+    extractor_dab = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_dab)
+    extractor_roi_annot = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_roi_annot)
+    extractor_annot = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_annot)
 
     he_image = extractor_he.runAndGetOutputData()
     ck_image = extractor_ck.runAndGetOutputData()
+    dab_image = extractor_dab.runAndGetOutputData()
+    roi_annot_image = extractor_roi_annot.runAndGetOutputData()
+    annot_image = extractor_annot.runAndGetOutputData()
 
     he_image = np.asarray(he_image)
     ck_image = np.asarray(ck_image)
+    dab_image = np.asarray(dab_image)
+    roi_annot_image = np.asarray(roi_annot_image)
+    annot_image = np.asarray(annot_image)
 
     # get shape of he and ck images
     he_height, he_width, _ = he_image.shape
@@ -64,10 +76,25 @@ def create_dataset(he_path, ck_path, annot_path, dataset_path, level, patch_size
     shifts = (np.round(ds_factor * shifts)).astype("int32")
     ck_image_padded_shifted = ndi.shift(ck_image_padded, shifts, order=0, mode="constant", cval=255, prefilter=False)
 
+    # shift dab image
+    dab_image_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
+    dab_image_padded[:dab_image.shape[0], :dab_image.shape[1]] = dab_image
+    dab_image_padded_shifted =
 
     # create patches
 
-    # if patch includes areas in annotated image -> skip
+    data = [he_image_padded[0:he_height, 0:he_width, :], dab_correctly_placed, healthy_ep, in_situ_ep]
+    data_fast = [fast.Image.createFromArray(curr) for curr in data]
+    generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr
+                  in data_fast]
+    streamers = [fast.DataStream(curr) for curr in generators]
+
+    # @TODO: find out why the error below sometimes happens
+    for patch_idx, (patch_he, patch_mask, patch_healthy, patch_in_situ) in enumerate(
+            zip(*streamers)):  # get error here sometimes, find out why?
+
+
+    # if patch doesn't include areas in roi annotated image -> skip
 
 
 if __name__ == "__main__":
