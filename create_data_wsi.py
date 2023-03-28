@@ -15,6 +15,21 @@ import matplotlib.pyplot as plt
 import os
 
 
+def minmax(x):
+    """
+    normalizes intensities to range float [0, 1]
+    :param x: intensity image
+    :return: normalized x
+    """
+    # @TODO: Sometimes get error: invalid value encountered (x/=np.argmax(x)).
+    #  Is it possible I get one for both argmax and argmin
+    x = x.astype("float32")
+    if np.amax(x) > 0:
+        x -= np.amin(x)
+        x /= np.amax(x)
+    return x
+
+
 def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor,
                    overlap):
     importer_he = fast.WholeSlideImageImporter.create(
@@ -181,20 +196,28 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             shifts[2] = 0  # set z-axis to zero (should be from beginning, but is not always)
 
             # scale shifts back and apply to original resolution
-            # @TODO: this shift can results in in parts with he but no ck at dab
             shifts = (np.round(ds_factor * shifts)).astype("int32")
             ck_shifted = ndi.shift(ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
             dab_shifted = ndi.shift(dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
-            if True:
+            # @TODO: should not need to cut all sides
+            ck_shifted_cut = ck_shifted[np.abs(shifts[0]):10000 - np.abs(shifts[0]),
+                              np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
+            dab_shifted_cut = dab_shifted[np.abs(shifts[0]):10000 - np.abs(shifts[0]),
+                              np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
+            he_cut = he_[np.abs(shifts[0]):10000 - np.abs(shifts[0]), np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
+            annot_cut = annot_[np.abs(shifts[0]):10000 - np.abs(shifts[0]), np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
+            roi_annot_cut = roi_annot_[np.abs(shifts[0]):10000 - np.abs(shifts[0]), np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
+
+            if plot_flag:
                 f, axes = plt.subplots(1, 2, figsize=(30, 30))
                 axes[0].imshow(he_)
                 axes[0].imshow(ck_, cmap="gray", alpha=0.5)
-                axes[1].imshow(he_)
-                axes[1].imshow(ck_shifted, cmap="gray", alpha=0.5)
+                axes[1].imshow(he_cut)
+                axes[1].imshow(ck_shifted_cut, cmap="gray", alpha=0.5)
                 plt.show()
 
-            if True:
+            if plot_flag:
                 f, axes = plt.subplots(1, 2, figsize=(30, 30))
                 axes[0].imshow(he_)
                 axes[0].imshow(annot_, alpha=0.5)
@@ -202,45 +225,79 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 axes[1].imshow(roi_annot_, cmap="gray", alpha=0.5)
                 plt.show()
 
-            if True:
+            if plot_flag:
                 f, axes = plt.subplots(1, 2, figsize=(30, 30))
                 axes[0].imshow(he_)
                 axes[0].imshow(dab_, cmap="gray", alpha=0.5)
-                axes[1].imshow(he_)
-                axes[1].imshow(dab_shifted, cmap="gray", alpha=0.5)
+                axes[1].imshow(he_cut)
+                axes[1].imshow(dab_shifted_cut, cmap="gray", alpha=0.5)
                 plt.show()
 
-            if True:
-                f, axes = plt.subplots(1, 2, figsize=(30, 30))
-                axes[0].imshow(dab_, cmap="gray", alpha=0.5)
-                axes[1].imshow(dab_shifted, cmap="gray", alpha=0.5)
-                plt.show()
+            # differentiate between insitu, benign, invasive
+            healthy_ep = ((annot_cut == 1) & (dab_shifted_cut == 1)).astype("float32")
+            in_situ_ep = ((annot_cut == 2) & (dab_shifted_cut == 1)).astype("float32")
+            invasive_ep = dab_shifted_cut.copy()
+            invasive_ep[healthy_ep == 1] = 0
+            invasive_ep[in_situ_ep == 1] = 0
 
-    exit()
-    shifts[2] = 0  # set z-axis to zero (should be from beginning)
+            data = [he_cut, invasive_ep, healthy_ep, in_situ_ep, roi_annot_cut]
+            data_fast = [fast.Image.createFromArray(curr) for curr in data]
+            generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr)
+                          for curr in data_fast]
+            streamers = [fast.DataStream(curr) for curr in generators]
 
-    # scale shifts back and apply to original resolution
-    shifts = (np.round(ds_factor * shifts)).astype("int32")
-    ck_image_padded_shifted = ndi.shift(ck_image_padded, shifts, order=0, mode="constant", cval=255, prefilter=False)
-    """
-    # shift dab image
-    dab_image_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
-    dab_image_padded[:dab_image.shape[0], :dab_image.shape[1]] = dab_image
-    dab_image_padded_shifted =
+            # @TODO: find out why the error below sometimes happens
+            for patch_idx, (patch_he, patch_invasive, patch_healthy, patch_in_situ, patch_roi) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
+                patch_he = np.asarray(patch_he)
+                patch_invasive = np.asarray(patch_invasive)[..., 0]
+                patch_healthy = np.asarray(patch_healthy)[..., 0]
+                patch_in_situ = np.asarray(patch_in_situ)[..., 0]
+                patch_roi = np.asarray(patch_roi)[..., 0]
 
-    # create patches
+                if 1 in np.unique(patch_roi):
+                    print("skip")
+                    continue
 
-    data = [he_image_padded[0:he_height, 0:he_width, :], dab_correctly_placed, healthy_ep, in_situ_ep]
-    data_fast = [fast.Image.createFromArray(curr) for curr in data]
-    generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr
-                  in data_fast]
-    streamers = [fast.DataStream(curr) for curr in generators]
+                # normalizing intensities for patches
+                patch_invasive = minmax(patch_invasive)
+                patch_healthy = minmax(patch_healthy)
+                patch_in_situ = minmax(patch_in_situ)
 
-    # @TODO: find out why the error below sometimes happens
-    for patch_idx, (patch_he, patch_mask, patch_healthy, patch_in_situ) in enumerate(
-            zip(*streamers)):  # get error here sometimes, find out why?
+                gt_one_hot = np.stack(
+                    [1 - (patch_invasive.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)),
+                     patch_invasive, patch_healthy, patch_in_situ], axis=-1)
 
-    """
+                print("gt one hot shape: ", gt_one_hot.shape)
+
+                # for many classes
+                if np.any(gt_one_hot[..., 0] < 0):
+                   [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
+                   raise ValueError("Negative values occurred in the background class, check the segmentations...")
+
+                if np.any(np.sum(gt_one_hot, axis=-1) > 1):
+                   raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
+
+                # check if either of the shapes are empty, if yes, continue
+                if (len(patch_he) == 0) or (len(patch_invasive) == 0):
+                   continue
+
+                # @TODO: pad patches with incorrect shape
+
+                if plot_flag:
+                    fig, ax = plt.subplots(2, 2, figsize=(20, 20))
+                    ax[0, 0].imshow(gt_one_hot[:, :, 1])
+                    ax[0, 1].imshow(gt_one_hot[:, :, 2])
+                    ax[1, 0].imshow(gt_one_hot[:, :, 3])
+                    ax[1, 1].imshow(patch_he)
+                    plt.show()
+
+                if True:
+                    fig, ax = plt.subplots(1, 2, figsize=(30, 30))
+                    ax[0].imshow(patch_he)
+                    ax[1].imshow(patch_he)
+                    ax[1].imshow(gt_one_hot[:, :, 2], cmap="gray", alpha=0.5)
+                    plt.show()
+
     #if patch doesn't include areas in roi annotated image -> skip
 
 
