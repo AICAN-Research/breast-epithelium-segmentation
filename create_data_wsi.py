@@ -11,9 +11,12 @@ import cv2
 from skimage.registration import phase_cross_correlation
 from scipy import ndimage as ndi
 from skimage.exposure import equalize_hist
+import matplotlib.pyplot as plt
+import os
 
 
-def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor):
+def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor,
+                   overlap):
     importer_he = fast.WholeSlideImageImporter.create(
         he_path)  # path to CK image
     importer_ck = fast.WholeSlideImageImporter.create(
@@ -25,30 +28,141 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     importer_annot = fast.TIFFImagePyramidImporter.create(
         annot_path)  # path to manual annotations of in situ lesions and benign epithelium
 
-    extractor_he = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_he)
-    extractor_ck = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_ck)
+    if plot_flag:
+        extractor_roi_annot = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_roi_annot)
+        image = extractor_roi_annot.runAndGetOutputData()
+        numpy_image = np.asarray(image)
+        plt.imshow(numpy_image[..., 0], cmap='gray')
+        plt.show()
+
+    if plot_flag:
+        extractor_dab = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_dab)
+        image = extractor_dab.runAndGetOutputData()
+        numpy_image = np.asarray(image)
+        numpy_image = np.flip(numpy_image, axis=0)
+        plt.imshow(numpy_image[..., 0], cmap='gray')
+        plt.show()
+
+    if plot_flag:
+        extractor_ck = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_ck)
+        image = extractor_ck.runAndGetOutputData()
+        numpy_image = np.asarray(image)
+        plt.imshow(numpy_image[..., 0], cmap='gray')
+        plt.show()
+
+    if plot_flag:
+        extractor_annot = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_annot)
+        image = extractor_annot.runAndGetOutputData()
+        numpy_image = np.asarray(image)
+        plt.imshow(numpy_image[..., 0], cmap='gray')
+        plt.show()
+
+    """ this does not work at level 2
+    # @TODO: is it best to do this or use importer and .getAccess()
     extractor_dab = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_dab)
     extractor_roi_annot = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_roi_annot)
     extractor_annot = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_annot)
+    extractor_he = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_he)
+    extractor_ck = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_ck)
 
-    he_image = extractor_he.runAndGetOutputData()
-    ck_image = extractor_ck.runAndGetOutputData()
     dab_image = extractor_dab.runAndGetOutputData()
     roi_annot_image = extractor_roi_annot.runAndGetOutputData()
     annot_image = extractor_annot.runAndGetOutputData()
-
-    he_image = np.asarray(he_image)
-    ck_image = np.asarray(ck_image)
+    he_image = extractor_he.runAndGetOutputData()
+    ck_image = extractor_ck.runAndGetOutputData()
+    
     dab_image = np.asarray(dab_image)
     roi_annot_image = np.asarray(roi_annot_image)
     annot_image = np.asarray(annot_image)
+    he_image = np.asarray(he_image)
+    ck_image = np.asarray(ck_image)
+    """
+
+    dab_image = importer_dab.runAndGetOutputData()
+    roi_annot_image = importer_roi_annot.runAndGetOutputData()
+    annot_image = importer_annot.runAndGetOutputData()
+    he_image = importer_he.runAndGetOutputData()
+    ck_image = importer_ck.runAndGetOutputData()
+
+    height_dab_image = dab_image.getLevelHeight(level)
+    width_dab_image = dab_image.getLevelWidth(level)
+
+    height_he_image = he_image.getLevelHeight(level)
+    width_he_image = he_image.getLevelWidth(level)
+
+    height_ck_image = ck_image.getLevelHeight(level)
+    width_ck_image = ck_image.getLevelWidth(level)
+
+    height_roi_annot_image = roi_annot_image.getLevelHeight(level)
+    width_roi_annot_image = roi_annot_image.getLevelWidth(level)
+
+    height_annot_image = annot_image.getLevelHeight(level)
+    width_annot_image = annot_image.getLevelWidth(level)
+
+    # @TODO: these are not correct (he and ck larger and same shape),
+    # @TODO: somthing is off, and all annotations same size, should not be?
+    # @TODO: will probably be a problem also when looking at coordinates from he/ck tma to get annot coordinates
+    print("dab: ", height_dab_image, width_dab_image)
+    print("he: ", height_he_image, width_he_image)
+    print("ck: ", height_ck_image, width_ck_image)
+    print("roi annot: ", height_roi_annot_image, width_roi_annot_image)
+    print("annot: ", height_annot_image, width_annot_image)
+
+    dab_access = dab_image.getAccess(fast.ACCESS_READ)
+    roi_annot_access = roi_annot_image.getAccess(fast.ACCESS_READ)
+    annot_access = annot_image.getAccess(fast.ACCESS_READ)
+    he_access = he_image.getAccess(fast.ACCESS_READ)
+    ck_access = ck_image.getAccess(fast.ACCESS_READ)
 
     # get shape of he and ck images
-    he_height, he_width, _ = he_image.shape
-    ck_height, ck_width, _ = ck_image.shape
 
-    longest_height = max([he_height, ck_height])
-    longest_width = max([he_width, ck_width])
+    longest_height = max([height_he_image, height_ck_image])
+    longest_width = max([width_he_image, width_ck_image])
+
+    print(longest_height, longest_width)
+
+    nbr_h = int(longest_height / 10000)
+    nbr_w = int(longest_width / 10000)
+
+    print(nbr_h, nbr_w)
+    exit()
+
+    dab_ = dab_access.getPatchAsImage(int(level), int(10000), int(height_dab_image - 30000 - 10000), int(10000),
+                                      int(10000), False)
+
+    he_ = he_access.getPatchAsImage(int(level), int(10000), int(30000), int(10000),
+                                    int(10000), False)
+
+    ck_ = ck_access.getPatchAsImage(int(level), int(10000), int(30000), int(10000),
+                                    int(10000), False)
+
+    annot_ = annot_access.getPatchAsImage(int(level), int(10000), int(30000), int(10000),
+                                          int(10000), False)
+
+    rot_annot_ = roi_annot_access.getPatchAsImage(int(level), int(10000), int(30000), int(10000),
+                                                  int(10000), False)
+
+    dab_ = np.asarray(dab_)
+    dab_ = np.flip(dab_, axis=0)
+    print("dab unique: ", np.unique(dab_))
+    he_ = np.asarray(he_)
+    ck_ = np.asarray(ck_)
+    annot_ = np.asarray(annot_)
+    print("annot unique: ", np.unique(annot_))
+    roi_annot_ = np.asarray(rot_annot_)
+    print("roi_annot unique: ", np.unique(roi_annot_))
+
+    if True:
+        f, axes = plt.subplots(2, 3, figsize=(30, 30))
+        axes[0, 0].imshow(dab_, cmap="gray")
+        axes[0, 1].imshow(he_)
+        axes[0, 2].imshow(ck_)
+        axes[1, 0].imshow(annot_)
+        axes[1, 1].imshow(roi_annot_, cmap="gray")
+        axes[1, 2].imshow(roi_annot_, cmap="gray")
+        plt.show()
+
+    exit()
 
     # pad smallest image
     ck_image_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
@@ -75,7 +189,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     # scale shifts back and apply to original resolution
     shifts = (np.round(ds_factor * shifts)).astype("int32")
     ck_image_padded_shifted = ndi.shift(ck_image_padded, shifts, order=0, mode="constant", cval=255, prefilter=False)
-
+    """
     # shift dab image
     dab_image_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
     dab_image_padded[:dab_image.shape[0], :dab_image.shape[1]] = dab_image
@@ -93,18 +207,18 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     for patch_idx, (patch_he, patch_mask, patch_healthy, patch_in_situ) in enumerate(
             zip(*streamers)):  # get error here sometimes, find out why?
 
-
-    # if patch doesn't include areas in roi annotated image -> skip
+    """
+    #if patch doesn't include areas in roi annotated image -> skip
 
 
 if __name__ == "__main__":
     level = 2
     patch_size = 1024
     ds_factor = 4
+    plot_flag = False
+    overlap = 0.25
 
     data_split_path = ""  # split train/val/test
-    he_ck_path = ""  # path to he and ck slides
-    annot_path = ""  # area to extract patches from, from he image to avoid shifting
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
@@ -113,20 +227,33 @@ if __name__ == "__main__":
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(ds_factor) + "/"
 
-    # define datasets (train/val/test) - always uses predefined dataset
-    with h5py.File(data_split_path, "r") as f:
-        train_set = np.array(f['train']).astype(str)
-        val_set = np.array(f['val']).astype(str)
-        test_set = np.array(f['test']).astype(str)
-
-    # get elements in each dataset
-    N_train = len(list(train_set))  # should be one wsi?
-    N_val = len(list(val_set))  # should be one wsi?
-
-    file_set = train_set, val_set
-    set_names = ['ds_train', 'ds_val']
-
-    print("file set", file_set)
-    print("length file set", len(file_set))
+    # @TODO: cannot divide slides into train/val before? How to divide now?
+    # @TODO: could I use a random change of train/val (0.6 and 0.4) for each patch? Though that would make
+    # @TODO: patches from same slide in both sets. All in train instead?
 
     # go through files in train/val/test -> create_dataset()
+    he_path_ = '/data/Maren_P1/data/WSI/'
+    ck_path_ = '/data/Maren_P1/data/WSI/'
+    roi_annot_path_ = '/data/Maren_P1/data/annotations_converted/patches_WSI/'
+    annot_path_ = '/data/Maren_P1/data/annotations_converted/WSI/'
+    dab_path_ = '/data/Maren_P1/data/annotations_converted/dab_channel_WSI_tiff/'
+
+    for file in os.listdir(annot_path_):
+        id_ = file.split("-labels.ome.tif")[0]
+        he_path = he_path_ + id_ + ".vsi"
+        annot_path = annot_path_ + file
+        roi_annot_path = roi_annot_path_ + id_ + ".vsi - 40x-labels.ome.tif"
+
+        for file in os.listdir(dab_path_):
+            id_2 = file.split(".tiff")[0]
+            if id_2 in id_:
+                dab_path = dab_path_ + id_2 + ".tiff"
+                ck_path = ck_path_ + id_2 + " CK.vsi"
+
+        print(he_path)
+        print(ck_path)
+        print(roi_annot_path)
+        print(annot_path)
+        print(dab_path)
+
+        create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor, overlap)
