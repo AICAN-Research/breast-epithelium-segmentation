@@ -125,65 +125,98 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     nbr_w = int(longest_width / 10000)
 
     print(nbr_h, nbr_w)
-    exit()
 
-    dab_ = dab_access.getPatchAsImage(int(level), int(10000), int(height_dab_image - 30000 - 10000), int(10000),
-                                      int(10000), False)
+    # @TODO: fix edge cases, will stops now
+    for i in range(nbr_w + 1):
+        for j in range(nbr_h + 1):
+            w_from = 10000 * i
+            h_from = 10000 * j
 
-    he_ = he_access.getPatchAsImage(int(level), int(10000), int(30000), int(10000),
-                                    int(10000), False)
+            dab_ = dab_access.getPatchAsImage(int(level), int(w_from), int(height_dab_image - h_from - 10000), int(10000),
+                                              int(10000), False)
 
-    ck_ = ck_access.getPatchAsImage(int(level), int(10000), int(30000), int(10000),
-                                    int(10000), False)
+            he_ = he_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(10000),
+                                            int(10000), False)
 
-    annot_ = annot_access.getPatchAsImage(int(level), int(10000), int(30000), int(10000),
-                                          int(10000), False)
+            ck_ = ck_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(10000),
+                                            int(10000), False)
 
-    rot_annot_ = roi_annot_access.getPatchAsImage(int(level), int(10000), int(30000), int(10000),
+            annot_ = annot_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(10000),
                                                   int(10000), False)
 
-    dab_ = np.asarray(dab_)
-    dab_ = np.flip(dab_, axis=0)
-    print("dab unique: ", np.unique(dab_))
-    he_ = np.asarray(he_)
-    ck_ = np.asarray(ck_)
-    annot_ = np.asarray(annot_)
-    print("annot unique: ", np.unique(annot_))
-    roi_annot_ = np.asarray(rot_annot_)
-    print("roi_annot unique: ", np.unique(roi_annot_))
+            rot_annot_ = roi_annot_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(10000),
+                                                          int(10000), False)
 
-    if True:
-        f, axes = plt.subplots(2, 3, figsize=(30, 30))
-        axes[0, 0].imshow(dab_, cmap="gray")
-        axes[0, 1].imshow(he_)
-        axes[0, 2].imshow(ck_)
-        axes[1, 0].imshow(annot_)
-        axes[1, 1].imshow(roi_annot_, cmap="gray")
-        axes[1, 2].imshow(roi_annot_, cmap="gray")
-        plt.show()
+            dab_ = np.asarray(dab_)
+            dab_ = np.flip(dab_, axis=0)
+            he_ = np.asarray(he_)
+            ck_ = np.asarray(ck_)
+            annot_ = np.asarray(annot_)
+            roi_annot_ = np.asarray(rot_annot_)
+
+            if plot_flag:
+                f, axes = plt.subplots(2, 3, figsize=(30, 30))
+                axes[0, 0].imshow(dab_, cmap="gray")
+                axes[0, 1].imshow(he_)
+                axes[0, 2].imshow(ck_)
+                axes[1, 0].imshow(annot_)
+                axes[1, 1].imshow(roi_annot_, cmap="gray")
+                axes[1, 2].imshow(roi_annot_, cmap="gray")
+                plt.show()
+
+            # downsample before registration
+            curr_shape = ck_.shape[:2]
+            # @TODO: no padding to largest image per now, since extracting areas
+            ck_image_ds = cv2.resize(ck_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                                     interpolation=cv2.INTER_NEAREST)
+            he_image_ds = cv2.resize(he_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                                     interpolation=cv2.INTER_NEAREST)
+
+            # detect shift between ck and he, histogram equalization for better shift in image with few
+            # distinct landmarks
+            ck_image_ds_hist = equalize_hist(ck_image_ds)
+            # @TODO: z-shift sometimes larger than zero, why?
+            shifts, reg_error, phase_diff = phase_cross_correlation(he_image_ds, ck_image_ds_hist,
+                                                                    return_error=True)
+            shifts[2] = 0  # set z-axis to zero (should be from beginning, but is not always)
+
+            # scale shifts back and apply to original resolution
+            # @TODO: this shift can results in in parts with he but no ck at dab
+            shifts = (np.round(ds_factor * shifts)).astype("int32")
+            ck_shifted = ndi.shift(ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
+            dab_shifted = ndi.shift(dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
+
+            if True:
+                f, axes = plt.subplots(1, 2, figsize=(30, 30))
+                axes[0].imshow(he_)
+                axes[0].imshow(ck_, cmap="gray", alpha=0.5)
+                axes[1].imshow(he_)
+                axes[1].imshow(ck_shifted, cmap="gray", alpha=0.5)
+                plt.show()
+
+            if True:
+                f, axes = plt.subplots(1, 2, figsize=(30, 30))
+                axes[0].imshow(he_)
+                axes[0].imshow(annot_, alpha=0.5)
+                axes[1].imshow(he_)
+                axes[1].imshow(roi_annot_, cmap="gray", alpha=0.5)
+                plt.show()
+
+            if True:
+                f, axes = plt.subplots(1, 2, figsize=(30, 30))
+                axes[0].imshow(he_)
+                axes[0].imshow(dab_, cmap="gray", alpha=0.5)
+                axes[1].imshow(he_)
+                axes[1].imshow(dab_shifted, cmap="gray", alpha=0.5)
+                plt.show()
+
+            if True:
+                f, axes = plt.subplots(1, 2, figsize=(30, 30))
+                axes[0].imshow(dab_, cmap="gray", alpha=0.5)
+                axes[1].imshow(dab_shifted, cmap="gray", alpha=0.5)
+                plt.show()
 
     exit()
-
-    # pad smallest image
-    ck_image_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
-    he_image_padded = np.ones((longest_height, longest_width, 3), dtype="uint8") * 255
-
-    ck_image_padded[:ck_image.shape[0], :ck_image.shape[1]] = ck_image
-    he_image_padded[:he_image.shape[0], :he_image.shape[1]] = he_image
-
-    # downsample before registration
-    curr_shape = ck_image_padded.shape[:2]
-    ck_image_padded_ds = cv2.resize(ck_image_padded, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                                    interpolation=cv2.INTER_NEAREST)
-    he_image_padded_ds = cv2.resize(he_image_padded, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                                    interpolation=cv2.INTER_NEAREST)
-
-    # detect shift between ck and he, histogram equalization for better shift in image with few
-    # distinct landmarks
-    ck_image_padded_ds_histeq = equalize_hist(ck_image_padded_ds)
-    shifts, reg_error, phase_diff = phase_cross_correlation(he_image_padded_ds, ck_image_padded_ds_histeq,
-                                                            return_error=True)
-
     shifts[2] = 0  # set z-axis to zero (should be from beginning)
 
     # scale shifts back and apply to original resolution
