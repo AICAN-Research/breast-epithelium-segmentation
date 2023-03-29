@@ -13,6 +13,7 @@ from scipy import ndimage as ndi
 from skimage.exposure import equalize_hist
 import matplotlib.pyplot as plt
 import os
+from source.utils import alignImages
 
 
 def minmax(x):
@@ -72,13 +73,13 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
         plt.imshow(numpy_image[..., 0], cmap='gray')
         plt.show()
 
-    """ this does not work at level 2
-    # @TODO: is it best to do this or use importer and .getAccess()
-    extractor_dab = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_dab)
-    extractor_roi_annot = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_roi_annot)
-    extractor_annot = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_annot)
-    extractor_he = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_he)
-    extractor_ck = fast.ImagePyramidLevelExtractor.create(level=level).connect(importer_ck)
+    # This does not work at level 2
+    # Use higher level for registration
+    extractor_dab = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_dab)
+    extractor_roi_annot = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_roi_annot)
+    extractor_annot = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_annot)
+    extractor_he = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_he)
+    extractor_ck = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_ck)
 
     dab_image = extractor_dab.runAndGetOutputData()
     roi_annot_image = extractor_roi_annot.runAndGetOutputData()
@@ -91,7 +92,45 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     annot_image = np.asarray(annot_image)
     he_image = np.asarray(he_image)
     ck_image = np.asarray(ck_image)
+
+    # tissue segmentation
     """
+    intensity_away_from_white_thresh = 40
+    ck_image_tissue = (
+                np.mean(ck_image, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+    he_image_tissue = (np.mean(he_image, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+        # downsample before registration
+    curr_shape = ck_image_tissue.shape[:2]
+    # @TODO: no padding to largest image per now, since extracting areas
+    ck_seg_ds = cv2.resize(ck_image_tissue, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                             interpolation=cv2.INTER_NEAREST)
+    he_seg_ds = cv2.resize(he_image_tissue, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                             interpolation=cv2.INTER_NEAREST)
+
+    # detect shift between ck and he, histogram equalization for better shift in image with few
+    # distinct landmarks
+    #ck_seg_ds_hist = equalize_hist(ck_seg_ds)
+    # @TODO: z-shift sometimes larger than zero, why?
+    shifts, reg_error, phase_diff = phase_cross_correlation(he_seg_ds, ck_seg_ds,
+                                                            return_error=True)
+    print(shifts)
+
+    # scale shifts back and apply to original resolution
+    shifts = (np.round(ds_factor * shifts)).astype("int32")
+    shifts_ = np.zeros((3,)).astype("int32")
+    shifts_[0:2] = shifts
+    ck_shifted = ndi.shift(ck_image, shifts_, order=0, mode="constant", cval=255, prefilter=False)
+
+    print(shifts)
+    print(shifts_)
+    print()
+
+    dab_image = np.flip(dab_image, axis=0)
+    dab_shifted = ndi.shift(dab_image, shifts_, order=0, mode="constant", cval=0, prefilter=False)
+    """
+
+    # registration with orb
+    im_reg, h = alignImages(ck_image, he_image)
 
     dab_image = importer_dab.runAndGetOutputData()
     roi_annot_image = importer_roi_annot.runAndGetOutputData()
@@ -225,7 +264,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 axes[1].imshow(roi_annot_, cmap="gray", alpha=0.5)
                 plt.show()
 
-            if plot_flag:
+            if True:
                 f, axes = plt.subplots(1, 2, figsize=(30, 30))
                 axes[0].imshow(he_)
                 axes[0].imshow(dab_, cmap="gray", alpha=0.5)
@@ -291,7 +330,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     ax[1, 1].imshow(patch_he)
                     plt.show()
 
-                if True:
+                if plot_flag:
                     fig, ax = plt.subplots(1, 2, figsize=(30, 30))
                     ax[0].imshow(patch_he)
                     ax[1].imshow(patch_he)
