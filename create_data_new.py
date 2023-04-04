@@ -215,9 +215,11 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 ck_tma_padded_ds_histeq = equalize_hist(ck_tma_padded_ds)
                 shifts, reg_error, phase_diff = phase_cross_correlation(he_tma_padded_ds, ck_tma_padded_ds_histeq,
                                                                         return_error=True)
+                # @TODO: Why does the documentation say that the shift is returned as (z,y,x)?
                 shifts[2] = 0  # set z-axis to zero (should be from beginning)
 
                 # scale shifts back and apply to original resolution
+                # @TODO: could this shift result in cropped CK core, shifted too far?
                 shifts = (np.round(downsample_factor * shifts)).astype("int32")
                 ck_tma_padded_shifted = ndi.shift(ck_tma_padded, shifts, order=0, mode="constant", cval=255,
                                                   prefilter=False)
@@ -293,18 +295,9 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 healthy_ep = ((manual_annot == 1) & (dab_core_correctly_placed == 1)).astype("float32")
                 in_situ_ep = ((manual_annot == 2) & (dab_core_correctly_placed == 1)).astype("float32")
 
-                # subtract fixed healthy and in situ from invasive tissue
-                dab_core_correctly_placed[healthy_ep == 1] = 0
-                dab_core_correctly_placed[in_situ_ep == 1] = 0
-
-                if plot_flag_test:
-                    fig, ax = plt.subplots(2, 2, figsize=(30, 30))  # Figure of the two patches on top of each other
-                    ax[0, 0].imshow(he_tma_padded[0:height_he, 0:width_he, :])
-                    ax[0, 1].imshow(dab_core_correctly_placed)
-                    ax[1, 0].imshow(he_tma_padded[0:height_he, 0:width_he, :])
-                    ax[1, 0].imshow(dab_core_correctly_placed, alpha=0.5)
-                    ax[1, 1].imshow(in_situ_ep)
-                    plt.show()  # Show the two images on top of each other
+                if class_ == "multiclass":
+                    dab_core_correctly_placed[healthy_ep == 1] = 0
+                    dab_core_correctly_placed[in_situ_ep == 1] = 0
 
                 data = [he_tma_padded[0:height_he, 0:width_he, :], dab_core_correctly_placed, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
@@ -329,32 +322,50 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     patch_in_situ = minmax(patch_in_situ)
 
                     # create one-hot, one channel for each class
-                    gt_one_hot = np.stack([1 - (patch_mask.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)), patch_mask, patch_healthy, patch_in_situ], axis=-1)
+                    if class_ == "multiclass":
+                        gt_one_hot = np.stack([1 - (patch_mask.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)), patch_mask, patch_healthy, patch_in_situ], axis=-1)
+                        if np.any(gt_one_hot[..., 0] < 0):
+                            [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
+                            raise ValueError("Negative values occurred in the background class, check the segmentations...")
 
-                    if np.any(gt_one_hot[..., 0] < 0):
-                        [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
-                        raise ValueError("Negative values occurred in the background class, check the segmentations...")
+                        if np.any(np.sum(gt_one_hot, axis=-1) > 1):
+                            raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
 
-                    if np.any(np.sum(gt_one_hot, axis=-1) > 1):
-                        raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
+                        # check if either of the shapes are empty, if yes, continue
+                        if (len(patch_he) == 0) or (len(patch_mask) == 0):
+                            continue
 
-                    # check if either of the shapes are empty, if yes, continue
-                    if (len(patch_he) == 0) or (len(patch_mask) == 0):
-                        continue
+                    # for all epithelium as one class:
+                    if class_ == "singleclass":
+                        gt_one_hot_all = np.stack([1 - (patch_mask.astype(bool)), patch_mask], axis=-1)  # for dataset with all epithelium as one class
+                        if np.any(gt_one_hot_all[..., 0] < 0):
+                            [print(np.mean(gt_one_hot_all[..., iii])) for iii in range(2)]
+                            raise ValueError("Negative values occurred in the background class, check the segmentations...")
+
+                        if np.any(np.sum(gt_one_hot_all, axis=-1) > 1):
+                            raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
+
+                        # check if either of the shapes are empty, if yes, continue
+                        if (len(patch_he) == 0) or (len(patch_mask) == 0):
+                            continue
 
                     if np.array(patch_he).shape[0] < patch_size or np.array(patch_he).shape[1] < patch_size:
                         patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
                         patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="uint8")  #@TODO: should this also be np.ones?
+                        patch_gt_padded_all = np.zeros((patch_size, patch_size, 2), dtype="uint8")  # for dataset when all epithelium as one class
 
                         patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he
                         patch_gt_padded[:gt_one_hot.shape[0], :gt_one_hot.shape[1]] = gt_one_hot
+                        patch_gt_padded_all[:gt_one_hot_all.shape[0], :gt_one_hot_all.shape[1]] = gt_one_hot_all  # for dataset when all epithelium as one class
 
                         patch_he = patch_he_padded
                         gt_one_hot = patch_gt_padded
+                        gt_one_hot_all = patch_gt_padded_all
 
                     # check if patch includes benign or in situ
                     # How to deal with patches with multiple classes??
                     # @TODO: change to only include in inSitu/benign if pixel number above a threshold
+
                     if np.count_nonzero(patch_in_situ) > 0:
                         add_to_path = 'inSitu/'
                         count_inSitu += 1
@@ -365,13 +376,24 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         add_to_path = 'invasive/'
                         count_invasive += 1
 
+                    intensity_away_from_white_thresh = 40
+                    he_tissue = (
+                            np.mean(patch_he, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+
+                    he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
+
+                    if he_tissue_ < 0.25:
+                        print("skip")
+                        continue
+
                     # create folder if not exists
-                    os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
+
+                    os.makedirs(dataset_path + set_name + "/", exist_ok=True)  #+ add_to_path, exist_ok=True)
 
                     # insert saving patches as hdf5 (h5py) here:
-                    with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                    with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f: #+ add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                         f.create_dataset(name="input", data=patch_he.astype("uint8"))
-                        f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                        f.create_dataset(name="output", data=gt_one_hot_all.astype("uint8"))
 
                 # delete streamers and stuff to potentially avoid threading issues in FAST
                 del data_fast, generators, streamers
@@ -404,13 +426,14 @@ if __name__ == "__main__":
     # --- HYPER PARAMS
     plot_flag = False
     plot_flag_test = False
-    level = 3  # image pyramid level
+    level = 2  # image pyramid level
     nb_iters = -1
-    patch_size = 512
+    patch_size = 1024  # @TODO: change placement in benign/inSitu (?) when size 1024
     downsample_factor = 4  # tested with 8, but not sure if better
     wsi_idx = 0
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed  # @TODO: Check if okay
     overlap = 0.25
+    class_ = "multiclass"  # singleclass
 
     HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
@@ -426,8 +449,6 @@ if __name__ == "__main__":
                    "_level_" + str(level) + \
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(downsample_factor) + "/"
-
-    #os.makedirs(dataset_path, exist_ok=True)
 
     # define datasets (train/val/test) - always uses predefined dataset
     with h5py.File(data_splits_path, "r") as f:
@@ -445,7 +466,7 @@ if __name__ == "__main__":
     print("file set", file_set)
     print("length file set", len(file_set))
     count = 0
-    #exit()
+
     for files in tqdm(file_set, "Cohort"):
         set_name = set_names[count]  # ds_train or ds_val
         for file in tqdm(files, "WSI"):
