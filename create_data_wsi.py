@@ -35,7 +35,7 @@ def minmax(x):
 
 
 def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor,
-                   overlap):
+                   overlap, tissue_level):
     importer_he = fast.WholeSlideImageImporter.create(
         he_path)  # path to CK image
     importer_ck = fast.WholeSlideImageImporter.create(
@@ -135,8 +135,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     # registration with orb, done on level 4
     # im_reg_l4, h, height, width = alignImages(ck_image_l4, he_image_l4)
 
-
-
     dab_image = importer_dab.runAndGetOutputData()
     roi_annot_image = importer_roi_annot.runAndGetOutputData()
     annot_image = importer_annot.runAndGetOutputData()
@@ -174,7 +172,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     ck_access = ck_image.getAccess(fast.ACCESS_READ)
 
     # get shape of he and ck images
-
     longest_height = max([height_he_image, height_ck_image])
     longest_width = max([width_he_image, width_ck_image])
 
@@ -223,6 +220,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 ck_large_reg = ndi.shift(ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
                 dab_large_reg = ndi.shift(dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
+                # create patches
                 data = [he_, ck_large_reg, dab_large_reg, annot_, roi_annot_]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [
@@ -238,39 +236,23 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     patch_annot_ = np.asarray(patch_annot_)
                     patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
 
+                    # skip patches including areas annotated for removal or with tissue below tissue_level percent
                     intensity_away_from_white_thresh = 40
                     he_tissue = (
                             np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
-
                     he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
-
-                    if 1 in np.unique(patch_roi_) or he_tissue_ < 0.4:
+                    if 1 in np.unique(patch_roi_) or he_tissue_ < tissue_level:
                         print("skip")
                         continue
 
+                    # register on patch level
                     ck_hist = equalize_hist(patch_ck_)
-
                     shifts, reg_error, phase_diff = phase_cross_correlation(
                         patch_he_, ck_hist, return_error=True)
-
                     shifts[2] = 0
                     patch_ck_reg = ndi.shift(patch_ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
                     patch_dab_reg = ndi.shift(patch_dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
-
                     patch_ck_reg_, h, height, width = alignImages(patch_ck_, patch_he_)
-                    #model = ImageRegistrationOpticalFlow()
-                    #model.fit(patch_he_, patch_ck_)
-                    #patch_ck_reg_ = model.transform(patch_ck_)
-                    #patch_ck_reg_, row_coords, col_coords, v, u = align_optical_flow(patch_he_, patch_ck_)
-                    print("patch ck reg_ shape: ", patch_ck_reg_.shape)
-                    print("patch ck gray: ", rgb2gray(patch_ck_).shape)
-                    print("dab shape: ", patch_dab_reg.shape)
-                    print(np.squeeze(patch_ck_reg_).shape)
-                    print(np.unique(patch_dab_reg))
-
-                    #patch_dab_reg_ = warp(np.squeeze(patch_dab_), np.array([row_coords + v, col_coords + u]),
-                    #                      mode='constant')
-
 
                     if True:
                         print("making figure...")
@@ -283,97 +265,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                         axes[1, 1].imshow(patch_he_)
                         axes[1, 1].imshow(patch_ck_reg, cmap="gray", alpha=0.5)
                         plt.show()
-
-                """
-
-                dab_ = np.asarray(dab_)
-                dab_ = np.flip(dab_, axis=0)
-                he_ = np.asarray(he_)
-                ck_ = np.asarray(ck_)
-                annot_ = np.asarray(annot_)
-                roi_annot_ = np.asarray(roi_annot_)
-
-                ck_hist = equalize_hist(ck_)
-                #he_mean = (he_ - np.mean(he_)).astype("uint8")
-                #ck_mean = (ck_ - np.mean(ck_)).astype("uint8")
-
-                he_mean = he_.copy()
-                ck_mean = ck_.copy()
-
-                # register large patches
-                #ck_reg, h, height, width = alignImages(ck_mean, he_mean)
-                # ck_reg = align_optical_flow(he_mean, ck_mean)
-                #ck_reg = align_pyelastix(ck_mean, he_mean)
-                #print(h)
-
-                #curr_shape = ck_mean.shape[:2]
-                curr_shape = ck_.shape[:2]
-
-                #ck_seg_ds = cv2.resize(ck_mean, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                #                       interpolation=cv2.INTER_NEAREST)
-                #he_seg_ds = cv2.resize(he_mean, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                #                       interpolation=cv2.INTER_NEAREST)
-
-                # detect shift between ck and he, histogram equalization for better shift in image with few
-                # distinct landmarks
-                # ck_seg_ds_hist = equalize_hist(ck_seg_ds)
-                # @TODO: z-shift sometimes larger than zero, why?
-                #shifts, reg_error, phase_diff = phase_cross_correlation(
-                #    he_mean, ck_mean, return_error=True, upsample_factor=ds_factor
-                #)
-                #print(shifts)
-                #shifts = np.round(shifts).astype("int32")
-
-                # scale shifts back and apply to original resolution
-                #shifts = (np.round(ds_factor * shifts)).astype("int32")
-                #shifts_ = np.zeros((3,)).astype("int32")
-                #shifts_[:2] = shifts[:2]
-                #ck_reg = ndi.shift(ck_mean, shifts_, order=0, mode="constant", cval=255, prefilter=False)
-
-                #model = ImageRegistrationOpticalFlow()
-                #model.fit(ck_mean, he_mean)
-                #ck_reg = model.transform(ck_mean)
-
-                #he_mean = cv2.cvtColor(he_mean, cv2.COLOR_BGR2GRAY)
-                #ck_mean = cv2.cvtColor(ck_mean, cv2.COLOR_BGR2GRAY)
-
-                #dab_reg, h, height, width = alignImages(dab_, ck_reg)
-                #roi_annot_reg, h, height, width = alignImages(roi_annot_, ck_reg)
-                #dab_reg = cv2.warpPerspective(dab_, h, (width, height))
-                #roi_annot_reg = cv2.warpPerspective(roi_annot_, h, (width, height))
-
-                ck_reg, h, height, width = alignImages(ck_, he_)
-
-                if True:
-                    print("making figure...")
-                    f, axes = plt.subplots(2, 2, figsize=(30, 30))
-                    axes[0, 0].imshow(he_)
-                    #axes[0, 0].imshow(annot_, alpha=0.5)
-                    axes[0, 1].imshow(ck_)
-                    #axes[0, 1].imshow(ck_reg, alpha=0.5)
-                    #axes[1, 0].imshow(roi_annot_reg)
-                    #axes[1, 0].imshow(ck_hist)
-                    axes[1, 0].imshow(he_)
-                    axes[1, 0].imshow(ck_reg, alpha=0.5)
-                    axes[1, 1].imshow(ck_reg)
-                    #axes[1, 1].imshow(roi_annot_reg, alpha=0.5)
-                    plt.show()
-
-                    #plt.imshow(he_)
-                    #plt.imshow(ck_reg, alpha=0.5)
-                    #plt.show()
-
-                    #plt.imshow
-                if True:
-                    print("making figure...")
-                    f, axes = plt.subplots(1, 2, figsize=(30, 30))
-                    axes[0].imshow(he_[7000:8000, 7000:8000, :])
-                    axes[1].imshow(he_[7000:8000, 7000:8000, :])
-                    axes[1].imshow(ck_reg[7000:8000, 7000:8000, :], alpha=0.5)
-                    #axes[1, 1].imshow(roi_annot_reg, alpha=0.5)
-                    plt.show()
-
-                """
     exit()
 
     # differentiate between insitu, benign, invasive
@@ -450,6 +341,7 @@ if __name__ == "__main__":
     ds_factor = 4
     plot_flag = False
     overlap = 0.25
+    tissue_level = 0.25
 
     data_split_path = ""  # split train/val/test
 
@@ -489,4 +381,5 @@ if __name__ == "__main__":
         print(annot_path)
         print(dab_path)
 
-        create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor, overlap)
+        create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size,
+                       ds_factor, overlap, tissue_level)
