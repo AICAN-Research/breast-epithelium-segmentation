@@ -13,7 +13,10 @@ from scipy import ndimage as ndi
 from skimage.exposure import equalize_hist
 import matplotlib.pyplot as plt
 import os
-from source.utils import alignImages
+from source.utils import alignImages, align_optical_flow, align_pyelastix, ImageRegistrationOpticalFlow
+from skimage.exposure import equalize_hist
+from skimage.transform import warp
+from skimage.color import rgb2gray
 
 
 def minmax(x):
@@ -90,8 +93,8 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     dab_image = np.asarray(dab_image)
     roi_annot_image = np.asarray(roi_annot_image)
     annot_image = np.asarray(annot_image)
-    he_image = np.asarray(he_image)
-    ck_image = np.asarray(ck_image)
+    he_image_l4 = np.asarray(he_image)
+    ck_image_l4 = np.asarray(ck_image)
 
     # tissue segmentation
     """
@@ -129,8 +132,10 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     dab_shifted = ndi.shift(dab_image, shifts_, order=0, mode="constant", cval=0, prefilter=False)
     """
 
-    # registration with orb
-    im_reg, h = alignImages(ck_image, he_image)
+    # registration with orb, done on level 4
+    # im_reg_l4, h, height, width = alignImages(ck_image_l4, he_image_l4)
+
+
 
     dab_image = importer_dab.runAndGetOutputData()
     roi_annot_image = importer_roi_annot.runAndGetOutputData()
@@ -173,171 +178,270 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     longest_height = max([height_he_image, height_ck_image])
     longest_width = max([width_he_image, width_ck_image])
 
-    print(longest_height, longest_width)
+    large_patch_height = int(longest_height / 4)
+    large_patch_width = int(longest_width / 2)
 
-    nbr_h = int(longest_height / 10000)
-    nbr_w = int(longest_width / 10000)
+    for i in range(2):
+        for j in range(4):
+            w_from = i * large_patch_width
+            h_from = j * large_patch_height
 
-    print(nbr_h, nbr_w)
+            if w_from + large_patch_width > longest_width:
+                large_patch_width = longest_width - w_from
+            elif h_from + large_patch_height > longest_height:
+                large_patch_height = longest_height - h_from
+            else:
+                he_ = he_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
+                                                int(large_patch_height), False)
+                ck_ = ck_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
+                                                int(large_patch_height), False)
+                dab_ = dab_access.getPatchAsImage(int(level), int(w_from), int(height_dab_image - h_from -
+                                                                               large_patch_height),
+                                                  int(large_patch_width), int(large_patch_height), False)
+                annot_ = annot_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
+                                                      int(large_patch_height), False)
+                roi_annot_ = roi_annot_access.getPatchAsImage(int(level), int(w_from), int(h_from),
+                                                              int(large_patch_width), int(large_patch_height), False)
+                he_ = np.asarray(he_)
+                ck_ = np.asarray(ck_)
+                dab_ = np.asarray(dab_)
+                dab_ = np.flip(dab_, axis=0)
+                curr_shape = ck_.shape[:2]
 
-    # @TODO: fix edge cases, will stops now
-    for i in range(nbr_w + 1):
-        for j in range(nbr_h + 1):
-            w_from = 10000 * i
-            h_from = 10000 * j
+                ck_seg_ds = cv2.resize(ck_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                                       interpolation=cv2.INTER_NEAREST)
+                he_seg_ds = cv2.resize(he_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                                       interpolation=cv2.INTER_NEAREST)
 
-            dab_ = dab_access.getPatchAsImage(int(level), int(w_from), int(height_dab_image - h_from - 10000), int(10000),
-                                              int(10000), False)
+                # @TODO: z-shift sometimes larger than zero, why?
+                shifts, reg_error, phase_diff = phase_cross_correlation(
+                    he_seg_ds, ck_seg_ds, return_error=True)
 
-            he_ = he_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(10000),
-                                            int(10000), False)
+                # scale shifts back and apply to original resolution
+                shifts = (np.round(ds_factor * shifts)).astype("int32")
+                shifts[2] = 0
+                ck_large_reg = ndi.shift(ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
+                dab_large_reg = ndi.shift(dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
-            ck_ = ck_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(10000),
-                                            int(10000), False)
+                data = [he_, ck_large_reg, dab_large_reg, annot_, roi_annot_]
+                data_fast = [fast.Image.createFromArray(curr) for curr in data]
+                generators = [
+                    fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr)
+                    for curr in data_fast]
+                streamers = [fast.DataStream(curr) for curr in generators]
 
-            annot_ = annot_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(10000),
-                                                  int(10000), False)
+                for patch_idx, (patch_he_, patch_ck_, patch_dab_, patch_annot_, patch_roi_annot_) in enumerate(
+                        zip(*streamers)):  # get error here sometimes, find out why?
+                    patch_he_ = np.asarray(patch_he_)
+                    patch_ck_ = np.asarray(patch_ck_)
+                    patch_dab_ = np.asarray(patch_dab_)
+                    patch_annot_ = np.asarray(patch_annot_)
+                    patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
 
-            rot_annot_ = roi_annot_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(10000),
-                                                          int(10000), False)
+                    intensity_away_from_white_thresh = 40
+                    he_tissue = (
+                            np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
 
-            dab_ = np.asarray(dab_)
-            dab_ = np.flip(dab_, axis=0)
-            he_ = np.asarray(he_)
-            ck_ = np.asarray(ck_)
-            annot_ = np.asarray(annot_)
-            roi_annot_ = np.asarray(rot_annot_)
+                    he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
 
-            if plot_flag:
-                f, axes = plt.subplots(2, 3, figsize=(30, 30))
-                axes[0, 0].imshow(dab_, cmap="gray")
-                axes[0, 1].imshow(he_)
-                axes[0, 2].imshow(ck_)
-                axes[1, 0].imshow(annot_)
-                axes[1, 1].imshow(roi_annot_, cmap="gray")
-                axes[1, 2].imshow(roi_annot_, cmap="gray")
-                plt.show()
+                    if 1 in np.unique(patch_roi_) or he_tissue_ < 0.4:
+                        print("skip")
+                        continue
 
-            # downsample before registration
-            curr_shape = ck_.shape[:2]
-            # @TODO: no padding to largest image per now, since extracting areas
-            ck_image_ds = cv2.resize(ck_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                                     interpolation=cv2.INTER_NEAREST)
-            he_image_ds = cv2.resize(he_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                                     interpolation=cv2.INTER_NEAREST)
+                    ck_hist = equalize_hist(patch_ck_)
 
-            # detect shift between ck and he, histogram equalization for better shift in image with few
-            # distinct landmarks
-            ck_image_ds_hist = equalize_hist(ck_image_ds)
-            # @TODO: z-shift sometimes larger than zero, why?
-            shifts, reg_error, phase_diff = phase_cross_correlation(he_image_ds, ck_image_ds_hist,
-                                                                    return_error=True)
-            shifts[2] = 0  # set z-axis to zero (should be from beginning, but is not always)
+                    shifts, reg_error, phase_diff = phase_cross_correlation(
+                        patch_he_, ck_hist, return_error=True)
 
-            # scale shifts back and apply to original resolution
-            shifts = (np.round(ds_factor * shifts)).astype("int32")
-            ck_shifted = ndi.shift(ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
-            dab_shifted = ndi.shift(dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
+                    shifts[2] = 0
+                    patch_ck_reg = ndi.shift(patch_ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
+                    patch_dab_reg = ndi.shift(patch_dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
-            # @TODO: should not need to cut all sides
-            ck_shifted_cut = ck_shifted[np.abs(shifts[0]):10000 - np.abs(shifts[0]),
-                              np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
-            dab_shifted_cut = dab_shifted[np.abs(shifts[0]):10000 - np.abs(shifts[0]),
-                              np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
-            he_cut = he_[np.abs(shifts[0]):10000 - np.abs(shifts[0]), np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
-            annot_cut = annot_[np.abs(shifts[0]):10000 - np.abs(shifts[0]), np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
-            roi_annot_cut = roi_annot_[np.abs(shifts[0]):10000 - np.abs(shifts[0]), np.abs(shifts[1]):10000 - np.abs(shifts[1]), :]
+                    patch_ck_reg_, h, height, width = alignImages(patch_ck_, patch_he_)
+                    #model = ImageRegistrationOpticalFlow()
+                    #model.fit(patch_he_, patch_ck_)
+                    #patch_ck_reg_ = model.transform(patch_ck_)
+                    #patch_ck_reg_, row_coords, col_coords, v, u = align_optical_flow(patch_he_, patch_ck_)
+                    print("patch ck reg_ shape: ", patch_ck_reg_.shape)
+                    print("patch ck gray: ", rgb2gray(patch_ck_).shape)
+                    print("dab shape: ", patch_dab_reg.shape)
+                    print(np.squeeze(patch_ck_reg_).shape)
+                    print(np.unique(patch_dab_reg))
 
-            if plot_flag:
-                f, axes = plt.subplots(1, 2, figsize=(30, 30))
-                axes[0].imshow(he_)
-                axes[0].imshow(ck_, cmap="gray", alpha=0.5)
-                axes[1].imshow(he_cut)
-                axes[1].imshow(ck_shifted_cut, cmap="gray", alpha=0.5)
-                plt.show()
+                    #patch_dab_reg_ = warp(np.squeeze(patch_dab_), np.array([row_coords + v, col_coords + u]),
+                    #                      mode='constant')
 
-            if plot_flag:
-                f, axes = plt.subplots(1, 2, figsize=(30, 30))
-                axes[0].imshow(he_)
-                axes[0].imshow(annot_, alpha=0.5)
-                axes[1].imshow(he_)
-                axes[1].imshow(roi_annot_, cmap="gray", alpha=0.5)
-                plt.show()
 
-            if True:
-                f, axes = plt.subplots(1, 2, figsize=(30, 30))
-                axes[0].imshow(he_)
-                axes[0].imshow(dab_, cmap="gray", alpha=0.5)
-                axes[1].imshow(he_cut)
-                axes[1].imshow(dab_shifted_cut, cmap="gray", alpha=0.5)
-                plt.show()
+                    if True:
+                        print("making figure...")
+                        f, axes = plt.subplots(2, 2, figsize=(30, 30))
+                        axes[0, 0].imshow(patch_he_)
+                        axes[0, 1].imshow(patch_he_)
+                        axes[0, 1].imshow(patch_dab_reg, alpha=0.5)
+                        axes[1, 0].imshow(patch_he_)
+                        axes[1, 0].imshow(patch_ck_reg_, cmap="gray", alpha=0.5)
+                        axes[1, 1].imshow(patch_he_)
+                        axes[1, 1].imshow(patch_ck_reg, cmap="gray", alpha=0.5)
+                        plt.show()
 
-            # differentiate between insitu, benign, invasive
-            healthy_ep = ((annot_cut == 1) & (dab_shifted_cut == 1)).astype("float32")
-            in_situ_ep = ((annot_cut == 2) & (dab_shifted_cut == 1)).astype("float32")
-            invasive_ep = dab_shifted_cut.copy()
-            invasive_ep[healthy_ep == 1] = 0
-            invasive_ep[in_situ_ep == 1] = 0
+                """
 
-            data = [he_cut, invasive_ep, healthy_ep, in_situ_ep, roi_annot_cut]
-            data_fast = [fast.Image.createFromArray(curr) for curr in data]
-            generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr)
-                          for curr in data_fast]
-            streamers = [fast.DataStream(curr) for curr in generators]
+                dab_ = np.asarray(dab_)
+                dab_ = np.flip(dab_, axis=0)
+                he_ = np.asarray(he_)
+                ck_ = np.asarray(ck_)
+                annot_ = np.asarray(annot_)
+                roi_annot_ = np.asarray(roi_annot_)
 
-            # @TODO: find out why the error below sometimes happens
-            for patch_idx, (patch_he, patch_invasive, patch_healthy, patch_in_situ, patch_roi) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
-                patch_he = np.asarray(patch_he)
-                patch_invasive = np.asarray(patch_invasive)[..., 0]
-                patch_healthy = np.asarray(patch_healthy)[..., 0]
-                patch_in_situ = np.asarray(patch_in_situ)[..., 0]
-                patch_roi = np.asarray(patch_roi)[..., 0]
+                ck_hist = equalize_hist(ck_)
+                #he_mean = (he_ - np.mean(he_)).astype("uint8")
+                #ck_mean = (ck_ - np.mean(ck_)).astype("uint8")
 
-                if 1 in np.unique(patch_roi):
-                    print("skip")
-                    continue
+                he_mean = he_.copy()
+                ck_mean = ck_.copy()
 
-                # normalizing intensities for patches
-                patch_invasive = minmax(patch_invasive)
-                patch_healthy = minmax(patch_healthy)
-                patch_in_situ = minmax(patch_in_situ)
+                # register large patches
+                #ck_reg, h, height, width = alignImages(ck_mean, he_mean)
+                # ck_reg = align_optical_flow(he_mean, ck_mean)
+                #ck_reg = align_pyelastix(ck_mean, he_mean)
+                #print(h)
 
-                gt_one_hot = np.stack(
-                    [1 - (patch_invasive.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)),
-                     patch_invasive, patch_healthy, patch_in_situ], axis=-1)
+                #curr_shape = ck_mean.shape[:2]
+                curr_shape = ck_.shape[:2]
 
-                print("gt one hot shape: ", gt_one_hot.shape)
+                #ck_seg_ds = cv2.resize(ck_mean, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                #                       interpolation=cv2.INTER_NEAREST)
+                #he_seg_ds = cv2.resize(he_mean, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                #                       interpolation=cv2.INTER_NEAREST)
 
-                # for many classes
-                if np.any(gt_one_hot[..., 0] < 0):
-                   [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
-                   raise ValueError("Negative values occurred in the background class, check the segmentations...")
+                # detect shift between ck and he, histogram equalization for better shift in image with few
+                # distinct landmarks
+                # ck_seg_ds_hist = equalize_hist(ck_seg_ds)
+                # @TODO: z-shift sometimes larger than zero, why?
+                #shifts, reg_error, phase_diff = phase_cross_correlation(
+                #    he_mean, ck_mean, return_error=True, upsample_factor=ds_factor
+                #)
+                #print(shifts)
+                #shifts = np.round(shifts).astype("int32")
 
-                if np.any(np.sum(gt_one_hot, axis=-1) > 1):
-                   raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
+                # scale shifts back and apply to original resolution
+                #shifts = (np.round(ds_factor * shifts)).astype("int32")
+                #shifts_ = np.zeros((3,)).astype("int32")
+                #shifts_[:2] = shifts[:2]
+                #ck_reg = ndi.shift(ck_mean, shifts_, order=0, mode="constant", cval=255, prefilter=False)
 
-                # check if either of the shapes are empty, if yes, continue
-                if (len(patch_he) == 0) or (len(patch_invasive) == 0):
-                   continue
+                #model = ImageRegistrationOpticalFlow()
+                #model.fit(ck_mean, he_mean)
+                #ck_reg = model.transform(ck_mean)
 
-                # @TODO: pad patches with incorrect shape
+                #he_mean = cv2.cvtColor(he_mean, cv2.COLOR_BGR2GRAY)
+                #ck_mean = cv2.cvtColor(ck_mean, cv2.COLOR_BGR2GRAY)
 
-                if plot_flag:
-                    fig, ax = plt.subplots(2, 2, figsize=(20, 20))
-                    ax[0, 0].imshow(gt_one_hot[:, :, 1])
-                    ax[0, 1].imshow(gt_one_hot[:, :, 2])
-                    ax[1, 0].imshow(gt_one_hot[:, :, 3])
-                    ax[1, 1].imshow(patch_he)
+                #dab_reg, h, height, width = alignImages(dab_, ck_reg)
+                #roi_annot_reg, h, height, width = alignImages(roi_annot_, ck_reg)
+                #dab_reg = cv2.warpPerspective(dab_, h, (width, height))
+                #roi_annot_reg = cv2.warpPerspective(roi_annot_, h, (width, height))
+
+                ck_reg, h, height, width = alignImages(ck_, he_)
+
+                if True:
+                    print("making figure...")
+                    f, axes = plt.subplots(2, 2, figsize=(30, 30))
+                    axes[0, 0].imshow(he_)
+                    #axes[0, 0].imshow(annot_, alpha=0.5)
+                    axes[0, 1].imshow(ck_)
+                    #axes[0, 1].imshow(ck_reg, alpha=0.5)
+                    #axes[1, 0].imshow(roi_annot_reg)
+                    #axes[1, 0].imshow(ck_hist)
+                    axes[1, 0].imshow(he_)
+                    axes[1, 0].imshow(ck_reg, alpha=0.5)
+                    axes[1, 1].imshow(ck_reg)
+                    #axes[1, 1].imshow(roi_annot_reg, alpha=0.5)
                     plt.show()
 
-                if plot_flag:
-                    fig, ax = plt.subplots(1, 2, figsize=(30, 30))
-                    ax[0].imshow(patch_he)
-                    ax[1].imshow(patch_he)
-                    ax[1].imshow(gt_one_hot[:, :, 2], cmap="gray", alpha=0.5)
+                    #plt.imshow(he_)
+                    #plt.imshow(ck_reg, alpha=0.5)
+                    #plt.show()
+
+                    #plt.imshow
+                if True:
+                    print("making figure...")
+                    f, axes = plt.subplots(1, 2, figsize=(30, 30))
+                    axes[0].imshow(he_[7000:8000, 7000:8000, :])
+                    axes[1].imshow(he_[7000:8000, 7000:8000, :])
+                    axes[1].imshow(ck_reg[7000:8000, 7000:8000, :], alpha=0.5)
+                    #axes[1, 1].imshow(roi_annot_reg, alpha=0.5)
                     plt.show()
 
-    #if patch doesn't include areas in roi annotated image -> skip
+                """
+    exit()
+
+    # differentiate between insitu, benign, invasive
+    healthy_ep = ((annot_cut == 1) & (dab_shifted_cut == 1)).astype("float32")
+    in_situ_ep = ((annot_cut == 2) & (dab_shifted_cut == 1)).astype("float32")
+    invasive_ep = dab_shifted_cut.copy()
+    invasive_ep[healthy_ep == 1] = 0
+    invasive_ep[in_situ_ep == 1] = 0
+
+    data = [he_cut, invasive_ep, healthy_ep, in_situ_ep, roi_annot_cut]
+    data_fast = [fast.Image.createFromArray(curr) for curr in data]
+    generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr)
+                  for curr in data_fast]
+    streamers = [fast.DataStream(curr) for curr in generators]
+
+    # @TODO: find out why the error below sometimes happens
+    for patch_idx, (patch_he, patch_invasive, patch_healthy, patch_in_situ, patch_roi) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
+        patch_he = np.asarray(patch_he)
+        patch_invasive = np.asarray(patch_invasive)[..., 0]
+        patch_healthy = np.asarray(patch_healthy)[..., 0]
+        patch_in_situ = np.asarray(patch_in_situ)[..., 0]
+        patch_roi = np.asarray(patch_roi)[..., 0]
+
+        if 1 in np.unique(patch_roi):
+            print("skip")
+            continue
+
+        # normalizing intensities for patches
+        patch_invasive = minmax(patch_invasive)
+        patch_healthy = minmax(patch_healthy)
+        patch_in_situ = minmax(patch_in_situ)
+
+        gt_one_hot = np.stack(
+            [1 - (patch_invasive.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)),
+             patch_invasive, patch_healthy, patch_in_situ], axis=-1)
+
+        print("gt one hot shape: ", gt_one_hot.shape)
+
+        # for many classes
+        if np.any(gt_one_hot[..., 0] < 0):
+           [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
+           raise ValueError("Negative values occurred in the background class, check the segmentations...")
+
+        if np.any(np.sum(gt_one_hot, axis=-1) > 1):
+           raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
+
+        # check if either of the shapes are empty, if yes, continue
+        if (len(patch_he) == 0) or (len(patch_invasive) == 0):
+           continue
+
+        # @TODO: pad patches with incorrect shape
+
+        if plot_flag:
+            fig, ax = plt.subplots(2, 2, figsize=(20, 20))
+            ax[0, 0].imshow(gt_one_hot[:, :, 1])
+            ax[0, 1].imshow(gt_one_hot[:, :, 2])
+            ax[1, 0].imshow(gt_one_hot[:, :, 3])
+            ax[1, 1].imshow(patch_he)
+            plt.show()
+
+        if plot_flag:
+            fig, ax = plt.subplots(1, 2, figsize=(30, 30))
+            ax[0].imshow(patch_he)
+            ax[1].imshow(patch_he)
+            ax[1].imshow(gt_one_hot[:, :, 2], cmap="gray", alpha=0.5)
+            plt.show()
+
+#if patch doesn't include areas in roi annotated image -> skip
 
 
 if __name__ == "__main__":
