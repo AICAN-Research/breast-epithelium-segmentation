@@ -238,7 +238,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             invasive_ep[in_situ_ep == 1] = 0
 
             print("unique: ", np.unique(invasive_ep), np.unique(healthy_ep), np.unique(in_situ_ep))
-            #continue
 
             # create patches
             data = [he_, ck_large_reg, healthy_ep, in_situ_ep, invasive_ep, roi_annot_]
@@ -262,8 +261,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     [1 - (patch_healthy.astype(bool) | patch_in_situ.astype(bool) | patch_invasive.astype(bool)),
                      patch_invasive, patch_healthy, patch_in_situ], axis=-1)
 
-                #print(gt_one_hot.shape)
-
                 # skip patches including areas annotated for removal or with tissue below tissue_level percent
                 intensity_away_from_white_thresh = 40
                 he_tissue = (
@@ -278,14 +275,10 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 shifts, reg_error, phase_diff = phase_cross_correlation(
                     patch_he_, ck_hist, return_error=True)
                 shifts[2] = 0
-                #print(gt_one_hot.shape)
                 patch_ck_reg = ndi.shift(patch_ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
                 gt_one_hot = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)
-                #patch_ck_reg_, h, height, width = alignImages(patch_ck_, patch_he_)
 
                 # cut he and dab image after translation, due to constant padding after shift
-                #print(gt_one_hot.shape)
-                #print("shifts: ", shifts)
                 start_x = shifts[0]
                 start_y = shifts[1]
                 stop_x = patch_size
@@ -296,7 +289,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 if shifts[1] < 0:
                     start_y = 0
                     stop_y = patch_size - np.abs(shifts[1])
-                    #print("start x, stop x, start y, stop y: ", int(start_x), int(stop_x), int(start_y), int(stop_y))
                 gt_one_hot2 = gt_one_hot[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
                 patch_he2 = patch_he_[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
 
