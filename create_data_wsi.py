@@ -174,36 +174,28 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     # get shape of he and ck images
     longest_height = max([height_he_image, height_ck_image])
     longest_width = max([width_he_image, width_ck_image])
+    smallest_height = min([height_he_image, height_ck_image, height_dab_image, height_annot_image])
+    smallest_width = min([width_he_image, width_ck_image, width_dab_image, width_annot_image])
 
     for i in range(2):
         for j in range(4):
-            large_patch_height = int(longest_height / 4)
-            large_patch_width = int(longest_width / 2)
+            # @TODO: dab image smaller than ck, annot smaller than he, is this an okay fix:
+            large_patch_height = int(smallest_height / 4)
+            large_patch_width = int(smallest_width / 2)
             w_from = i * large_patch_width
             h_from = j * large_patch_height
 
-            if w_from + large_patch_width > longest_width:
-                large_patch_width = longest_width - w_from
-            if h_from + large_patch_height > longest_height:
-                large_patch_height = longest_height - h_from
-
-            print("w from: ", w_from)
-            print("h_from: ", h_from)
-            print("width: ", large_patch_width)
-            print("height: ", large_patch_height)
-            print("longest width: ", longest_width)
-            print("longest height: ", longest_height)
-            print("int(height_dab_image - h_from -large_patch_height): ",
-                  int(height_dab_image - h_from - large_patch_height))
-
-            #@TODO: error at edge. dab image smaller than he?
+            if w_from + large_patch_width > smallest_width:
+                large_patch_width = smallest_width - w_from
+            if h_from + large_patch_height > smallest_height:
+                large_patch_height = smallest_height - h_from
 
             he_ = he_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
                                             int(large_patch_height), False)
             ck_ = ck_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
                                             int(large_patch_height), False)
-            dab_ = dab_access.getPatchAsImage(int(level), int(w_from), int(height_dab_image - h_from -
-                                                                           large_patch_height),
+            dab_ = dab_access.getPatchAsImage(int(level), int(w_from),
+                                              int(height_dab_image - h_from - large_patch_height),
                                               int(large_patch_width), int(large_patch_height), False)
             annot_ = annot_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
                                                   int(large_patch_height), False)
@@ -213,8 +205,10 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             ck_ = np.asarray(ck_)
             dab_ = np.asarray(dab_)
             dab_ = np.flip(dab_, axis=0)
-            curr_shape = ck_.shape[:2]
+            annot_ = np.asarray(annot_)
+            roi_annot_ = np.asarray(roi_annot_)
 
+            curr_shape = ck_.shape[:2]
             ck_seg_ds = cv2.resize(ck_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
                                    interpolation=cv2.INTER_NEAREST)
             he_seg_ds = cv2.resize(he_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
@@ -238,6 +232,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             invasive_ep[in_situ_ep == 1] = 0
 
             print("unique: ", np.unique(invasive_ep), np.unique(healthy_ep), np.unique(in_situ_ep))
+            continue
 
             # create patches
             data = [he_, ck_large_reg, healthy_ep, in_situ_ep, invasive_ep, roi_annot_]
@@ -267,7 +262,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                         np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
                 he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
                 if 1 in np.unique(patch_roi_) or he_tissue_ < tissue_level:
-                    print("skip")
+                    #print("skip")
                     continue
 
                 # register on patch level
@@ -293,15 +288,16 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 patch_he2 = patch_he_[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
 
 
-                if True:
+                if len(np.unique(gt_one_hot2)) > 2:
                     print("making figure...")
                     f, axes = plt.subplots(2, 2, figsize=(30, 30))
                     axes[0, 0].imshow(patch_he_)
                     axes[0, 1].imshow(patch_he2)
                     axes[0, 1].imshow(gt_one_hot2[..., 1], cmap="gray", alpha=0.5)
-                    axes[1, 0].imshow(patch_he_)
-                    axes[1, 0].imshow(patch_ck_reg, alpha=0.5)
-                    axes[1, 1].imshow(patch_he_)
+                    axes[1, 0].imshow(patch_he2)
+                    axes[1, 0].imshow(gt_one_hot2[..., 2], cmap="gray", alpha=0.5)
+                    axes[1, 1].imshow(patch_he2)
+                    axes[1, 1].imshow(gt_one_hot2[..., 3], cmap="gray", alpha=0.5)
                     plt.show()
 
                 # @TODO: think about edges, how are they padded to get right shape?
