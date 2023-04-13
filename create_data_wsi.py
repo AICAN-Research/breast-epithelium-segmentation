@@ -175,104 +175,146 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     longest_height = max([height_he_image, height_ck_image])
     longest_width = max([width_he_image, width_ck_image])
 
-    large_patch_height = int(longest_height / 4)
-    large_patch_width = int(longest_width / 2)
-
     for i in range(2):
         for j in range(4):
+            large_patch_height = int(longest_height / 4)
+            large_patch_width = int(longest_width / 2)
             w_from = i * large_patch_width
             h_from = j * large_patch_height
 
             if w_from + large_patch_width > longest_width:
                 large_patch_width = longest_width - w_from
-            elif h_from + large_patch_height > longest_height:
+            if h_from + large_patch_height > longest_height:
                 large_patch_height = longest_height - h_from
-            else:
-                he_ = he_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
-                                                int(large_patch_height), False)
-                ck_ = ck_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
-                                                int(large_patch_height), False)
-                dab_ = dab_access.getPatchAsImage(int(level), int(w_from), int(height_dab_image - h_from -
-                                                                               large_patch_height),
-                                                  int(large_patch_width), int(large_patch_height), False)
-                annot_ = annot_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
-                                                      int(large_patch_height), False)
-                roi_annot_ = roi_annot_access.getPatchAsImage(int(level), int(w_from), int(h_from),
-                                                              int(large_patch_width), int(large_patch_height), False)
-                he_ = np.asarray(he_)
-                ck_ = np.asarray(ck_)
-                dab_ = np.asarray(dab_)
-                dab_ = np.flip(dab_, axis=0)
-                curr_shape = ck_.shape[:2]
 
-                ck_seg_ds = cv2.resize(ck_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                                       interpolation=cv2.INTER_NEAREST)
-                he_seg_ds = cv2.resize(he_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                                       interpolation=cv2.INTER_NEAREST)
+            print("w from: ", w_from)
+            print("h_from: ", h_from)
+            print("width: ", large_patch_width)
+            print("height: ", large_patch_height)
+            print("longest width: ", longest_width)
+            print("longest height: ", longest_height)
+            print("int(height_dab_image - h_from -large_patch_height): ",
+                  int(height_dab_image - h_from - large_patch_height))
 
-                # @TODO: z-shift sometimes larger than zero, why?
+            #@TODO: error at edge. dab image smaller than he?
+
+            he_ = he_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
+                                            int(large_patch_height), False)
+            ck_ = ck_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
+                                            int(large_patch_height), False)
+            dab_ = dab_access.getPatchAsImage(int(level), int(w_from), int(height_dab_image - h_from -
+                                                                           large_patch_height),
+                                              int(large_patch_width), int(large_patch_height), False)
+            annot_ = annot_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
+                                                  int(large_patch_height), False)
+            roi_annot_ = roi_annot_access.getPatchAsImage(int(level), int(w_from), int(h_from),
+                                                          int(large_patch_width), int(large_patch_height), False)
+            he_ = np.asarray(he_)
+            ck_ = np.asarray(ck_)
+            dab_ = np.asarray(dab_)
+            dab_ = np.flip(dab_, axis=0)
+            curr_shape = ck_.shape[:2]
+
+            ck_seg_ds = cv2.resize(ck_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                                   interpolation=cv2.INTER_NEAREST)
+            he_seg_ds = cv2.resize(he_, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
+                                   interpolation=cv2.INTER_NEAREST)
+
+            # @TODO: z-shift sometimes larger than zero, why?
+            shifts, reg_error, phase_diff = phase_cross_correlation(
+                he_seg_ds, ck_seg_ds, return_error=True)
+
+            # scale shifts back and apply to original resolution
+            shifts = (np.round(ds_factor * shifts)).astype("int32")
+            shifts[2] = 0
+            ck_large_reg = ndi.shift(ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
+            dab_large_reg = ndi.shift(dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
+
+            # differentiate between insitu, benign, invasive
+            healthy_ep = ((annot_ == 1) & (dab_large_reg == 1)).astype("float32")
+            in_situ_ep = ((annot_ == 2) & (dab_large_reg == 1)).astype("float32")
+            invasive_ep = dab_large_reg.copy()
+            invasive_ep[healthy_ep == 1] = 0
+            invasive_ep[in_situ_ep == 1] = 0
+
+            print("unique: ", np.unique(invasive_ep), np.unique(healthy_ep), np.unique(in_situ_ep))
+            #continue
+
+            # create patches
+            data = [he_, ck_large_reg, healthy_ep, in_situ_ep, invasive_ep, roi_annot_]
+            data_fast = [fast.Image.createFromArray(curr) for curr in data]
+            generators = [
+                fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr)
+                for curr in data_fast]
+            streamers = [fast.DataStream(curr) for curr in generators]
+
+            for patch_idx, (patch_he_, patch_ck_, patch_healthy, patch_in_situ, patch_invasive,
+                            patch_roi_annot_) in enumerate(zip(*streamers)):  # get error here sometimes, why?
+                patch_he_ = np.asarray(patch_he_)
+                patch_ck_ = np.asarray(patch_ck_)
+                patch_healthy = np.asarray(patch_healthy)[..., 0]
+                patch_in_situ = np.asarray(patch_in_situ)[..., 0]
+                patch_invasive = np.asarray(patch_invasive)[..., 0]
+                patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
+
+                # one-hot encode ground truth
+                gt_one_hot = np.stack(
+                    [1 - (patch_healthy.astype(bool) | patch_in_situ.astype(bool) | patch_invasive.astype(bool)),
+                     patch_invasive, patch_healthy, patch_in_situ], axis=-1)
+
+                #print(gt_one_hot.shape)
+
+                # skip patches including areas annotated for removal or with tissue below tissue_level percent
+                intensity_away_from_white_thresh = 40
+                he_tissue = (
+                        np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+                he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
+                if 1 in np.unique(patch_roi_) or he_tissue_ < tissue_level:
+                    print("skip")
+                    continue
+
+                # register on patch level
+                ck_hist = equalize_hist(patch_ck_)
                 shifts, reg_error, phase_diff = phase_cross_correlation(
-                    he_seg_ds, ck_seg_ds, return_error=True)
-
-                # scale shifts back and apply to original resolution
-                shifts = (np.round(ds_factor * shifts)).astype("int32")
+                    patch_he_, ck_hist, return_error=True)
                 shifts[2] = 0
-                ck_large_reg = ndi.shift(ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
-                dab_large_reg = ndi.shift(dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
+                #print(gt_one_hot.shape)
+                patch_ck_reg = ndi.shift(patch_ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
+                gt_one_hot = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)
+                #patch_ck_reg_, h, height, width = alignImages(patch_ck_, patch_he_)
 
-                # create patches
-                data = [he_, ck_large_reg, dab_large_reg, annot_, roi_annot_]
-                data_fast = [fast.Image.createFromArray(curr) for curr in data]
-                generators = [
-                    fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr)
-                    for curr in data_fast]
-                streamers = [fast.DataStream(curr) for curr in generators]
+                # cut he and dab image after translation, due to constant padding after shift
+                #print(gt_one_hot.shape)
+                #print("shifts: ", shifts)
+                start_x = shifts[0]
+                start_y = shifts[1]
+                stop_x = patch_size
+                stop_y = patch_size
+                if shifts[0] < 0:
+                    start_x = 0
+                    stop_x = patch_size - np.abs(shifts[0])
+                if shifts[1] < 0:
+                    start_y = 0
+                    stop_y = patch_size - np.abs(shifts[1])
+                    #print("start x, stop x, start y, stop y: ", int(start_x), int(stop_x), int(start_y), int(stop_y))
+                gt_one_hot2 = gt_one_hot[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
+                patch_he2 = patch_he_[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
 
-                for patch_idx, (patch_he_, patch_ck_, patch_dab_, patch_annot_, patch_roi_annot_) in enumerate(
-                        zip(*streamers)):  # get error here sometimes, find out why?
-                    patch_he_ = np.asarray(patch_he_)
-                    patch_ck_ = np.asarray(patch_ck_)
-                    patch_dab_ = np.asarray(patch_dab_)
-                    patch_annot_ = np.asarray(patch_annot_)
-                    patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
 
-                    # skip patches including areas annotated for removal or with tissue below tissue_level percent
-                    intensity_away_from_white_thresh = 40
-                    he_tissue = (
-                            np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
-                    he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
-                    if 1 in np.unique(patch_roi_) or he_tissue_ < tissue_level:
-                        print("skip")
-                        continue
+                if True:
+                    print("making figure...")
+                    f, axes = plt.subplots(2, 2, figsize=(30, 30))
+                    axes[0, 0].imshow(patch_he_)
+                    axes[0, 1].imshow(patch_he2)
+                    axes[0, 1].imshow(gt_one_hot2[..., 1], cmap="gray", alpha=0.5)
+                    axes[1, 0].imshow(patch_he_)
+                    axes[1, 0].imshow(patch_ck_reg, alpha=0.5)
+                    axes[1, 1].imshow(patch_he_)
+                    plt.show()
 
-                    # register on patch level
-                    ck_hist = equalize_hist(patch_ck_)
-                    shifts, reg_error, phase_diff = phase_cross_correlation(
-                        patch_he_, ck_hist, return_error=True)
-                    shifts[2] = 0
-                    patch_ck_reg = ndi.shift(patch_ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
-                    patch_dab_reg = ndi.shift(patch_dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
-                    patch_ck_reg_, h, height, width = alignImages(patch_ck_, patch_he_)
+                # @TODO: think about edges, how are they padded to get right shape?
 
-                    if True:
-                        print("making figure...")
-                        f, axes = plt.subplots(2, 2, figsize=(30, 30))
-                        axes[0, 0].imshow(patch_he_)
-                        axes[0, 1].imshow(patch_he_)
-                        axes[0, 1].imshow(patch_dab_reg, alpha=0.5)
-                        axes[1, 0].imshow(patch_he_)
-                        axes[1, 0].imshow(patch_ck_reg_, cmap="gray", alpha=0.5)
-                        axes[1, 1].imshow(patch_he_)
-                        axes[1, 1].imshow(patch_ck_reg, cmap="gray", alpha=0.5)
-                        plt.show()
     exit()
-
-    # differentiate between insitu, benign, invasive
-    healthy_ep = ((annot_cut == 1) & (dab_shifted_cut == 1)).astype("float32")
-    in_situ_ep = ((annot_cut == 2) & (dab_shifted_cut == 1)).astype("float32")
-    invasive_ep = dab_shifted_cut.copy()
-    invasive_ep[healthy_ep == 1] = 0
-    invasive_ep[in_situ_ep == 1] = 0
 
     data = [he_cut, invasive_ep, healthy_ep, in_situ_ep, roi_annot_cut]
     data_fast = [fast.Image.createFromArray(curr) for curr in data]
