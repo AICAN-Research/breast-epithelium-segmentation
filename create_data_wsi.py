@@ -10,13 +10,10 @@ import fast
 import cv2
 from skimage.registration import phase_cross_correlation
 from scipy import ndimage as ndi
-from skimage.exposure import equalize_hist
 import matplotlib.pyplot as plt
 import os
 from source.utils import alignImages, align_optical_flow, align_pyelastix, ImageRegistrationOpticalFlow
 from skimage.exposure import equalize_hist
-from skimage.transform import warp
-from skimage.color import rgb2gray
 
 
 def minmax(x):
@@ -35,6 +32,14 @@ def minmax(x):
 
 
 def cut_image(shift_h, shift_w, shape_h, shape_w):
+    """
+    Cutting registered images to remove padded areas due to shift
+    :param shift_h: shift of moving image (height)
+    :param shift_w: shift of moving image (width)
+    :param shape_h: height moving image
+    :param shape_w:  width moving image
+    :return: start and stop height and width when cutting registered images
+    """
     start_h = shift_h
     start_w = shift_w
     stop_h = shape_h
@@ -49,7 +54,7 @@ def cut_image(shift_h, shift_w, shape_h, shape_w):
 
 
 def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor,
-                   overlap, tissue_level):
+                   overlap, tissue_level, wsi_idx):
     importer_he = fast.WholeSlideImageImporter.create(
         he_path)  # path to CK image
     importer_ck = fast.WholeSlideImageImporter.create(
@@ -241,6 +246,16 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 gt_one_hot = np.stack(
                     [1 - (patch_healthy.astype(bool) | patch_in_situ.astype(bool) | patch_invasive.astype(bool)),
                      patch_invasive, patch_healthy, patch_in_situ], axis=-1)
+                if np.any(gt_one_hot[..., 0] < 0):
+                    [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
+                    raise ValueError("Negative values occurred in the background class, check the segmentations...")
+
+                if np.any(np.sum(gt_one_hot, axis=-1) > 1):
+                    raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
+
+                # check if either of the shapes are empty, if yes, continue
+                if (len(patch_he_) == 0) or (len(patch_invasive) == 0):
+                    continue
 
                 # pad patches that are not shape patch_size
                 if np.array(patch_he_).shape[0] < patch_size or np.array(patch_he_).shape[1] < patch_size:
@@ -303,22 +318,25 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     axes[1, 1].imshow(gt_one_hot[..., 2], cmap="gray", alpha=0.5)
                     plt.show()
 
-    exit()
+                exit()
 
-        print("gt one hot shape: ", gt_one_hot.shape)
+                # save patches as hdf5
+                if np.count_nonzero(patch_in_situ) > 0:
+                    add_to_path = 'inSitu/'
+                elif np.count_nonzero(patch_healthy) > 0:
+                    add_to_path = 'benign/'
+                else:
+                    add_to_path = 'invasive/'
 
-        if np.any(gt_one_hot[..., 0] < 0):
-           [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
-           raise ValueError("Negative values occurred in the background class, check the segmentations...")
+                # create folder if not exists
+                os.makedirs(dataset_path + "/" + add_to_path, exist_ok=True)
+                with h5py.File(dataset_path + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" +
+                               str(patch_idx) + ".h5", "w") as f:
+                    f.create_dataset(name="input", data=patch_he_.astype("uint8"))
+                    f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
 
-        if np.any(np.sum(gt_one_hot, axis=-1) > 1):
-           raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
-
-        # check if either of the shapes are empty, if yes, continue
-        if (len(patch_he_) == 0) or (len(patch_invasive) == 0):
-           continue
-
-        # save patches as hdf5
+                # delete streamers and stuff to potentially avoid threading issues in FAST
+                del data_fast, generators, streamers
 
 
 if __name__ == "__main__":
@@ -328,6 +346,7 @@ if __name__ == "__main__":
     plot_flag = False
     overlap = 0.25  # overlap when creating patches
     tissue_level = 0.25  # patches with less tissue will be skipped
+    wsi_idx = 0
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
@@ -365,4 +384,6 @@ if __name__ == "__main__":
         print(dab_path)
 
         create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size,
-                       ds_factor, overlap, tissue_level)
+                       ds_factor, overlap, tissue_level, wsi_idx)
+
+        wsi_idx += 1
