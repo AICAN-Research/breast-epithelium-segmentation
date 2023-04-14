@@ -12,7 +12,6 @@ from skimage.registration import phase_cross_correlation
 from scipy import ndimage as ndi
 import matplotlib.pyplot as plt
 import os
-from source.utils import alignImages, align_optical_flow, align_pyelastix, ImageRegistrationOpticalFlow
 from skimage.exposure import equalize_hist
 
 
@@ -95,20 +94,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
         plt.imshow(numpy_image[..., 0], cmap='gray')
         plt.show()
 
-    # This does not work at level 2
-    # Use higher level for registration
-    extractor_dab = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_dab)
-    extractor_roi_annot = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_roi_annot)
-    extractor_annot = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_annot)
-    extractor_he = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_he)
-    extractor_ck = fast.ImagePyramidLevelExtractor.create(level=4).connect(importer_ck)
-
-    dab_image = extractor_dab.runAndGetOutputData()
-    roi_annot_image = extractor_roi_annot.runAndGetOutputData()
-    annot_image = extractor_annot.runAndGetOutputData()
-    he_image = extractor_he.runAndGetOutputData()
-    ck_image = extractor_ck.runAndGetOutputData()
-
     dab_image = importer_dab.runAndGetOutputData()
     roi_annot_image = importer_roi_annot.runAndGetOutputData()
     annot_image = importer_annot.runAndGetOutputData()
@@ -124,20 +109,8 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     height_ck_image = ck_image.getLevelHeight(level)
     width_ck_image = ck_image.getLevelWidth(level)
 
-    height_roi_annot_image = roi_annot_image.getLevelHeight(level)
-    width_roi_annot_image = roi_annot_image.getLevelWidth(level)
-
     height_annot_image = annot_image.getLevelHeight(level)
     width_annot_image = annot_image.getLevelWidth(level)
-
-    # @TODO: these are not correct (he and ck larger and same shape),
-    # @TODO: somthing is off, and all annotations same size, should not be?
-    # @TODO: will probably be a problem also when looking at coordinates from he/ck tma to get annot coordinates
-    print("dab: ", height_dab_image, width_dab_image)
-    print("he: ", height_he_image, width_he_image)
-    print("ck: ", height_ck_image, width_ck_image)
-    print("roi annot: ", height_roi_annot_image, width_roi_annot_image)
-    print("annot: ", height_annot_image, width_annot_image)
 
     dab_access = dab_image.getAccess(fast.ACCESS_READ)
     roi_annot_access = roi_annot_image.getAccess(fast.ACCESS_READ)
@@ -164,9 +137,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 large_patch_height = smallest_height - h_from
             if height_dab_image - h_from - large_patch_height + large_patch_height > smallest_height:
                 large_patch_height = smallest_height - (height_dab_image - h_from - large_patch_height)
-
-            print("large patch width: ", large_patch_width)
-            print("large patch height: ", large_patch_height)
 
             he_ = he_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
                                             int(large_patch_height), False)
@@ -241,6 +211,12 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
 
                 # @TODO: normalize intensities for patches, should the padding then be 255 for he?? (below)
+                patch_he_ = minmax(patch_he_)
+                patch_ck_ = minmax(patch_ck_)
+                patch_healthy = minmax(patch_healthy)
+                patch_in_situ = minmax(patch_in_situ)
+                patch_invasive = minmax(patch_invasive)
+                patch_roi_ = minmax(patch_roi_)
 
                 # one-hot encode ground truth
                 gt_one_hot = np.stack(
@@ -276,7 +252,8 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 he_tissue = (
                         np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
                 he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
-                if 1 in np.unique(patch_roi_) or he_tissue_ < tissue_level:
+                if 1. in np.unique(patch_roi_) or he_tissue_ < tissue_level:
+                    print("skipped")
                     continue
 
                 # register on patch level
@@ -284,7 +261,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 shifts, reg_error, phase_diff = phase_cross_correlation(
                     patch_he_, ck_hist, return_error=True)
                 shifts[2] = 0
-                patch_ck_reg = ndi.shift(patch_ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
                 gt_one_hot = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
                 # cut he and dab image after translation, due to constant padding after shift
@@ -318,8 +294,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     axes[1, 1].imshow(gt_one_hot[..., 2], cmap="gray", alpha=0.5)
                     plt.show()
 
-                exit()
-
+                # @TODO: save either in train or validation folder
                 # save patches as hdf5
                 if np.count_nonzero(patch_in_situ) > 0:
                     add_to_path = 'inSitu/'
@@ -337,7 +312,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
 
                 # delete streamers and stuff to potentially avoid threading issues in FAST
                 del data_fast, generators, streamers
-
 
 if __name__ == "__main__":
     level = 2  # image level
