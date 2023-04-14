@@ -299,16 +299,18 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     dab_core_correctly_placed[healthy_ep == 1] = 0
                     dab_core_correctly_placed[in_situ_ep == 1] = 0
 
-                data = [he_tma_padded[0:height_he, 0:width_he, :], dab_core_correctly_placed, healthy_ep, in_situ_ep]
+                data = [he_tma_padded[0:height_he, 0:width_he, :], ck_tma_padded_shifted[0:height_ck, 0:width_ck, :],
+                        dab_core_correctly_placed, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
                 
                 # @TODO: find out why the error below sometimes happens
-                for patch_idx, (patch_he, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
+                for patch_idx, (patch_he, patch_ck, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
                     try:
                         # convert from FAST image to numpy array
                         patch_he = np.asarray(patch_he)
+                        patch_ck = np.asarray(patch_ck)
                         patch_mask = np.asarray(patch_mask)[..., 0]
                         patch_healthy = np.asarray(patch_healthy)[..., 0]
                         patch_in_situ = np.asarray(patch_in_situ)[..., 0]
@@ -337,12 +339,12 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                     # for all epithelium as one class:
                     if class_ == "singleclass":
-                        gt_one_hot_all = np.stack([1 - (patch_mask.astype(bool)), patch_mask], axis=-1)  # for dataset with all epithelium as one class
-                        if np.any(gt_one_hot_all[..., 0] < 0):
-                            [print(np.mean(gt_one_hot_all[..., iii])) for iii in range(2)]
+                        gt_one_hot = np.stack([1 - (patch_mask.astype(bool)), patch_mask], axis=-1)  # for dataset with all epithelium as one class
+                        if np.any(gt_one_hot[..., 0] < 0):
+                            [print(np.mean(gt_one_hot[..., iii])) for iii in range(2)]
                             raise ValueError("Negative values occurred in the background class, check the segmentations...")
 
-                        if np.any(np.sum(gt_one_hot_all, axis=-1) > 1):
+                        if np.any(np.sum(gt_one_hot, axis=-1) > 1):
                             raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
 
                         # check if either of the shapes are empty, if yes, continue
@@ -351,16 +353,56 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                     if np.array(patch_he).shape[0] < patch_size or np.array(patch_he).shape[1] < patch_size:
                         patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
-                        patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="uint8")  #@TODO: should this also be np.ones?
-                        patch_gt_padded_all = np.zeros((patch_size, patch_size, 2), dtype="uint8")  # for dataset when all epithelium as one class
-
+                        patch_ck_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
+                        if class_ == "multiclass":
+                            patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")  #@TODO: should this also be np.ones?
+                        if class_ == "singleclass":
+                            patch_gt_padded = np.zeros((patch_size, patch_size, 2), dtype="float32")  # @TODO: should this also be np.ones?
                         patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he
+                        patch_ck_padded[:patch_ck.shape[0], :patch_ck.shape[1]] = patch_ck
                         patch_gt_padded[:gt_one_hot.shape[0], :gt_one_hot.shape[1]] = gt_one_hot
-                        patch_gt_padded_all[:gt_one_hot_all.shape[0], :gt_one_hot_all.shape[1]] = gt_one_hot_all  # for dataset when all epithelium as one class
 
                         patch_he = patch_he_padded
+                        patch_ck = patch_ck_padded
                         gt_one_hot = patch_gt_padded
-                        gt_one_hot_all = patch_gt_padded_all
+
+                    # skip patches with less than 0.25 percent tissue
+                    intensity_away_from_white_thresh = 40
+                    he_tissue = (
+                            np.mean(patch_he, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+                    he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
+                    if he_tissue_ < skip_percentage:
+                        print("skip")
+                        continue
+
+                    # register on patch level
+                    # @TODO: problem with too little contrast in ck tissue sometimes, even after hist equalization
+                    ck_hist = equalize_hist(patch_ck)
+                    shifts, reg_error, phase_diff = phase_cross_correlation(
+                        patch_he, ck_hist, return_error=True)
+                    shifts[2] = 0
+                    print("patch ck shape: ", patch_ck.shape)
+                    print("gt one hot shape: ", gt_one_hot.shape)
+                    patch_ck_ = ndi.shift(patch_ck, shifts, order=0, mode="constant", cval=255, prefilter=False)
+                    #gt_one_hot_ = gt_one_hot[:, :, 1]
+                    gt_one_hot_ = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)  #@ TODO: fix for singleclass too
+                    print("shift: ", shifts)
+                    print("gt one hot_ shape: ", gt_one_hot_.shape)
+                    print("unique one hot: ", np.unique(gt_one_hot[:, :, 1]))
+                    print("unique one hot_: ", np.unique(gt_one_hot_[:, :, 1]))
+                    print("unique: ", np.unique(gt_one_hot[:, :, 1] - gt_one_hot_[:, :, 1]))
+
+                    if True:
+                        print("making figure...")
+                        f, axes = plt.subplots(2, 2, figsize=(30, 30))
+                        axes[0, 0].imshow(gt_one_hot[:, :, 1], cmap="gray")
+                        #axes[0, 1].imshow(patch_ck_)
+                        axes[0, 1].imshow(gt_one_hot[:, :, 1] - gt_one_hot_[:, :, 1], cmap="gray")
+                        axes[1, 0].imshow(patch_he)
+                        axes[1, 0].imshow(gt_one_hot[:, :, 1], cmap="gray", alpha=0.5)
+                        axes[1, 1].imshow(patch_he)
+                        axes[1, 1].imshow(gt_one_hot_[:, :, 1], cmap="gray", alpha=0.5)
+                        plt.show()
 
                     # check if patch includes benign or in situ
                     # How to deal with patches with multiple classes??
@@ -375,29 +417,19 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     else:
                         add_to_path = 'invasive/'
                         count_invasive += 1
-
-                    intensity_away_from_white_thresh = 40
-                    he_tissue = (
-                            np.mean(patch_he, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
-
-                    he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
-
-                    if he_tissue_ < 0.25:
-                        print("skip")
-                        continue
-
+                    """
                     # create folder if not exists
                     if class_ == "multiclass":
                         os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
-                            f.create_dataset(name="output", data=gt_one_hot_all.astype("uint8"))
+                            f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
                     if class_ == "singleclass":
                         os.makedirs(dataset_path + set_name + "/", exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
-                            f.create_dataset(name="output", data=gt_one_hot_all.astype("uint8"))
-
+                            f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                    """
                 # delete streamers and stuff to potentially avoid threading issues in FAST
                 del data_fast, generators, streamers
     
@@ -435,8 +467,9 @@ if __name__ == "__main__":
     downsample_factor = 4  # tested with 8, but not sure if better
     wsi_idx = 0
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed  # @TODO: Check if okay
-    overlap = 0.25
+    overlap = 0 #0.25
     class_ = "multiclass"  # singleclass
+    skip_percentage = 0.25
 
     HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
