@@ -64,12 +64,12 @@ def categorical_focal_tversky_loss(delta=0.7, gamma=0.75, nb_classes=4):
         tp = K.sum(y_true * y_pred, axis=axis)
         fn = K.sum(y_true * (1 - y_pred), axis=axis)
         fp = K.sum((1 - y_true) * y_pred, axis=axis)
-        dice_class = (tp + smooth) / (tp + delta * fn + (1 - delta) * fp + smooth)  # output: (batch, classes)
+        class_ = (tp + smooth) / (tp + delta * fn + (1 - delta) * fp + smooth)
 
-        # calculate losses separately for each class, enhancing both classes
+        # calculate losses separately for each class
         loss = 0
         for class_val in range(nb_classes):
-            loss += (1 - dice_class[:, class_val]) * K.pow(1 - dice_class[:, class_val], -gamma)
+            loss += (1 - class_[:, class_val]) * K.pow(1 - class_[:, class_val], -gamma)
 
         # Average class scores
         loss /= nb_classes
@@ -91,22 +91,24 @@ def categorical_focal_tversky_loss_2(delta=0.7, gamma=0.75, smooth=0.000001, nb_
     :param nb_classes:
     :return:
     """
-    def loss_function(y_true, y_pred):
+    def loss_function(y_true, y_pred, use_background=False):
         # Clip values to prevent division by zero error
         epsilon = K.epsilon()
-        y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
-        axis = [1, 2]
+        #y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
 
-        # Calculate true positives (tp), false negatives (fn) and false positives (fp)
-        tp = K.sum(y_true * y_pred, axis=axis)
-        fn = K.sum(y_true * (1 - y_pred), axis=axis)
-        fp = K.sum((1 - y_true) * y_pred, axis=axis)
-        tversky_class = (tp + smooth) / (tp + delta * fn + (1 - delta) * fp + smooth)
-
-        # calculate losses separately for each class, enhancing both classes
         loss = 0
-        for class_val in range(1, nb_classes):
-            loss += (K.pow(1 - tversky_class[:, class_val], (1/gamma)))
+        # Calculate true positives (tp), false negatives (fn) and false positives (fp)
+        for object in range(0 if use_background else 1, nb_classes):
+            output1 = y_pred[:, :, :, object]
+            target1 = y_true[:, :, :, object]
+
+            tp = tf.reduce_sum(target1 * output1)
+            fn = tf.reduce_sum(target1 * (1 - output1))
+            fp = tf.reduce_sum((1 - target1) * output1)
+            tversky_class = (tp + smooth) / (tp + delta * fn + (1 - delta) * fp + smooth)
+
+            # calculate losses separately for each class, enhancing both classes
+            loss += (K.pow(1 - tversky_class, (1/gamma)))
 
         # Average class scores
         loss = loss/(nb_classes - 1)
