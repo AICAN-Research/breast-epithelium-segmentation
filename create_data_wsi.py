@@ -34,6 +34,20 @@ def minmax(x):
     return x
 
 
+def cut_image(shift_h, shift_w, shape_h, shape_w):
+    start_h = shift_h
+    start_w = shift_w
+    stop_h = shape_h
+    stop_w = shape_w
+    if shift_h < 0:
+        start_h = 0
+        stop_h = shape_h - np.abs(shift_h)
+    if shift_w < 0:
+        start_w = 0
+        stop_w = shape_w - np.abs(shift_w)
+    return start_h, start_w, stop_h, stop_w
+
+
 def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor,
                    overlap, tissue_level):
     importer_he = fast.WholeSlideImageImporter.create(
@@ -89,51 +103,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     annot_image = extractor_annot.runAndGetOutputData()
     he_image = extractor_he.runAndGetOutputData()
     ck_image = extractor_ck.runAndGetOutputData()
-    
-    dab_image = np.asarray(dab_image)
-    roi_annot_image = np.asarray(roi_annot_image)
-    annot_image = np.asarray(annot_image)
-    he_image_l4 = np.asarray(he_image)
-    ck_image_l4 = np.asarray(ck_image)
-
-    # tissue segmentation
-    """
-    intensity_away_from_white_thresh = 40
-    ck_image_tissue = (
-                np.mean(ck_image, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
-    he_image_tissue = (np.mean(he_image, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
-        # downsample before registration
-    curr_shape = ck_image_tissue.shape[:2]
-    # @TODO: no padding to largest image per now, since extracting areas
-    ck_seg_ds = cv2.resize(ck_image_tissue, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                             interpolation=cv2.INTER_NEAREST)
-    he_seg_ds = cv2.resize(he_image_tissue, np.round(np.array(curr_shape) / ds_factor).astype("int32"),
-                             interpolation=cv2.INTER_NEAREST)
-
-    # detect shift between ck and he, histogram equalization for better shift in image with few
-    # distinct landmarks
-    #ck_seg_ds_hist = equalize_hist(ck_seg_ds)
-    # @TODO: z-shift sometimes larger than zero, why?
-    shifts, reg_error, phase_diff = phase_cross_correlation(he_seg_ds, ck_seg_ds,
-                                                            return_error=True)
-    print(shifts)
-
-    # scale shifts back and apply to original resolution
-    shifts = (np.round(ds_factor * shifts)).astype("int32")
-    shifts_ = np.zeros((3,)).astype("int32")
-    shifts_[0:2] = shifts
-    ck_shifted = ndi.shift(ck_image, shifts_, order=0, mode="constant", cval=255, prefilter=False)
-
-    print(shifts)
-    print(shifts_)
-    print()
-
-    dab_image = np.flip(dab_image, axis=0)
-    dab_shifted = ndi.shift(dab_image, shifts_, order=0, mode="constant", cval=0, prefilter=False)
-    """
-
-    # registration with orb, done on level 4
-    # im_reg_l4, h, height, width = alignImages(ck_image_l4, he_image_l4)
 
     dab_image = importer_dab.runAndGetOutputData()
     roi_annot_image = importer_roi_annot.runAndGetOutputData()
@@ -172,8 +141,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     ck_access = ck_image.getAccess(fast.ACCESS_READ)
 
     # get shape of he and ck images
-    longest_height = max([height_he_image, height_ck_image])
-    longest_width = max([width_he_image, width_ck_image])
     smallest_height = min([height_he_image, height_ck_image, height_dab_image, height_annot_image])
     smallest_width = min([width_he_image, width_ck_image, width_dab_image, width_annot_image])
 
@@ -234,36 +201,13 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
 
             # cut area that has been padded:
             # cut he and dab image after translation, due to constant padding after shift
-            #@TODO: better to create new array and insert area to include?
-            start_h = shifts[0]
-            start_w = shifts[1]
-            stop_h = large_patch_height
-            stop_w = large_patch_width
-            if shifts[0] < 0:
-                start_h = 0
-                stop_h = large_patch_height - np.abs(shifts[0])
-            if shifts[1] < 0:
-                start_w = 0
-                stop_w = large_patch_width - np.abs(shifts[1])
+            start_h, start_w, stop_h, stop_w = cut_image(shifts[0], shifts[1], large_patch_height, large_patch_width)
 
             ck_large_reg = ck_large_reg[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
             dab_large_reg = dab_large_reg[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
-            he_2 = he_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+            he_ = he_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
             annot_ = annot_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
             roi_annot_ = roi_annot_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
-
-            if True:
-                # print("making figure...")
-                f, axes = plt.subplots(2, 2, figsize=(30, 30))
-                axes[0, 0].imshow(he_)
-                axes[0, 0].imshow(ck_, alpha=0.5)
-                axes[0, 1].imshow(he_2)
-                axes[0, 1].imshow(ck_large_reg, alpha=0.5)
-                axes[1, 0].imshow(dab_, cmap="gray")
-                axes[1, 1].imshow(dab_large_reg, cmap="gray")
-                plt.show()
-
-            continue
 
             # differentiate between insitu, benign, invasive
             healthy_ep = ((annot_ == 1) & (dab_large_reg == 1)).astype("float32")
@@ -291,10 +235,26 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 patch_invasive = np.asarray(patch_invasive)[..., 0]
                 patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
 
+                # @TODO: normalize intensities for patches, should the padding then be 255 for he?? (below)
+
                 # one-hot encode ground truth
                 gt_one_hot = np.stack(
                     [1 - (patch_healthy.astype(bool) | patch_in_situ.astype(bool) | patch_invasive.astype(bool)),
                      patch_invasive, patch_healthy, patch_in_situ], axis=-1)
+
+                # pad patches that are not shape patch_size
+                if np.array(patch_he_).shape[0] < patch_size or np.array(patch_he_).shape[1] < patch_size:
+                    patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
+                    patch_ck_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
+                    patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")  # @TODO: should this also be np.ones?
+
+                    patch_he_padded[:patch_he_.shape[0], :patch_he_.shape[1]] = patch_he_
+                    patch_ck_padded[:patch_ck_.shape[0], :patch_ck_.shape[1]] = patch_ck_
+                    patch_gt_padded[:gt_one_hot.shape[0], :gt_one_hot.shape[1]] = gt_one_hot
+
+                    patch_he_ = patch_he_padded
+                    patch_ck_ = patch_ck_padded
+                    gt_one_hot = patch_gt_padded
 
                 # skip patches including areas annotated for removal or with tissue below tissue_level percent
                 intensity_away_from_white_thresh = 40
@@ -302,7 +262,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                         np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
                 he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
                 if 1 in np.unique(patch_roi_) or he_tissue_ < tissue_level:
-                    #print("skip")
                     continue
 
                 # register on patch level
@@ -311,23 +270,24 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     patch_he_, ck_hist, return_error=True)
                 shifts[2] = 0
                 patch_ck_reg = ndi.shift(patch_ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
-                gt_one_hot = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=255, prefilter=False)
+                gt_one_hot = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
                 # cut he and dab image after translation, due to constant padding after shift
-                start_x = shifts[0]
-                start_y = shifts[1]
-                stop_x = patch_size
-                stop_y = patch_size
-                if shifts[0] < 0:
-                    start_x = 0
-                    stop_x = patch_size - np.abs(shifts[0])
-                if shifts[1] < 0:
-                    start_y = 0
-                    stop_y = patch_size - np.abs(shifts[1])
-                gt_one_hot2 = gt_one_hot[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
-                patch_he2 = patch_he_[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
+                print("shift patch: ", shifts)
+                start_h, start_w, stop_h, stop_w = cut_image(shifts[0], shifts[1], patch_size, patch_size)
+                gt_one_hot = gt_one_hot[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+                patch_he_ = patch_he_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
 
-                #@TODO: need to pad again for same shape during training?
+                # pad patches that are not shape patch_size
+                if np.array(patch_he_).shape[0] < patch_size or np.array(patch_he_).shape[1] < patch_size:
+                    patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
+                    patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")  # @TODO: should this also be np.ones?
+
+                    patch_he_padded[:patch_he_.shape[0], :patch_he_.shape[1]] = patch_he_
+                    patch_gt_padded[:gt_one_hot.shape[0], :gt_one_hot.shape[1]] = gt_one_hot
+
+                    patch_he_ = patch_he_padded
+                    gt_one_hot = patch_gt_padded
 
                 count_patch += 1
 
@@ -336,47 +296,17 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     f, axes = plt.subplots(2, 2, figsize=(30, 30))
                     axes[0, 0].imshow(patch_he_)
                     axes[0, 0].set_title("count_patch: " + str(count_patch))
-                    axes[0, 1].imshow(patch_he2)
-                    axes[0, 1].imshow(gt_one_hot2[..., 1], cmap="gray", alpha=0.5)
-                    axes[1, 0].imshow(patch_he2)
-                    axes[1, 0].imshow(gt_one_hot2[..., 2], cmap="gray", alpha=0.5)
-                    axes[1, 1].imshow(gt_one_hot[..., 2], cmap="gray")
+                    axes[0, 1].imshow(patch_he_)
+                    axes[1, 0].imshow(patch_he_)
+                    axes[1, 0].imshow(gt_one_hot[..., 1], cmap="gray", alpha=0.5)
+                    axes[1, 1].imshow(patch_he_)
+                    axes[1, 1].imshow(gt_one_hot[..., 2], cmap="gray", alpha=0.5)
                     plt.show()
-
-                # @TODO: think about edges, how are they padded to get right shape?
 
     exit()
 
-    data = [he_cut, invasive_ep, healthy_ep, in_situ_ep, roi_annot_cut]
-    data_fast = [fast.Image.createFromArray(curr) for curr in data]
-    generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr)
-                  for curr in data_fast]
-    streamers = [fast.DataStream(curr) for curr in generators]
-
-    # @TODO: find out why the error below sometimes happens
-    for patch_idx, (patch_he, patch_invasive, patch_healthy, patch_in_situ, patch_roi) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
-        patch_he = np.asarray(patch_he)
-        patch_invasive = np.asarray(patch_invasive)[..., 0]
-        patch_healthy = np.asarray(patch_healthy)[..., 0]
-        patch_in_situ = np.asarray(patch_in_situ)[..., 0]
-        patch_roi = np.asarray(patch_roi)[..., 0]
-
-        if 1 in np.unique(patch_roi):
-            print("skip")
-            continue
-
-        # normalizing intensities for patches
-        patch_invasive = minmax(patch_invasive)
-        patch_healthy = minmax(patch_healthy)
-        patch_in_situ = minmax(patch_in_situ)
-
-        gt_one_hot = np.stack(
-            [1 - (patch_invasive.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)),
-             patch_invasive, patch_healthy, patch_in_situ], axis=-1)
-
         print("gt one hot shape: ", gt_one_hot.shape)
 
-        # for many classes
         if np.any(gt_one_hot[..., 0] < 0):
            [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
            raise ValueError("Negative values occurred in the background class, check the segmentations...")
@@ -385,38 +315,19 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
            raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
 
         # check if either of the shapes are empty, if yes, continue
-        if (len(patch_he) == 0) or (len(patch_invasive) == 0):
+        if (len(patch_he_) == 0) or (len(patch_invasive) == 0):
            continue
 
-        # @TODO: pad patches with incorrect shape
-
-        if plot_flag:
-            fig, ax = plt.subplots(2, 2, figsize=(20, 20))
-            ax[0, 0].imshow(gt_one_hot[:, :, 1])
-            ax[0, 1].imshow(gt_one_hot[:, :, 2])
-            ax[1, 0].imshow(gt_one_hot[:, :, 3])
-            ax[1, 1].imshow(patch_he)
-            plt.show()
-
-        if plot_flag:
-            fig, ax = plt.subplots(1, 2, figsize=(30, 30))
-            ax[0].imshow(patch_he)
-            ax[1].imshow(patch_he)
-            ax[1].imshow(gt_one_hot[:, :, 2], cmap="gray", alpha=0.5)
-            plt.show()
-
-#if patch doesn't include areas in roi annotated image -> skip
+        # save patches as hdf5
 
 
 if __name__ == "__main__":
-    level = 2
+    level = 2  # image level
     patch_size = 1024
-    ds_factor = 4
+    ds_factor = 4  # downsample before finding shift in large patches
     plot_flag = False
-    overlap = 0.25
-    tissue_level = 0.25
-
-    data_split_path = ""  # split train/val/test
+    overlap = 0.25  # overlap when creating patches
+    tissue_level = 0.25  # patches with less tissue will be skipped
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
@@ -425,9 +336,8 @@ if __name__ == "__main__":
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(ds_factor) + "/"
 
-    # @TODO: cannot divide slides into train/val before? How to divide now?
     # @TODO: could I use a random change of train/val (0.6 and 0.4) for each patch? Though that would make
-    # @TODO: patches from same slide in both sets. All in train instead?
+    # @TODO: patches from same slide in both sets. Yes. ok to have same in both, just not in test
 
     # go through files in train/val/test -> create_dataset()
     he_path_ = '/data/Maren_P1/data/WSI/'
