@@ -177,6 +177,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     smallest_height = min([height_he_image, height_ck_image, height_dab_image, height_annot_image])
     smallest_width = min([width_he_image, width_ck_image, width_dab_image, width_annot_image])
 
+    count_patch = 0
     for i in range(2):
         for j in range(4):
             # @TODO: dab image smaller than ck, annot smaller than he, is this an okay fix:
@@ -189,6 +190,11 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 large_patch_width = smallest_width - w_from
             if h_from + large_patch_height > smallest_height:
                 large_patch_height = smallest_height - h_from
+            if height_dab_image - h_from - large_patch_height + large_patch_height > smallest_height:
+                large_patch_height = smallest_height - (height_dab_image - h_from - large_patch_height)
+
+            print("large patch width: ", large_patch_width)
+            print("large patch height: ", large_patch_height)
 
             he_ = he_access.getPatchAsImage(int(level), int(w_from), int(h_from), int(large_patch_width),
                                             int(large_patch_height), False)
@@ -215,6 +221,8 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                                    interpolation=cv2.INTER_NEAREST)
 
             # @TODO: z-shift sometimes larger than zero, why?
+            # axis order for shift vector "is consistent with the axis order of the input array"
+            # https://scikit-image.org/docs/stable/api/skimage.registration.html
             shifts, reg_error, phase_diff = phase_cross_correlation(
                 he_seg_ds, ck_seg_ds, return_error=True)
 
@@ -224,6 +232,39 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             ck_large_reg = ndi.shift(ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
             dab_large_reg = ndi.shift(dab_, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
+            # cut area that has been padded:
+            # cut he and dab image after translation, due to constant padding after shift
+            #@TODO: better to create new array and insert area to include?
+            start_h = shifts[0]
+            start_w = shifts[1]
+            stop_h = large_patch_height
+            stop_w = large_patch_width
+            if shifts[0] < 0:
+                start_h = 0
+                stop_h = large_patch_height - np.abs(shifts[0])
+            if shifts[1] < 0:
+                start_w = 0
+                stop_w = large_patch_width - np.abs(shifts[1])
+
+            ck_large_reg = ck_large_reg[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+            dab_large_reg = dab_large_reg[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+            he_2 = he_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+            annot_ = annot_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+            roi_annot_ = roi_annot_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+
+            if True:
+                # print("making figure...")
+                f, axes = plt.subplots(2, 2, figsize=(30, 30))
+                axes[0, 0].imshow(he_)
+                axes[0, 0].imshow(ck_, alpha=0.5)
+                axes[0, 1].imshow(he_2)
+                axes[0, 1].imshow(ck_large_reg, alpha=0.5)
+                axes[1, 0].imshow(dab_, cmap="gray")
+                axes[1, 1].imshow(dab_large_reg, cmap="gray")
+                plt.show()
+
+            continue
+
             # differentiate between insitu, benign, invasive
             healthy_ep = ((annot_ == 1) & (dab_large_reg == 1)).astype("float32")
             in_situ_ep = ((annot_ == 2) & (dab_large_reg == 1)).astype("float32")
@@ -232,7 +273,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             invasive_ep[in_situ_ep == 1] = 0
 
             print("unique: ", np.unique(invasive_ep), np.unique(healthy_ep), np.unique(in_situ_ep))
-            continue
 
             # create patches
             data = [he_, ck_large_reg, healthy_ep, in_situ_ep, invasive_ep, roi_annot_]
@@ -271,7 +311,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     patch_he_, ck_hist, return_error=True)
                 shifts[2] = 0
                 patch_ck_reg = ndi.shift(patch_ck_, shifts, order=0, mode="constant", cval=255, prefilter=False)
-                gt_one_hot = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)
+                gt_one_hot = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=255, prefilter=False)
 
                 # cut he and dab image after translation, due to constant padding after shift
                 start_x = shifts[0]
@@ -287,17 +327,20 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 gt_one_hot2 = gt_one_hot[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
                 patch_he2 = patch_he_[int(start_x):int(stop_x), int(start_y):int(stop_y), :]
 
+                #@TODO: need to pad again for same shape during training?
 
-                if len(np.unique(gt_one_hot2)) > 2:
-                    print("making figure...")
+                count_patch += 1
+
+                if True:
+                    #print("making figure...")
                     f, axes = plt.subplots(2, 2, figsize=(30, 30))
                     axes[0, 0].imshow(patch_he_)
+                    axes[0, 0].set_title("count_patch: " + str(count_patch))
                     axes[0, 1].imshow(patch_he2)
                     axes[0, 1].imshow(gt_one_hot2[..., 1], cmap="gray", alpha=0.5)
                     axes[1, 0].imshow(patch_he2)
                     axes[1, 0].imshow(gt_one_hot2[..., 2], cmap="gray", alpha=0.5)
-                    axes[1, 1].imshow(patch_he2)
-                    axes[1, 1].imshow(gt_one_hot2[..., 3], cmap="gray", alpha=0.5)
+                    axes[1, 1].imshow(gt_one_hot[..., 2], cmap="gray")
                     plt.show()
 
                 # @TODO: think about edges, how are they padded to get right shape?
