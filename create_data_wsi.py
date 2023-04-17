@@ -21,12 +21,16 @@ def minmax(x):
     :param x: intensity image
     :return: normalized x
     """
-    # @TODO: Sometimes get error: invalid value encountered (x/=np.argmax(x)).
+    # @TODO: Sometimes get error: invalid value encountered in divide (x/=np.argmax(x)).
+    # @TODO: is this really a good idea, will increase contrast?
     #  Is it possible I get one for both argmax and argmin
     x = x.astype("float32")
     if np.amax(x) > 0:
-        x -= np.amin(x)
-        x /= np.amax(x)
+        if np.amax(x) == 1. and np.amin(x) == 1.:  # @TODO: it this okay then? what it both ex 255 or other nbr?
+            return x
+        else:
+            x -= np.amin(x)
+            x /= np.amax(x)
     return x
 
 
@@ -122,7 +126,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     smallest_height = min([height_he_image, height_ck_image, height_dab_image, height_annot_image])
     smallest_width = min([width_he_image, width_ck_image, width_dab_image, width_annot_image])
 
-    count_patch = 0
     for i in range(2):
         for j in range(4):
             # @TODO: dab image smaller than ck, annot smaller than he, is this an okay fix:
@@ -187,12 +190,11 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             # differentiate between insitu, benign, invasive
             healthy_ep = ((annot_ == 1) & (dab_large_reg == 1)).astype("float32")
             in_situ_ep = ((annot_ == 2) & (dab_large_reg == 1)).astype("float32")
-            invasive_ep = dab_large_reg.copy()
+            invasive_ep = dab_large_reg.copy().astype("float32")
             invasive_ep[healthy_ep == 1] = 0
             invasive_ep[in_situ_ep == 1] = 0
 
             print("unique: ", np.unique(invasive_ep), np.unique(healthy_ep), np.unique(in_situ_ep))
-
             # create patches
             data = [he_, ck_large_reg, healthy_ep, in_situ_ep, invasive_ep, roi_annot_]
             data_fast = [fast.Image.createFromArray(curr) for curr in data]
@@ -210,9 +212,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 patch_invasive = np.asarray(patch_invasive)[..., 0]
                 patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
 
-                # @TODO: normalize intensities for patches, should the padding then be 255 for he?? (below)
-                patch_he_ = minmax(patch_he_)
-                patch_ck_ = minmax(patch_ck_)
+                # normalize intensities, he and ck after thresholding
                 patch_healthy = minmax(patch_healthy)
                 patch_in_situ = minmax(patch_in_situ)
                 patch_invasive = minmax(patch_invasive)
@@ -252,8 +252,14 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 he_tissue = (
                         np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
                 he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
+
+                # normalize he and ck intensity. Has to be done after thresholding
+                # @TODO: should I intensity normalize when normalizing during training too? Then divide by 255, now 0-1.
+                patch_he_ = minmax(patch_he_)
+                patch_ck_ = minmax(patch_ck_)
+
+                # @TODO: some patches with a lot of fat will be removed, ok?
                 if 1. in np.unique(patch_roi_) or he_tissue_ < tissue_level:
-                    print("skipped")
                     continue
 
                 # register on patch level
@@ -264,14 +270,13 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 gt_one_hot = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)
 
                 # cut he and dab image after translation, due to constant padding after shift
-                print("shift patch: ", shifts)
                 start_h, start_w, stop_h, stop_w = cut_image(shifts[0], shifts[1], patch_size, patch_size)
                 gt_one_hot = gt_one_hot[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
                 patch_he_ = patch_he_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
 
                 # pad patches that are not shape patch_size
                 if np.array(patch_he_).shape[0] < patch_size or np.array(patch_he_).shape[1] < patch_size:
-                    patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
+                    patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="float32")
                     patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")
 
                     patch_he_padded[:patch_he_.shape[0], :patch_he_.shape[1]] = patch_he_
@@ -280,14 +285,12 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     patch_he_ = patch_he_padded
                     gt_one_hot = patch_gt_padded
 
-                count_patch += 1
-
-                if True:
-                    #print("making figure...")
+                if plot_flag:
+                    print("making figure...")
                     f, axes = plt.subplots(2, 2, figsize=(30, 30))
                     axes[0, 0].imshow(patch_he_)
-                    axes[0, 0].set_title("count_patch: " + str(count_patch))
                     axes[0, 1].imshow(patch_he_)
+                    axes[0, 1].imshow(gt_one_hot[..., 0], cmap="gray", alpha=0.5)
                     axes[1, 0].imshow(patch_he_)
                     axes[1, 0].imshow(gt_one_hot[..., 1], cmap="gray", alpha=0.5)
                     axes[1, 1].imshow(patch_he_)
@@ -311,8 +314,8 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     add_to_path = 'invasive/'
 
                 # create folder if not exists
-                os.makedirs(dataset_path + "/" + set_name + add_to_path, exist_ok=True)
-                with h5py.File(dataset_path + "/" + set_name + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" +
+                os.makedirs(dataset_path + set_name + add_to_path, exist_ok=True)
+                with h5py.File(dataset_path + set_name + add_to_path + "wsi_" + str(wsi_idx) + "_" +
                                str(patch_idx) + ".h5", "w") as f:
                     f.create_dataset(name="input", data=patch_he_.astype("uint8"))
                     f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
@@ -332,6 +335,7 @@ if __name__ == "__main__":
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
     dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
+                   "_wsi" + \
                    "_level_" + str(level) + \
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(ds_factor) + "/"
