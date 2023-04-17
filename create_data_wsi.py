@@ -321,7 +321,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
 
                 # delete streamers and stuff to potentially avoid threading issues in FAST
-                del data_fast, generators, streamers
+            del data_fast, generators, streamers
 
 if __name__ == "__main__":
     level = 2  # image level
