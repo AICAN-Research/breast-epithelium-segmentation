@@ -267,8 +267,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 if dsc(he_tissue, ck_tissue) < 0.80:
                     continue
 
-                # @TODO: clip shift, can be "cut" from TMA extractor
-
                 # Get TMA from annot slide
                 position_he_x /= (2 ** level)
                 position_he_y /= (2 ** level)
