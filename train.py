@@ -36,8 +36,11 @@ def main(ret):
 
     # paths
     dataset_path = './datasets/220223_140143_level_2_psize_1024_ds_4/'  # path to directory
+    dataset_path_wsi = ''
     train_path = dataset_path + 'ds_train'
+    train_path_wsi = dataset_path_wsi + 'ds_train'
     val_path = dataset_path + 'ds_val'
+    val_path_wsi = dataset_path_wsi + 'ds_val'
     # test_path = dataset_path + 'ds_test'
     history_path = './output/history/'  # path to directory
     model_path = './output/models/'  # path to directory
@@ -97,6 +100,13 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+            for directory in os.listdir(train_path_wsi):
+                dir_path = train_path + "/" + directory + "/"
+                dir_paths = []
+                for file_ in os.listdir(dir_path):
+                    file_path = dir_path + file_
+                    dir_paths.append(file_path)
+                train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
 
         val_paths = []
         for directory in os.listdir(val_path):
@@ -106,6 +116,13 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+            for directory in os.listdir(val_path_wsi):
+                dir_path = val_path + "/" + directory + "/"
+                dir_paths = []
+                for file_ in os.listdir(dir_path):
+                    file_path = dir_path + file_
+                    dir_paths.append(file_path)
+                val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
 
         # combine all train/val paths
         ds_train = tf.data.Dataset.from_generator(
@@ -147,9 +164,9 @@ def main(ret):
     ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=1)  # ADDITIVE
-    #ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
-    #ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
-    #                        num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
+    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
+    ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
+                            num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
     #ds_train = ds_train.map(lambda x, y: (random_contrast(x, low=0.6, up=0.8), y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50),
@@ -187,7 +204,7 @@ def main(ret):
 
         # loss weights for deep supervision
         #loss_weights = np.array([1 / (2 ** i) for i in range(nb_downsamples)])
-        loss_weights = {"conv2d_" + str(72 - i): 1 / (1.3 ** i) for i in range(nb_downsamples)}
+        loss_weights = {"conv2d_" + str(72 - i): 1 / (1.2 ** i) for i in range(nb_downsamples)}
         #loss_weights /= sum(loss_weights)
         #loss_weights = np.array([1, 1, 1, 1, 1, 1, 1, 0])
         print("loss_weights:", loss_weights)
