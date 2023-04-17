@@ -237,7 +237,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 if np.array(patch_he_).shape[0] < patch_size or np.array(patch_he_).shape[1] < patch_size:
                     patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
                     patch_ck_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
-                    patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")  # @TODO: should this also be np.ones?
+                    patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")
 
                     patch_he_padded[:patch_he_.shape[0], :patch_he_.shape[1]] = patch_he_
                     patch_ck_padded[:patch_ck_.shape[0], :patch_ck_.shape[1]] = patch_ck_
@@ -272,7 +272,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                 # pad patches that are not shape patch_size
                 if np.array(patch_he_).shape[0] < patch_size or np.array(patch_he_).shape[1] < patch_size:
                     patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
-                    patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")  # @TODO: should this also be np.ones?
+                    patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")
 
                     patch_he_padded[:patch_he_.shape[0], :patch_he_.shape[1]] = patch_he_
                     patch_gt_padded[:gt_one_hot.shape[0], :gt_one_hot.shape[1]] = gt_one_hot
@@ -295,6 +295,13 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     plt.show()
 
                 # @TODO: save either in train or validation folder
+                # determine weather train or val patch:
+                rand_ = np.random.random()
+                if rand_ < 0.8:
+                    set_name = 'ds_train/'
+                else:
+                    set_name = 'ds_val/'
+
                 # save patches as hdf5
                 if np.count_nonzero(patch_in_situ) > 0:
                     add_to_path = 'inSitu/'
@@ -304,8 +311,8 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
                     add_to_path = 'invasive/'
 
                 # create folder if not exists
-                os.makedirs(dataset_path + "/" + add_to_path, exist_ok=True)
-                with h5py.File(dataset_path + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" +
+                os.makedirs(dataset_path + "/" + set_name + add_to_path, exist_ok=True)
+                with h5py.File(dataset_path + "/" + set_name + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" +
                                str(patch_idx) + ".h5", "w") as f:
                     f.create_dataset(name="input", data=patch_he_.astype("uint8"))
                     f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
@@ -328,9 +335,6 @@ if __name__ == "__main__":
                    "_level_" + str(level) + \
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(ds_factor) + "/"
-
-    # @TODO: could I use a random change of train/val (0.6 and 0.4) for each patch? Though that would make
-    # @TODO: patches from same slide in both sets. Yes. ok to have same in both, just not in test
 
     # go through files in train/val/test -> create_dataset()
     he_path_ = '/data/Maren_P1/data/WSI/'
