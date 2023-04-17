@@ -14,6 +14,7 @@ import h5py
 from datetime import datetime, date
 import multiprocessing as mp
 from skimage.exposure import equalize_hist
+from skimage.morphology import remove_small_holes, binary_dilation, disk
 
 
 def minmax(x):
@@ -22,18 +23,50 @@ def minmax(x):
     :param x: intensity image
     :return: normalized x
     """
-    # @TODO: Sometimes get error: invalid value encountered (x/=np.argmax(x)).
+    # @TODO: Sometimes get error: invalid value encountered in divide (x/=np.argmax(x)).
+    # @TODO: is this really a good idea, will increase contrast?
     #  Is it possible I get one for both argmax and argmin
     x = x.astype("float32")
     if np.amax(x) > 0:
-        x -= np.amin(x)
-        x /= np.amax(x)
+        if np.amax(x) == 1. and np.amin(x) == 1.:  # @TODO: it this okay then? what it both ex 255 or other nbr?
+            return x
+        else:
+            x -= np.amin(x)
+            x /= np.amax(x)
     return x
 
 
 def create_datasets_wrapper(some_inputs_):
     # give all arguements from wrapper to create_datasets to begin processing WSI
     create_datasets(*some_inputs_)
+
+
+def cut_image(shift_h, shift_w, shape_h, shape_w):
+    """
+    Cutting registered images to remove padded areas due to shift
+    :param shift_h: shift of moving image (height)
+    :param shift_w: shift of moving image (width)
+    :param shape_h: height moving image
+    :param shape_w:  width moving image
+    :return: start and stop height and width when cutting registered images
+    """
+    start_h = shift_h
+    start_w = shift_w
+    stop_h = shape_h
+    stop_w = shape_w
+    if shift_h < 0:
+        start_h = 0
+        stop_h = shape_h - np.abs(shift_h)
+    if shift_w < 0:
+        start_w = 0
+        stop_w = shape_w - np.abs(shift_w)
+    return start_h, start_w, stop_h, stop_w
+
+
+def dsc(pred, target):
+    intersection = np.sum(pred * target)
+    union = np.sum(pred * pred) + np.sum(target * target)
+    return np.clip((2 * intersection + 1) / (union + 1), 0, 1)
 
 
 def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, dataset_path, set_name,
@@ -113,7 +146,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
     del extractor, ck_stream
 
     # get HE TMA cores
-    #fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importer_he)
     he_tmas = []
     he_stream = fast.DataStream(extractor)
@@ -125,8 +157,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
     print("length HE TMAs:", len(he_tmas))
     print("length CK TMAs:", len(ck_tmas))
-    # init tqdm
-    # pbar = tqdm(total=max([len(CK_TMAs), len(HE_TMAs)]))
     tma_idx = 0
 
     count_invasive = 0
@@ -190,16 +220,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     print(e)
                     continue
                 tma_remove = np.asarray(remove_annot)
-                tma_remove = tma_remove[..., :3]
-                remove_tma_padded = np.zeros((longest_height, longest_width, 3), dtype="uint8")
-                remove_tma_padded[:tma_remove.shape[0], :tma_remove.shape[1]] = tma_remove
-                remove_tma_padded = remove_tma_padded[:tma_remove.shape[0], :tma_remove.shape[1]]
-                if np.count_nonzero(remove_tma_padded) > 0:
-                    if plot_flag:
-                        f, axes = plt.subplots(1, 2, figsize=(30, 30))  # Figure of TMAs
-                        axes[0].imshow(remove_tma_padded[..., 0], cmap="gray")
-                        axes[1].imshow(remove_tma_padded, cmap="gray")
-                        plt.show()
+                if np.count_nonzero(tma_remove) > 0:
                     continue
 
                 # downsample image before registration
@@ -215,49 +236,48 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 ck_tma_padded_ds_histeq = equalize_hist(ck_tma_padded_ds)
                 shifts, reg_error, phase_diff = phase_cross_correlation(he_tma_padded_ds, ck_tma_padded_ds_histeq,
                                                                         return_error=True)
-                # @TODO: Why does the documentation say that the shift is returned as (z,y,x)?
                 shifts[2] = 0  # set z-axis to zero (should be from beginning)
-
                 # scale shifts back and apply to original resolution
-                # @TODO: could this shift result in cropped CK core, shifted too far?
                 shifts = (np.round(downsample_factor * shifts)).astype("int32")
                 ck_tma_padded_shifted = ndi.shift(ck_tma_padded, shifts, order=0, mode="constant", cval=255,
                                                   prefilter=False)
 
-                # find dice score and shift to determine if core pair should be skipped
-                def dsc(pred, target):
-                    intersection = np.sum(pred * target)
-                    union = np.sum(pred * pred) + np.sum(target * target)
-                    return np.clip((2 * intersection + 1) / (union + 1), 0, 1)
+                # cut images to get only areas with overlapping tissue
+                start_h, start_w, stop_h, stop_w = cut_image(shifts[0], shifts[1], he_tma_padded.shape[0],
+                                                             he_tma_padded.shape[1])
+                he_tma_padded = he_tma_padded[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+                ck_tma_padded_shifted = ck_tma_padded_shifted[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
 
-                intensity_away_from_white_thresh = 20
+                # remove cylinders with dice score below threshold, remove cores with different tissue
+                he_tma_padded_ = minmax(he_tma_padded)  # to account for intensity differences in staining
+                ck_tma_padded_ = minmax(ck_tma_padded_shifted)
+                intensity_away_from_white_thresh_he = 0.20
+                intensity_away_from_white_thresh_ck = 0.20
+                he_tissue = (
+                        np.mean(he_tma_padded_, axis=-1) < 1. - intensity_away_from_white_thresh_he).astype("uint8")
+                ck_tissue = (
+                        np.mean(ck_tma_padded_, axis=-1) < 1. - intensity_away_from_white_thresh_ck).astype("uint8")
 
-                # tissue segmentation
-                ck_tma_padded_shifted_tissue = (np.mean(ck_tma_padded_shifted, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
-                he_tma_padded_tissue = (np.mean(he_tma_padded, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+                he_tissue = binary_dilation(he_tissue, disk(radius=5))
+                ck_tissue = binary_dilation(ck_tissue, disk(radius=5))
+                he_tissue = remove_small_holes(he_tissue, 8000)
+                ck_tissue = remove_small_holes(ck_tissue, 8000)
 
-                # dice value for tissue segmentation of he and ck
-                dsc_value = dsc(he_tma_padded_tissue, ck_tma_padded_shifted_tissue)
+                # skip matches with very different dice, destroyed tissue
+                if dsc(he_tissue, ck_tissue) < 0.80:
+                    continue
 
-                shift_thresh = 200
-                # skip tma core if above shift threshold or dsc too low
-                if np.abs(shifts[0]) > shift_thresh or np.abs(shifts[1]) > shift_thresh:
-                    if dsc_value < 80:
-                        continue
-
-                # @TODO: is incorrect? or should I do it:
-                #he_core_correctly_placed = he_tma_padded[:longest_height, :longest_width]
-                #ck_core_correctly_placed = ck_tma_padded_shifted[:longest_height, :longest_width]
+                # @TODO: clip shift, can be "cut" from TMA extractor
 
                 # Get TMA from annot slide
                 position_he_x /= (2 ** level)
                 position_he_y /= (2 ** level)
-
                 position_ck_y = height_mask - position_ck_y - height_ck
 
                 # get corresponding TMA core in the dab image as in the CK:
                 # get corresponding TMA core in manual annotated image as in the HE:
                 # skip TMA cores when area is outside mask area
+                # @TODO: do I really need to do this?
                 if position_ck_x + width_ck > width_mask or position_ck_y + height_ck > height_mask:
                     continue
                 if position_he_x + width_he > width_annot or position_he_y + height_he > height_annot:
@@ -286,9 +306,12 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                 # @TODO: think about whether just keep padded, otherwise one will be "cut"
                 # @TODO: then that will be the same for he_tma_padded that is cut below too
+                # @TODO: is it possible that the padding will be top left, then below is wrong
                 # the correctly placed dab and manual annot:
                 dab_core_correctly_placed = dab_core_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]]
                 annot_core_correctly_placed = annot_core_padded[:annot_core.shape[0], :annot_core.shape[1]]
+                he_core_correctly_placed = he_tma_padded[:annot_core.shape[0], :annot_core.shape[1]]  # is this corrrect??
+                ck_tma_padded_shifted = ck_tma_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]] # is this corrrect??
 
                 # get each GT annotation as its own binary image + fix manual annotations
                 manual_annot = np.asarray(annot_core_correctly_placed)
@@ -299,8 +322,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     dab_core_correctly_placed[healthy_ep == 1] = 0
                     dab_core_correctly_placed[in_situ_ep == 1] = 0
 
-                data = [he_tma_padded[0:height_he, 0:width_he, :], ck_tma_padded_shifted[0:height_ck, 0:width_ck, :],
-                        dab_core_correctly_placed, healthy_ep, in_situ_ep]
+                data = [he_core_correctly_placed, ck_tma_padded_shifted, dab_core_correctly_placed, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
@@ -371,8 +393,13 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     he_tissue = (
                             np.mean(patch_he, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
                     he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
+
+                    # normalize he and ck intensity. Has to be done after thresholding
+                    # @TODO: should I intensity normalize when normalizing during training too? Then divide by 255, now 0-1.
+                    patch_he = minmax(patch_he)
+                    patch_ck = minmax(patch_ck)
+
                     if he_tissue_ < skip_percentage:
-                        print("skip")
                         continue
 
                     # register on patch level
@@ -381,28 +408,14 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     shifts, reg_error, phase_diff = phase_cross_correlation(
                         patch_he, ck_hist, return_error=True)
                     shifts[2] = 0
-                    print("patch ck shape: ", patch_ck.shape)
-                    print("gt one hot shape: ", gt_one_hot.shape)
                     patch_ck_ = ndi.shift(patch_ck, shifts, order=0, mode="constant", cval=255, prefilter=False)
-                    #gt_one_hot_ = gt_one_hot[:, :, 1]
                     gt_one_hot_ = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)  #@ TODO: fix for singleclass too
-                    print("shift: ", shifts)
-                    print("gt one hot_ shape: ", gt_one_hot_.shape)
-                    print("unique one hot: ", np.unique(gt_one_hot[:, :, 1]))
-                    print("unique one hot_: ", np.unique(gt_one_hot_[:, :, 1]))
-                    print("unique: ", np.unique(gt_one_hot[:, :, 1] - gt_one_hot_[:, :, 1]))
 
-                    if True:
-                        print("making figure...")
-                        f, axes = plt.subplots(2, 2, figsize=(30, 30))
-                        axes[0, 0].imshow(gt_one_hot[:, :, 1], cmap="gray")
-                        #axes[0, 1].imshow(patch_ck_)
-                        axes[0, 1].imshow(gt_one_hot[:, :, 1] - gt_one_hot_[:, :, 1], cmap="gray")
-                        axes[1, 0].imshow(patch_he)
-                        axes[1, 0].imshow(gt_one_hot[:, :, 1], cmap="gray", alpha=0.5)
-                        axes[1, 1].imshow(patch_he)
-                        axes[1, 1].imshow(gt_one_hot_[:, :, 1], cmap="gray", alpha=0.5)
-                        plt.show()
+                    start_h, start_w, stop_h, stop_w = cut_image(shifts[0], shifts[1], patch_size, patch_size)
+                    gt_one_hot_ = gt_one_hot_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+                    patch_he = patch_he[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
+
+                    # @TODO: pad patches that now are cut
 
                     # check if patch includes benign or in situ
                     # How to deal with patches with multiple classes??
