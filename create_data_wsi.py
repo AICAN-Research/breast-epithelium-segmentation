@@ -205,12 +205,18 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
 
             for patch_idx, (patch_he_, patch_ck_, patch_healthy, patch_in_situ, patch_invasive,
                             patch_roi_annot_) in enumerate(zip(*streamers)):  # get error here sometimes, why?
-                patch_he_ = np.asarray(patch_he_)
-                patch_ck_ = np.asarray(patch_ck_)
-                patch_healthy = np.asarray(patch_healthy)[..., 0]
-                patch_in_situ = np.asarray(patch_in_situ)[..., 0]
-                patch_invasive = np.asarray(patch_invasive)[..., 0]
-                patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
+                try:
+                    # convert from FAST image to numpy array
+                    # @TODO: why is this necessary? otherwise get error sometimes
+                    patch_he_ = np.asarray(patch_he_)
+                    patch_ck_ = np.asarray(patch_ck_)
+                    patch_healthy = np.asarray(patch_healthy)[..., 0]
+                    patch_in_situ = np.asarray(patch_in_situ)[..., 0]
+                    patch_invasive = np.asarray(patch_invasive)[..., 0]
+                    patch_roi_ = np.asarray(patch_roi_annot_)[..., 0]
+                except RuntimeError as e:
+                    print(e)
+                    continue
 
                 # normalize intensities, he and ck after thresholding
                 patch_healthy = minmax(patch_healthy)
