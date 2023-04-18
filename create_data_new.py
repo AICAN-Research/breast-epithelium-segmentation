@@ -439,7 +439,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     else:
                         add_to_path = 'invasive/'
                         count_invasive += 1
-                    """
+
                     # create folder if not exists
                     if class_ == "multiclass":
                         os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
@@ -451,7 +451,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
-                    """
+
                 # delete streamers and stuff to potentially avoid threading issues in FAST
                 del data_fast, generators, streamers
     
@@ -462,7 +462,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
     ck_tmas.clear()
     del he_tmas, ck_tmas
     del mask, annot, annot_remove, annot_for_width
-    del remove_annot #patch, patch_annot, patch_remove
+    del remove_annot
     del importer_he, importer_ck, importer_mask, importer_annot, importer_remove
     del access, access_annot, access_remove
     del he_tma, ck_tma, he_tma_padded, ck_tma_padded
