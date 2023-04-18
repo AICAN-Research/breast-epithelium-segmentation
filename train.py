@@ -35,8 +35,8 @@ def main(ret):
     name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
     # paths
-    dataset_path = './datasets/220223_140143_level_2_psize_1024_ds_4/'  # path to directory
-    dataset_path_wsi = ''
+    dataset_path = './datasets/180423_135327_level_2_psize_1024_ds_4/'  # path to directory
+    dataset_path_wsi = './datasets/180423_112901_wsi_level_2_psize_1024_ds_4/'
     train_path = dataset_path + 'ds_train'
     train_path_wsi = dataset_path_wsi + 'ds_train'
     val_path = dataset_path + 'ds_val'
@@ -100,13 +100,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-            for directory in os.listdir(train_path_wsi):
-                dir_path = train_path + "/" + directory + "/"
-                dir_paths = []
-                for file_ in os.listdir(dir_path):
-                    file_path = dir_path + file_
-                    dir_paths.append(file_path)
-                train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+        for i, directory in enumerate(os.listdir(train_path_wsi)):
+            dir_path = train_path_wsi + "/" + directory + "/"
+            for file_ in os.listdir(dir_path):
+                file_path = dir_path + file_
+                train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         val_paths = []
         for directory in os.listdir(val_path):
@@ -116,13 +114,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-            for directory in os.listdir(val_path_wsi):
-                dir_path = val_path + "/" + directory + "/"
-                dir_paths = []
-                for file_ in os.listdir(dir_path):
-                    file_path = dir_path + file_
-                    dir_paths.append(file_path)
-                val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
+        for i, directory in enumerate(os.listdir(val_path_wsi)):
+            dir_path = val_path_wsi + "/" + directory + "/"
+            for file_ in os.listdir(dir_path):
+                file_path = dir_path + file_
+                val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         # combine all train/val paths
         ds_train = tf.data.Dataset.from_generator(
@@ -211,10 +207,11 @@ def main(ret):
     else:
         raise ValueError("Unsupported architecture chosen. Please, choose either 'unet' or 'agunet'.")
 
-    if ret.accum_steps > 1:
-        model = GradientAccumulateModel(
-            accum_steps=ret.accum_steps, mixed_precision=ret.mixed_precision, inputs=model.input, outputs=model.outputs
-        )
+    #if ret.accum_steps > 1:
+        # @TODO: does gradiant accumulation not work properly if one has batch norm in model?
+    #    model = GradientAccumulateModel(
+    #        accum_steps=ret.accum_steps, mixed_precision=ret.mixed_precision, inputs=model.input, outputs=model.outputs
+    #    )
 
     print(model.summary())
     # @TODO: Plot loss for each class (invasive, benign and inSitu seperately)
@@ -247,12 +244,12 @@ def main(ret):
         save_freq="epoch"
     )
 
-    if ret.mixed_precision:
-        opt = tf.keras.optimizers.Adam(ret.learning_rate)  # , epsilon=1e-4)
-        opt = mixed_precision.LossScaleOptimizer(opt)
+    #if ret.mixed_precision:
+    #    opt = tf.keras.optimizers.Adam(ret.learning_rate)  # , epsilon=1e-4)
+    #    opt = mixed_precision.LossScaleOptimizer(opt)
 
     model.compile(
-        optimizer=opt,
+        optimizer=tf.keras.optimizers.Adam(ret.learning_rate),#opt,
         loss=get_dice_loss(nb_classes=nb_classes, use_background=False, dims=2),  # network.get_dice_loss(),
         loss_weights=None if architecture == "unet" else loss_weights,
         metrics=[
@@ -277,10 +274,10 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=8,
                         help="set which batch size to use for training.")
-    parser.add_argument('--accum_steps', metavar='--as', type=int, nargs='?', default=2,
-                        help="set how many gradient accumulations to perform.")
-    parser.add_argument('--mixed_precision', metavar='--mp', type=int, nargs='?', default=1,
-                        help="whether to perform mixed precision (float16). Default=1 (True).")
+    #parser.add_argument('--accum_steps', metavar='--as', type=int, nargs='?', default=2,
+    #                    help="set how many gradient accumulations to perform.")
+    #parser.add_argument('--mixed_precision', metavar='--mp', type=int, nargs='?', default=1,
+    #                    help="whether to perform mixed precision (float16). Default=1 (True).")
     parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
                         help="set which learning rate to use for training.")
     parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
@@ -298,8 +295,8 @@ if __name__ == "__main__":
     # choose which GPU to use
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-    if ret.mixed_precision:
-        mixed_precision.set_global_policy('mixed_float16')
+    #if ret.mixed_precision:
+    #    mixed_precision.set_global_policy('mixed_float16')
 
     main(ret)
 
