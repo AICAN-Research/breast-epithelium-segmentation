@@ -242,13 +242,15 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 ck_tma_padded_shifted = ndi.shift(ck_tma_padded, shifts, order=0, mode="constant", cval=255,
                                                   prefilter=False)
 
-                # cut images to get only areas with overlapping tissue
+                # cut images to remove areas added/removed by shift
                 start_h, start_w, stop_h, stop_w = cut_image(shifts[0], shifts[1], he_tma_padded.shape[0],
                                                              he_tma_padded.shape[1])
                 he_tma_padded = he_tma_padded[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
                 ck_tma_padded_shifted = ck_tma_padded_shifted[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
 
                 # remove cylinders with dice score below threshold, remove cores with different tissue
+                # ex due to only parts of one stain extracted with TMA extractor or very broken TMAs in one stain
+                # @TODO: it is possible that one stain has half of a cylinder and the other a whole still (not shifted)
                 he_tma_padded_ = minmax(he_tma_padded)  # to account for intensity differences in staining
                 ck_tma_padded_ = minmax(ck_tma_padded_shifted)
                 intensity_away_from_white_thresh_he = 0.20
@@ -275,7 +277,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 # get corresponding TMA core in the dab image as in the CK:
                 # get corresponding TMA core in manual annotated image as in the HE:
                 # skip TMA cores when area is outside mask area
-                # @TODO: do I really need to do this?
                 if position_ck_x + width_ck > width_mask or position_ck_y + height_ck > height_mask:
                     continue
                 if position_he_x + width_he > width_annot or position_he_y + height_he > height_annot:
@@ -289,8 +290,9 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 dab_core = np.asarray(dab_core)
                 annot_core = np.asarray(annot_core)
 
+                # annotation image is RGB (gray) -> keep only first dim to get intensity image -> single class uint8
                 dab_core = dab_core[..., 0]
-                annot_core = annot_core[..., 0]  # annotation image is RGB (gray) -> keep only first dim to get intensity image -> single class uint8
+                annot_core = annot_core[..., 0]
                 dab_core = np.flip(dab_core, axis=0)  # since dab annotation is flipped
 
                 annot_core_padded = np.zeros((longest_height, longest_width), dtype="uint8")
@@ -302,25 +304,29 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                 dab_core_padded_shifted = ndi.shift(dab_core_padded, shifts[:2], order=0, mode="constant", cval=0, prefilter=False)
 
+                # cut to match ck and he
+                annot_core_padded = annot_core_padded[int(start_h):int(stop_h), int(start_w):int(stop_w)]
+                dab_core_padded_shifted = dab_core_padded_shifted[int(start_h):int(stop_h), int(start_w):int(stop_w)]
+
                 # @TODO: think about whether just keep padded, otherwise one will be "cut"
                 # @TODO: then that will be the same for he_tma_padded that is cut below too
                 # @TODO: is it possible that the padding will be top left, then below is wrong
                 # the correctly placed dab and manual annot:
-                dab_core_correctly_placed = dab_core_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]]
-                annot_core_correctly_placed = annot_core_padded[:annot_core.shape[0], :annot_core.shape[1]]
-                he_core_correctly_placed = he_tma_padded[:annot_core.shape[0], :annot_core.shape[1]]  # is this corrrect??
-                ck_tma_padded_shifted = ck_tma_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]] # is this corrrect??
+                #dab_core_correctly_placed = dab_core_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]]
+                #annot_core_correctly_placed = annot_core_padded[:annot_core.shape[0], :annot_core.shape[1]]
+                #he_core_correctly_placed = he_tma_padded[:annot_core.shape[0], :annot_core.shape[1]]  # is this corrrect??
+                #ck_tma_padded_shifted = ck_tma_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]] # is this corrrect??
 
                 # get each GT annotation as its own binary image + fix manual annotations
-                manual_annot = np.asarray(annot_core_correctly_placed)
-                healthy_ep = ((manual_annot == 1) & (dab_core_correctly_placed == 1)).astype("float32")
-                in_situ_ep = ((manual_annot == 2) & (dab_core_correctly_placed == 1)).astype("float32")
+                manual_annot = np.asarray(annot_core_padded)
+                healthy_ep = ((manual_annot == 1) & (dab_core_padded_shifted == 1)).astype("float32")
+                in_situ_ep = ((manual_annot == 2) & (dab_core_padded_shifted == 1)).astype("float32")
 
                 if class_ == "multiclass":
-                    dab_core_correctly_placed[healthy_ep == 1] = 0
-                    dab_core_correctly_placed[in_situ_ep == 1] = 0
+                    dab_core_padded_shifted[healthy_ep == 1] = 0
+                    dab_core_padded_shifted[in_situ_ep == 1] = 0
 
-                data = [he_core_correctly_placed, ck_tma_padded_shifted, dab_core_correctly_placed, healthy_ep, in_situ_ep]
+                data = [he_tma_padded, ck_tma_padded_shifted, dab_core_padded_shifted, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
@@ -336,7 +342,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         patch_in_situ = np.asarray(patch_in_situ)[..., 0]
                     except RuntimeError as e:
                         print(e)
-                        continue  # @TODO: Change to break?
+                        continue
 
                     # normalizing intensities for patches
                     patch_mask = minmax(patch_mask)
@@ -375,9 +381,9 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
                         patch_ck_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
                         if class_ == "multiclass":
-                            patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")  #@TODO: should this also be np.ones?
+                            patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")
                         if class_ == "singleclass":
-                            patch_gt_padded = np.zeros((patch_size, patch_size, 2), dtype="float32")  # @TODO: should this also be np.ones?
+                            patch_gt_padded = np.zeros((patch_size, patch_size, 2), dtype="float32")
                         patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he
                         patch_ck_padded[:patch_ck.shape[0], :patch_ck.shape[1]] = patch_ck
                         patch_gt_padded[:gt_one_hot.shape[0], :gt_one_hot.shape[1]] = gt_one_hot
@@ -393,7 +399,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
 
                     # normalize he and ck intensity. Has to be done after thresholding
-                    # @TODO: should I intensity normalize when normalizing during training too? Then divide by 255, now 0-1.
+                    # @TODO: should I intensity norm when normalizing during training too?Then divide by 255 now 0-1.
                     patch_he = minmax(patch_he)
                     patch_ck = minmax(patch_ck)
 
@@ -401,24 +407,29 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         continue
 
                     # register on patch level
-                    # @TODO: problem with too little contrast in ck tissue sometimes, even after hist equalization
                     ck_hist = equalize_hist(patch_ck)
                     shifts, reg_error, phase_diff = phase_cross_correlation(
                         patch_he, ck_hist, return_error=True)
                     shifts[2] = 0
-                    patch_ck_ = ndi.shift(patch_ck, shifts, order=0, mode="constant", cval=255, prefilter=False)
-                    gt_one_hot_ = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0, prefilter=False)  #@ TODO: fix for singleclass too
+                    # @TODO: fix for single class too
+                    patch_ck_ = ndi.shift(patch_ck, shifts, order=0, mode="constant", cval=1., prefilter=False)
+                    gt_one_hot_ = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0., prefilter=False)
 
                     start_h, start_w, stop_h, stop_w = cut_image(shifts[0], shifts[1], patch_size, patch_size)
                     gt_one_hot_ = gt_one_hot_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
                     patch_he = patch_he[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
 
-                    # @TODO: pad patches that now are cut
+                    if np.array(patch_he).shape[0] < patch_size or np.array(patch_he).shape[1] < patch_size:
+                        patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="float32")
+                        if class_ == "multiclass":
+                            patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")
+                        patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he
+                        patch_gt_padded[:gt_one_hot_.shape[0], :gt_one_hot_.shape[1]] = gt_one_hot_
+
+                        patch_he = patch_he_padded
+                        gt_one_hot = patch_gt_padded
 
                     # check if patch includes benign or in situ
-                    # How to deal with patches with multiple classes??
-                    # @TODO: change to only include in inSitu/benign if pixel number above a threshold
-
                     if np.count_nonzero(patch_in_situ) > 0:
                         add_to_path = 'inSitu/'
                         count_inSitu += 1
@@ -478,7 +489,7 @@ if __name__ == "__main__":
     downsample_factor = 4  # tested with 8, but not sure if better
     wsi_idx = 0
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed  # @TODO: Check if okay
-    overlap = 0 #0.25
+    overlap = 0.25
     class_ = "multiclass"  # singleclass
     skip_percentage = 0.25
 
