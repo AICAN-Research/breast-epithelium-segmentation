@@ -394,16 +394,16 @@ if __name__ == "__main__":
 
                 if wsi_idx == 0:
                     if square_idx in train_set1:
-                        set_name = "ds_train"
+                        set_name = "ds_train/"
                     elif square_idx in val_set1:
-                        set_name = "ds_val"
+                        set_name = "ds_val/"
                     else:
                         raise ValueError("Error in wsi division for train and val set")
                 elif wsi_idx == 1:
                     if square_idx in train_set2:
-                        set_name = "ds_train"
+                        set_name = "ds_train/"
                     elif square_idx in val_set2:
-                        set_name = "ds_val"
+                        set_name = "ds_val/"
                     else:
                         raise ValueError("Error in wsi division for train and val set")
                 else:
