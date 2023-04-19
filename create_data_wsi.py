@@ -270,8 +270,8 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
 
         # normalize he and ck intensity. Has to be done after thresholding
         # @TODO: should I intensity normalize when normalizing during training too? Then divide by 255, now 0-1.
-        patch_he_ = minmax(patch_he_)
-        patch_ck_ = minmax(patch_ck_)
+        #patch_he_ = minmax(patch_he_)
+        #patch_ck_ = minmax(patch_ck_)
 
         # @TODO: some patches with a lot of fat will be removed, ok?
         if 1. in np.unique(patch_roi_) or he_tissue_ < tissue_level:
@@ -291,7 +291,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
 
         # pad patches that are not shape patch_size
         if np.array(patch_he_).shape[0] < patch_size or np.array(patch_he_).shape[1] < patch_size:
-            patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="float32")
+            patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
             patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")
 
             patch_he_padded[:patch_he_.shape[0], :patch_he_.shape[1]] = patch_he_
