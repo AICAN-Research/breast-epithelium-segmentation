@@ -32,7 +32,7 @@ def minmax(x):
             return x
         else:
             x -= np.amin(x)
-            x /= np.amax(x)
+            x /= np.amax(x)  #@TODO: got error here still once
     return x
 
 
@@ -344,7 +344,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         print(e)
                         continue
 
-                    # normalizing intensities for patches
+                    # normalizing gt, # @TODO: should not be necessary??
                     patch_mask = minmax(patch_mask)
                     patch_healthy = minmax(patch_healthy)
                     patch_in_situ = minmax(patch_in_situ)
@@ -400,8 +400,8 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                     # normalize he and ck intensity. Has to be done after thresholding
                     # @TODO: should I intensity norm when normalizing during training too?Then divide by 255 now 0-1.
-                    patch_he = minmax(patch_he)
-                    patch_ck = minmax(patch_ck)
+                    # patch_he = minmax(patch_he)
+                    # patch_ck = minmax(patch_ck)
 
                     if he_tissue_ < skip_percentage:
                         continue
@@ -412,7 +412,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         patch_he, ck_hist, return_error=True)
                     shifts[2] = 0
                     # @TODO: fix for single class too
-                    patch_ck_ = ndi.shift(patch_ck, shifts, order=0, mode="constant", cval=1., prefilter=False)
+                    patch_ck_ = ndi.shift(patch_ck, shifts, order=0, mode="constant", cval=255, prefilter=False)
                     gt_one_hot_ = ndi.shift(gt_one_hot, shifts, order=0, mode="constant", cval=0., prefilter=False)
 
                     start_h, start_w, stop_h, stop_w = cut_image(shifts[0], shifts[1], patch_size, patch_size)
@@ -420,7 +420,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                     patch_he = patch_he[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
 
                     if np.array(patch_he).shape[0] < patch_size or np.array(patch_he).shape[1] < patch_size:
-                        patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="float32")
+                        patch_he_padded = np.ones((patch_size, patch_size, 3), dtype="uint8") * 255
                         if class_ == "multiclass":
                             patch_gt_padded = np.zeros((patch_size, patch_size, 4), dtype="float32")
                         patch_he_padded[:patch_he.shape[0], :patch_he.shape[1]] = patch_he
@@ -445,7 +445,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
-                            f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                            f.create_dataset(name="output", data=gt_one_hot.astype("flot32"))
                     if class_ == "singleclass":
                         os.makedirs(dataset_path + set_name + "/", exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
