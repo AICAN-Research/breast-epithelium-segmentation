@@ -25,5 +25,6 @@ os.makedirs(wsi_split_path, exist_ok=True)
 
 # convert to hdf5
 with h5py.File((wsi_split_path + "dataset_split.h5"), 'w') as f:
-    f.create_dataset("val", data=np.array(val_set).astype('uint8'), compression="gzip", compression_opts=4)
-    f.create_dataset("train", data=np.array(train_set).astype('uint8'), compression="gzip", compression_opts=4)
+    f.create_dataset("val", data=val_set.astype('uint8'))
+    f.create_dataset("train", data=train_set.astype('uint8'))
+
