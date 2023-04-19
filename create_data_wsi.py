@@ -63,7 +63,7 @@ def cut_image(shift_h, shift_w, shape_h, shape_w):
 
 
 def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size, ds_factor,
-                   overlap, tissue_level, wsi_idx, i, j, square_idx):
+                   overlap, tissue_level, wsi_idx, i, j, square_idx, set_name):
 
     import fast
 
@@ -312,13 +312,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             axes[1, 1].imshow(gt_one_hot[..., 2], cmap="gray", alpha=0.5)
             plt.show()
 
-        # @TODO: save either in train or validation folder
-        # determine weather train or val patch:
-        rand_ = np.random.random()
-        if rand_ < 0.8:
-            set_name = 'ds_train/'
-        else:
-            set_name = 'ds_val/'
 
         # save patches as hdf5
         if np.count_nonzero(patch_in_situ) > 0:
@@ -370,6 +363,17 @@ if __name__ == "__main__":
     roi_annot_path_ = '/data/Maren_P1/data/annotations_converted/patches_WSI/'
     annot_path_ = '/data/Maren_P1/data/annotations_converted/WSI/'
     dab_path_ = '/data/Maren_P1/data/annotations_converted/dab_channel_WSI_tiff/'
+    wsi1_split_path = './wsi_splits1/190423_151444/dataset_split.h5'
+    wsi2_split_path = './wsi_splits2/190423_151451/dataset_split.h5'
+
+    # define datasets (train/val/test) - always uses predefined dataset
+    with h5py.File(wsi1_split_path, "r") as f:
+        train_set1 = np.array(f['train']).astype(int)
+        val_set1 = np.array(f['val']).astype(int)
+
+    with h5py.File(wsi2_split_path, "r") as f:
+        train_set2 = np.array(f['train']).astype(int)
+        val_set2 = np.array(f['val']).astype(int)
 
     for file in os.listdir(annot_path_):
         id_ = file.split("-labels.ome.tif")[0]
@@ -383,25 +387,35 @@ if __name__ == "__main__":
                 dab_path = dab_path_ + id_2 + ".tiff"
                 ck_path = ck_path_ + id_2 + " CK.vsi"
 
-        print(he_path)
-        print(ck_path)
-        print(roi_annot_path)
-        print(annot_path)
-        print(dab_path)
-
         square_idx = 0
 
         for i in range(2):
             for j in range(4):
 
+                if wsi_idx == 0:
+                    if square_idx in train_set1:
+                        set_name = "ds_train"
+                    elif square_idx in val_set1:
+                        set_name = "ds_val"
+                    else:
+                        raise ValueError("Error in wsi division for train and val set")
+                elif wsi_idx == 1:
+                    if square_idx in train_set2:
+                        set_name = "ds_train"
+                    elif square_idx in val_set2:
+                        set_name = "ds_val"
+                    else:
+                        raise ValueError("Error in wsi division for train and val set")
+                else:
+                    raise ValueError("More wsis than accounted for")
+
                 inputs_ = [[he_path, ck_path, roi_annot_path, annot_path, dab_path, dataset_path, level, patch_size,
-                           ds_factor, overlap, tissue_level, wsi_idx, i, j, square_idx]]
+                           ds_factor, overlap, tissue_level, wsi_idx, i, j, square_idx, set_name]]
                 p = mp.Pool(1)
                 output = p.map(create_datasets_wrapper, inputs_)
                 p.terminate()
                 p.join()
                 del p, inputs_
-
                 square_idx += 1
 
         wsi_idx += 1
