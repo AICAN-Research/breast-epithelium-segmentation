@@ -25,7 +25,7 @@ def eval_on_dataset():
 
     ds_name = '200423_125554_level_2_psize_1024_ds_4'  # change manually to determine desired dataset
     ds_name_2 = '210423_122737_wsi_level_2_psize_1024_ds_4'
-    model_name = 'model_210423_090148_agunet_bs_8'  # change manually to determine desired model
+    model_name = 'model_210423_144951_agunet_bs_8'  # change manually to determine desired model
     # bs = 4  # change manually to match batch size in train.py
 
     ds_val_path = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/benign/'
@@ -58,13 +58,10 @@ def eval_on_dataset():
 
     cnt = 0
     for image, mask in tqdm(ds_val):
-        print("image shape: ", image.shape)
-
         pred_mask = model.predict_on_batch(image)
         threshold = (pred_mask[0] >= 0.5).astype("float32")
         if plot_flag:
             for j in range(mask.shape[0]):
-
                 plt.rcParams.update({'font.size': 28})
                 f, axes = plt.subplots(2, 3, figsize=(30, 30))
                 axes[0, 0].imshow(image[j])
