@@ -30,6 +30,7 @@ def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
     :return: precision: tp / (tp + fp)
     """
     precision_ = 0
+    smooth = 1.
     for object_ in range(0 if use_background else 1, nb_classes):
         if dims == 2:
             output1 = y_pred[:, :, :, object_]
@@ -39,7 +40,7 @@ def precision(y_true, y_pred, nb_classes, use_background=False, dims=2):
             target1 = y_true[:, :, :, :, object_]
         true_positives = tf.reduce_sum(target1 * output1)
         predicted_positives = tf.reduce_sum(output1)
-        precision_ += (true_positives / (predicted_positives + K.epsilon()))
+        precision_ += (true_positives + smooth / (predicted_positives + K.epsilon() + smooth))
         # TODO: consider problem when there are no true positives (or no positives at all) in one of the classes
         # TODO: it will influence the results a lot. Happens often for at least one class.
     if use_background:
@@ -62,6 +63,7 @@ def recall(y_true, y_pred, nb_classes, use_background=False, dims=2):
     :return: recall: tp / (tp + fn)
     """
     recall_ = 0
+    smooth = 1.
     for object_ in range(0 if use_background else 1, nb_classes):
         if dims == 2:
             output1 = y_pred[:, :, :, object_]
@@ -71,7 +73,7 @@ def recall(y_true, y_pred, nb_classes, use_background=False, dims=2):
             target1 = y_true[:, :, :, :, object_]
         true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))  # TODO: consider reduce_sum instead, is there a difference in speed
         possible_positives = K.sum(K.round(K.clip(target1, 0, 1)))
-        recall_ += (true_positives / (possible_positives + K.epsilon()))
+        recall_ += (true_positives + smooth / (possible_positives + K.epsilon() + smooth))
 
     if use_background:
         recall_ /= nb_classes
