@@ -21,25 +21,30 @@ def dice_metric(pred, gt):
 def eval_on_dataset():
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     plot_flag = False
-    bs = 16
+    bs = 1
 
-    ds_name = '220223_140143_level_2_psize_1024_ds_4'  # change manually to determine desired dataset
-    model_name = 'model_240223_144545_agunet_bs_8'  # change manually to determine desired model
+    ds_name = '200423_125554_level_2_psize_1024_ds_4'  # change manually to determine desired dataset
+    ds_name_2 = '210423_122737_wsi_level_2_psize_1024_ds_4'
+    model_name = 'model_210423_090148_agunet_bs_8'  # change manually to determine desired model
     # bs = 4  # change manually to match batch size in train.py
 
-    ds_test_path = './datasets/' + ds_name + '/ds_val/invasive/'
+    ds_val_path = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/benign/'
+    ds_val_path_2 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/benign/'
     model_path = './output/models/' + model_name
 
     # load generated tf test dataset
-    patches = os.listdir(ds_test_path)
-    paths = np.array([ds_test_path + x for x in patches]).astype("U400")
-    ds_test = tf.data.Dataset.from_tensor_slices(paths)
-    ds_test = ds_test.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=8)
+    patches = os.listdir(ds_val_path)
+    patches_2 = os.listdir(ds_val_path_2)
+    paths = np.array([ds_val_path + x for x in patches]).astype("U400")
+    paths_2 = np.array([ds_val_path_2 + x for x in patches_2]).astype("U400")
+    paths = np.append(paths, paths_2)  # add paths_2 to paths
+    ds_val = tf.data.Dataset.from_tensor_slices(paths)
+    ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=8)
 
     # ds_test = tf.data.experimental.load(ds_test_path, element_spec=None, compression=None, reader_func=None)
-    ds_test = ds_test.map(normalize_img)
-    ds_test = ds_test.batch(bs)  # @TODO: Shouldnt skip last incomplete batch
-    ds_test = ds_test.prefetch(1)
+    ds_val = ds_val.map(normalize_img)
+    ds_val = ds_val.batch(bs)  # @TODO: Shouldnt skip last incomplete batch, ok when bs = 1 or should it match bs in train?
+    ds_val = ds_val.prefetch(1)
 
     # load model
     model = load_model(model_path, compile=False)  # do not compile now, already done
@@ -52,40 +57,22 @@ def eval_on_dataset():
     recalls = 0
 
     cnt = 0
-    for image, mask in tqdm(ds_test):
+    for image, mask in tqdm(ds_val):
+        print("image shape: ", image.shape)
 
         pred_mask = model.predict_on_batch(image)
         threshold = (pred_mask[0] >= 0.5).astype("float32")
-
         if plot_flag:
             for j in range(mask.shape[0]):
-                #plt.rcParams.update({'font.size': 28})
-                f, axes = plt.subplots(4, 3, figsize=(20, 20))  # Figure of the two corresponding TMAs
+
+                plt.rcParams.update({'font.size': 28})
+                f, axes = plt.subplots(2, 3, figsize=(30, 30))
                 axes[0, 0].imshow(image[j])
-                axes[0, 0].set_title("image")
-
-                axes[1, 0].imshow(np.array(pred_mask[0][j, ..., 1]), cmap="gray")
-                axes[1, 0].set_title("heatmap invasive")  # invasive
-                axes[1, 1].imshow(np.array(threshold[j, ..., 1]),cmap="gray")
-                axes[1, 1].set_title("pred invasive")
-                axes[1, 2].imshow(np.array(mask[j,..., 1]), cmap="gray")
-                axes[1, 2].set_title("gt invasive")
-
-                axes[2, 0].imshow(np.array(pred_mask[0][j, ..., 2]), cmap="gray")
-                axes[2, 0].set_title("heatmap healthy")  # healthy
-                axes[2, 1].imshow(np.array(threshold[j, ..., 2]),cmap="gray")
-                axes[2, 1].set_title("pred healthy")
-                axes[2, 2].imshow(np.array(mask[j,..., 2]), cmap="gray")
-                axes[2, 2].set_title("gt healthy")
-
-                axes[3, 0].imshow(np.array(pred_mask[0][j, ..., 3]), cmap="gray")
-                axes[3, 0].set_title("heatmap in situ")  # in situ lesions
-                axes[3, 1].imshow(np.array(threshold[j, ..., 3]),cmap="gray")
-                axes[3, 1].set_title("pred in situ")
-                axes[3, 2].imshow(np.array(mask[j,..., 3]), cmap="gray")
-                axes[3, 2].set_title("gt in situ")
-
-                #[axes[i, j].set_title(title_) for i, title_ in enumerate(titles)]
+                axes[0, 1].imshow(mask[j, ..., 1])
+                axes[0, 2].imshow(mask[j, ..., 2])
+                axes[1, 0].imshow(np.array(pred_mask[0][j, ..., 2]))
+                axes[1, 1].imshow(np.array(threshold[j, ..., 2]))
+                axes[1, 2].imshow(np.array(pred_mask[0][j, ..., 3]))
                 plt.show()
 
         dice = [dice_metric(threshold[i, ..., 1], mask[i, ..., 1]).numpy() for i in range(mask.shape[0])]
