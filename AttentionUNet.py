@@ -74,7 +74,6 @@ def encoder_block_pyramid(x, input_ds, nr_of_convolutions, use_bn=False, spatial
 
 
 def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, spatial_dropout=None, renorm=False):
-    #x = Conv2DTranspose(nr_of_convolutions, kernel_size=3, padding='same', strides=2)(x)
     x = UpSampling2D((2, 2))(x)  # See if this helps with checkerboard pattern sometimes seen
     if use_bn:
         x = BatchNormalization(renorm=renorm)(x)
@@ -88,7 +87,7 @@ def decoder_block(x, cross_over_connection, nr_of_convolutions, use_bn=False, sp
 
 
 class AttentionUnet:
-    def __init__(self, input_shape, nb_classes, deep_supervision=False, input_pyramid=False):
+    def __init__(self, input_shape, nb_classes, decoder_spatial_dropout, deep_supervision=False, input_pyramid=False):
         if len(input_shape) != 3 and len(input_shape) != 4:
             raise ValueError('Input shape must have 3 or 4 dimensions')
         if nb_classes <= 1:
@@ -102,7 +101,7 @@ class AttentionUnet:
         self.encoder_use_bn = True
         self.decoder_use_bn = True
         self.encoder_spatial_dropout = None
-        self.decoder_spatial_dropout = None
+        self.decoder_spatial_dropout = decoder_spatial_dropout  # used to be None
         self.renorm = False
 
     def set_renorm(self, value):
@@ -121,13 +120,7 @@ class AttentionUnet:
 
         input_layer = Input(shape=self.input_shape)
         x = input_layer
-
-        init_size = max(self.input_shape[:-1])
-        size = init_size
-
-        convolutions = self.convolutions
         connection = []
-        i = 0
 
         if self.input_pyramid:
             scaled_input = []
