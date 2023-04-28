@@ -45,7 +45,7 @@ def random_saturation(x, saturation):
 def random_blur(x):
     nbr = tf.random.uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
     sigma_ = np.random.uniform(1, 20)  # @TODO: find a way to avoid numpy, will switch to cpu
-    x = tf.cond(nbr < 0.8, lambda: x, lambda: tf.clip_by_value(tfa.image.gaussian_filter2d(
+    x = tf.cond(nbr.numpy() < 0.9, lambda: x, lambda: tf.clip_by_value(tfa.image.gaussian_filter2d(
         x, filter_shape=15, sigma=sigma_), 0, 1))   # @TODO: get tf warning sometimes, find out why
     return x
 
