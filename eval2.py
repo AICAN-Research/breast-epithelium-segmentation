@@ -178,15 +178,6 @@ def eval_on_dataset():
                 dices_3.extend(c_dice)
                 precisions_3 += c_precision
                 recalls_3 += c_recall
-        #dice2 = [dice_metric(threshold[i, ..., 2], mask[i, ..., 2]).numpy() for i in range(mask.shape[0])]  # now bs = 1, unnecessary with for i in ...
-        #dice_ = dice(mask, threshold, 4, use_background=False, dims=2, epsilon=1e-10)
-        #dice_ = [dice_.numpy()]
-        #recall_ = recall(mask, threshold, nb_classes=4).numpy()
-        #precision_ = precision(mask, threshold, nb_classes=4).numpy()
-
-        #dices_.extend(dice_)  # this dice loss does not only include invasive, right, ch 1?
-        #precisions += precision_
-        #recalls += recall_
 
         cnt = cnt + 1
 
