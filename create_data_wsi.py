@@ -263,10 +263,10 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             gt_one_hot = patch_gt_padded
 
         # skip patches including areas annotated for removal or with tissue below tissue_level percent
-        intensity_away_from_white_thresh = 40
-        he_tissue = (
-                np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
-        he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
+        #intensity_away_from_white_thresh = 40
+        #he_tissue = (
+        #        np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
+        #he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
 
         # normalize he and ck intensity. Has to be done after thresholding
         # @TODO: should I intensity normalize when normalizing during training too? Then divide by 255, now 0-1.
@@ -274,7 +274,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
         #patch_ck_ = minmax(patch_ck_)
 
         # @TODO: some patches with a lot of fat will be removed, ok?
-        if 1. in np.unique(patch_roi_) or he_tissue_ < tissue_level:
+        if 1. in np.unique(patch_roi_): #or he_tissue_ < tissue_level:
             continue
 
         # register on patch level
@@ -351,7 +351,7 @@ if __name__ == "__main__":
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
-    dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
+    dataset_path = "/mnt/EncryptedSSD1/maren/datasets/" + curr_date + "_" + curr_time + \
                    "_wsi" + \
                    "_level_" + str(level) + \
                    "_psize_" + str(patch_size) + \
