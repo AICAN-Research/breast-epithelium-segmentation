@@ -24,10 +24,9 @@ def main(ret):
     nb_classes = 4
 
     # network stuff
-    encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
+    encoder_convs = [16, 32, 32, 64, 64, 128, 128]
     nb_downsamples = len(encoder_convs) - 1
     architecture = "agunet"
-    agunet_ = True  # to control multiscale input, set to True for agunet and False for unet
     N_train_batches = 200  # @TODO: Change this number
     N_val_batches = 50
     # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
@@ -35,8 +34,8 @@ def main(ret):
     name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
 
     # paths
-    dataset_path = './datasets/180423_135327_level_2_psize_1024_ds_4/'  # path to directory
-    dataset_path_wsi = './datasets/180423_112901_wsi_level_2_psize_1024_ds_4/'
+    dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'  # path to directory
+    dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
     train_path = dataset_path + 'ds_train'
     train_path_wsi = dataset_path_wsi + 'ds_train'
     val_path = dataset_path + 'ds_val'
@@ -44,22 +43,6 @@ def main(ret):
     # test_path = dataset_path + 'ds_test'
     history_path = './output/history/'  # path to directory
     model_path = './output/models/'  # path to directory
-
-    # Cross-validation for division into train, val, test:
-    # The numbers corresponds to wsi-numbers created in create data
-    """
-    k = 5  # number of folds in cross-validation
-    nbr_files = len(os.listdir(dataset_path))  # number of slides in total dataset (24 including zero, 0-23)
-    nbr_val = int(np.floor(nbr_files / k))
-    nbr_test = int(np.floor(nbr_files / k))
-    print("nbr_val", nbr_val)
-    print("nbr_test", nbr_test)
-
-    order = np.arange(nbr_files)
-    np.random.shuffle(order)
-    """
-    # --------------------
-
 
     # use this when only looking at all epithelium as one class
     if nb_classes == 2:
@@ -160,18 +143,14 @@ def main(ret):
     ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=1)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
+    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.005), y), num_parallel_calls=1)  # ADDITIVE
     ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
                             num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
-    #ds_train = ds_train.map(lambda x, y: (random_contrast(x, low=0.6, up=0.8), y), num_parallel_calls=1)
-    ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50),
-                            num_parallel_calls=1)  # @TODO: DO I need to do shift, is it really necessary?
-    # shift last
 
     # create multiscale input
     # tf.py_function(patchReader, [x], [tf.float32, tf.float32])
-    if agunet_:
+    if architecture == "agunet":
         ds_train = ds_train.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
         ds_val = ds_val.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
 
@@ -193,17 +172,18 @@ def main(ret):
     elif architecture == "agunet":
         # Test new Attention UNet
         # Use input_pyramind=True for multiscale input
-        agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=nb_classes, deep_supervision=True, input_pyramid=True)
-        agunet.decoder_dropout = 0.1
+        agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=nb_classes, decoder_spatial_dropout=0.1,
+                               deep_supervision=True, input_pyramid=True)
+        #agunet.decoder_dropout = 0.1
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
 
         # loss weights for deep supervision
         #loss_weights = np.array([1 / (2 ** i) for i in range(nb_downsamples)])
-        loss_weights = {"conv2d_" + str(72 - i): 1 / (1.2 ** i) for i in range(nb_downsamples)}
+        #loss_weights = {"conv2d_" + str(54 - i): 1 / (1.2 ** i) for i in range(nb_downsamples)}
         #loss_weights /= sum(loss_weights)
         #loss_weights = np.array([1, 1, 1, 1, 1, 1, 1, 0])
-        print("loss_weights:", loss_weights)
+        #print("loss_weights:", loss_weights)
     else:
         raise ValueError("Unsupported architecture chosen. Please, choose either 'unet' or 'agunet'.")
 
@@ -214,8 +194,6 @@ def main(ret):
     #    )
 
     print(model.summary())
-    # @TODO: Plot loss for each class (invasive, benign and inSitu seperately)
-    # metrics to monitor training and validation loss for each class (invasive, benign and inSitu)
 
     history = CSVLogger(
         history_path + "history_" + name + ".csv",
@@ -226,7 +204,7 @@ def main(ret):
     tb_logger = TensorBoard(log_dir="output/logs/" + name + "/", histogram_freq=0, update_freq="epoch")
 
     early = EarlyStopping(
-        monitor="val_conv2d_72_loss",  # "val_loss"
+        monitor="val_conv2d_54_loss",  # "val_loss"
         min_delta=0,  # 0: any improvement is considered an improvement
         patience=ret.patience,  # if not improved for 50 epochs, stops
         verbose=1,
@@ -236,7 +214,7 @@ def main(ret):
 
     save_best = ModelCheckpoint(
         model_path + "model_" + name,
-        monitor="val_conv2d_72_loss",  # "val_loss"
+        monitor="val_conv2d_54_loss",  # "val_loss"
         verbose=2,  #
         save_best_only=True,
         save_weights_only=False,
@@ -250,8 +228,8 @@ def main(ret):
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(ret.learning_rate),#opt,
-        loss=get_dice_loss(nb_classes=nb_classes, use_background=False, dims=2),  # network.get_dice_loss(),
-        loss_weights=None if architecture == "unet" else loss_weights,
+        loss=get_dice_loss(nb_classes=nb_classes, use_background=False, dims=2),  # network.get_dice_loss(),  #@TODO: how does this worK??
+        #loss_weights=None if architecture == "unet" else loss_weights,
         metrics=[
             *[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)]
         ],
@@ -282,7 +260,7 @@ if __name__ == "__main__":
                         help="set which learning rate to use for training.")
     parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
                         help="number of epochs to train.")
-    parser.add_argument('--patience', metavar='--pa', type=int, nargs='?', default=50,
+    parser.add_argument('--patience', metavar='--pa', type=int, nargs='?', default=100,
                         help="number of epochs to wait (patience) for early stopping.")
     parser.add_argument('--proc', metavar='--pr', type=int, nargs='?', default=4,
                         help="number of workers to use with tf.data.")
