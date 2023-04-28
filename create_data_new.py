@@ -503,7 +503,7 @@ if __name__ == "__main__":
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
-    dataset_path = "./datasets/" + curr_date + "_" + curr_time + \
+    dataset_path = "/mnt/EncryptedSSD1/maren/datasets/" + curr_date + "_" + curr_time + \
                    "_level_" + str(level) + \
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(downsample_factor) + "/"
@@ -541,10 +541,6 @@ if __name__ == "__main__":
                          '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
             remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/' + str(file_front) \
                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
-
-            #
-            #create_datasets(HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
-            #                plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit)
 
             # create dataset for current WSI in a separate process
             # this process will be killed when it is done, hence, all memory will be freed
