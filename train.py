@@ -27,8 +27,8 @@ def main(ret):
     encoder_convs = [16, 32, 32, 64, 64, 128, 128]
     nb_downsamples = len(encoder_convs) - 1
     architecture = "agunet"
-    N_train_batches = 200  # @TODO: Change this number
-    N_val_batches = 50
+    N_train_batches = 100  # @TODO: Change this number
+    N_val_batches = 25
     # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
 
     name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
@@ -172,8 +172,9 @@ def main(ret):
     elif architecture == "agunet":
         # Test new Attention UNet
         # Use input_pyramind=True for multiscale input
-        agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=nb_classes, decoder_spatial_dropout=0.1,
-                               deep_supervision=True, input_pyramid=True)
+        agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=nb_classes, encoder_spatial_dropout=0.1,
+                               decoder_spatial_dropout=0.1, accum_steps=ret.accum_steps, deep_supervision=True,
+                               input_pyramid=True, grad_accum=True, encoder_use_bn=False, decoder_use_bn=False)
         #agunet.decoder_dropout = 0.1
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
@@ -187,11 +188,11 @@ def main(ret):
     else:
         raise ValueError("Unsupported architecture chosen. Please, choose either 'unet' or 'agunet'.")
 
-    #if ret.accum_steps > 1:
+    if ret.accum_steps > 1:
         # @TODO: does gradiant accumulation not work properly if one has batch norm in model?
-    #    model = GradientAccumulateModel(
-    #        accum_steps=ret.accum_steps, mixed_precision=ret.mixed_precision, inputs=model.input, outputs=model.outputs
-    #    )
+        model = GradientAccumulateModel(
+            accum_steps=ret.accum_steps, mixed_precision=ret.mixed_precision, inputs=model.input, outputs=model.outputs
+        )
 
     print(model.summary())
 
@@ -222,12 +223,12 @@ def main(ret):
         save_freq="epoch"
     )
 
-    #if ret.mixed_precision:
-    #    opt = tf.keras.optimizers.Adam(ret.learning_rate)  # , epsilon=1e-4)
-    #    opt = mixed_precision.LossScaleOptimizer(opt)
+    opt = tf.keras.optimizers.Adam(ret.learning_rate)  # , epsilon=1e-4)
+    if ret.mixed_precision:
+        opt = mixed_precision.LossScaleOptimizer(opt)
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(ret.learning_rate),#opt,
+        optimizer=opt, #tf.keras.optimizers.Adam(ret.learning_rate),#opt,
         loss=get_dice_loss(nb_classes=nb_classes, use_background=False, dims=2),  # network.get_dice_loss(),  #@TODO: how does this worK??
         #loss_weights=None if architecture == "unet" else loss_weights,
         metrics=[
@@ -250,20 +251,22 @@ def main(ret):
 if __name__ == "__main__":
 
     parser = ArgumentParser()
-    parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=8,
+    parser.add_argument('--batch_size', metavar='--bs', type=int, nargs='?', default=16,
                         help="set which batch size to use for training.")
-    #parser.add_argument('--accum_steps', metavar='--as', type=int, nargs='?', default=2,
-    #                    help="set how many gradient accumulations to perform.")
-    #parser.add_argument('--mixed_precision', metavar='--mp', type=int, nargs='?', default=1,
-    #                    help="whether to perform mixed precision (float16). Default=1 (True).")
+    parser.add_argument('--accum_steps', metavar='--as', type=int, nargs='?', default=2,
+                        help="set how many gradient accumulations to perform.")
+    parser.add_argument('--mixed_precision', metavar='--mp', type=int, nargs='?', default=1,
+                        help="whether to perform mixed precision (float16). Default=1 (True).")
     parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
                         help="set which learning rate to use for training.")
     parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
                         help="number of epochs to train.")
-    parser.add_argument('--patience', metavar='--pa', type=int, nargs='?', default=100,
+    parser.add_argument('--patience', metavar='--pa', type=int, nargs='?', default=200,
                         help="number of epochs to wait (patience) for early stopping.")
     parser.add_argument('--proc', metavar='--pr', type=int, nargs='?', default=4,
                         help="number of workers to use with tf.data.")
+    parser.add_argument('--gpu', metavar='--g', type=str, nargs='?', default="0",
+                        help="which gpu to use.")
     ret = parser.parse_known_args(sys.argv[1:])[0]
 
     print(ret)
@@ -271,10 +274,10 @@ if __name__ == "__main__":
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # due to this: https://github.com/tensorflow/tensorflow/issues/35029
 
     # choose which GPU to use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = ret.gpu
 
-    #if ret.mixed_precision:
-    #    mixed_precision.set_global_policy('mixed_float16')
+    if ret.mixed_precision:
+        mixed_precision.set_global_policy('mixed_float16')
 
     main(ret)
 
