@@ -46,15 +46,15 @@ def attention_block(g, x, nr_of_convolutions, accum_steps=None, renorm=False, us
         psi = AccumBatchNormalization(accum_steps=accum_steps)(psi)
         psi = Activation(activation='sigmoid')(psi)
     else:
-        #g1 = BatchNormalization(renorm=renorm)(g1)
+        g1 = BatchNormalization(renorm=renorm)(g1)
 
         x1 = Convolution2D(nr_of_convolutions, kernel_size=1, strides=1, padding='same', use_bias=True)(x)
-        #x1 = BatchNormalization(renorm=renorm)(x1)
+        x1 = BatchNormalization(renorm=renorm)(x1)
 
         psi = Concatenate()([g1, x1])
         psi = Activation(activation='relu')(psi)
         psi = Convolution2D(1, kernel_size=1, strides=1, padding='same', use_bias=True)(psi)
-        #psi = BatchNormalization(renorm=renorm)(psi)
+        psi = BatchNormalization(renorm=renorm)(psi)
         psi = Activation(activation='sigmoid')(psi)
 
     return multiply([x, psi])
