@@ -14,7 +14,7 @@ import pyelastix
 # implemented by André Pedersen:
 def categorical_focal_dice_loss(nb_classes, use_background=False, gamma=2):
     def focal_dice_loss(target, output, epsilon=1e-10):
-        smooth = 1
+        smooth = 1.
 
         # calculate Dice for each class separately and accumulate
         dice = 0
@@ -41,7 +41,7 @@ def categorical_focal_dice_loss(nb_classes, use_background=False, gamma=2):
 
 def class_categorical_focal_dice_loss(class_val, metric_name, gamma=2):
     def focal_dice_loss(target, output, epsilon=1e-10):
-        smooth = 1
+        smooth = 1.
 
         # calculate Dice for each class separately and accumulate
         dice = 0
@@ -69,7 +69,7 @@ def class_categorical_focal_dice_loss(class_val, metric_name, gamma=2):
 
 def class_dice_loss(class_val, metric_name):
     def dice_loss(y_true, y_pred):
-        smooth = 1
+        smooth = 1.
         output1 = y_pred[:, :, :, class_val]
         gt1 = y_true[:, :, :, class_val]
 
@@ -90,7 +90,6 @@ def class_dice_loss(class_val, metric_name):
 def normalize_img(image, label):
     """Normalizes images: `uint8` -> `float32`."""
     return tf.cast(image, tf.float32) / 255., label
-
 
 # Get image and gt from hdf5
 def patchReader(path):
@@ -175,7 +174,9 @@ def alignImagesNew(im1, im2):
 
 # from: https://learnopencv.com/image-alignment-feature-based-using-opencv-c-python/
 # and https://docs.opencv.org/3.4/d1/d89/tutorial_py_orb.html
-def alignImages(im1, im2, max_features=80000, good_match_percent=0.08):
+# and https://docs.opencv.org/3.4/dc/dc3/tutorial_py_matcher.html
+# https://docs.opencv.org/3.4/dc/dc3/tutorial_py_matcher.html
+def alignImages(im1, im2, method, max_features=70000, good_match_percent=0.10):
     # Convert images to grayscale
     im1_gray = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
     im2_gray = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
@@ -183,38 +184,40 @@ def alignImages(im1, im2, max_features=80000, good_match_percent=0.08):
     print("im1 gray shape: ", im1_gray.shape)
     print("im2 gray shape: ", im2_gray.shape)
 
-    # Detect ORB features and compute descriptors.
-    orb = cv2.ORB_create(nfeatures=max_features) #, scaleFactor=1.8, patchSize=256, edgeThreshold=256)
+    if method == "orb":
+        # Detect ORB features and compute descriptors.
+        orb = cv2.ORB_create(nfeatures=max_features) #, scaleFactor=1.8, patchSize=256, edgeThreshold=256)
 
-    kp = orb.detect(im1_gray, None)
-    kp1, des1 = orb.compute(im1_gray, kp)
+        kp = orb.detect(im1_gray, None)
+        kp1, des1 = orb.compute(im1_gray, kp)
 
-    kp = orb.detect(im2_gray, None)
-    kp2, des2 = orb.compute(im2_gray, kp)
+        kp = orb.detect(im2_gray, None)
+        kp2, des2 = orb.compute(im2_gray, kp)
 
-    # Match features.
-    matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)  # cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
-    matches = matcher.match(des1, des2, None)
-    # matches = matcher.radiusMatch(des1, des2, 500, None)
+        # Match features.
+        matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)  # cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
+        #matcher = cv2. BFMatcher_create(cv2.NORM_HAMMING, crossCheck=True)  # @TODO: what is the difference between this and the one above?
+        matches = matcher.match(des1, des2, None)
+        # matches = matcher.radiusMatch(des1, des2, 500, None)
 
-    # Sort matches by score
-    matches = list(matches)
-    matches.sort(key=lambda x: x.distance, reverse=False)
+        # Sort matches by score
+        matches = list(matches)
+        matches.sort(key=lambda x: x.distance, reverse=False)
 
-    # Remove not so good matches
-    numGoodMatches = int(len(matches) * good_match_percent)
-    matches = matches[:numGoodMatches]
+        # Remove not so good matches
+        numGoodMatches = int(len(matches) * good_match_percent)
+        matches = matches[:numGoodMatches]
 
-    # Extract location of good matches
-    points1 = np.zeros((len(matches), 2), dtype=np.float32)
-    points2 = np.zeros((len(matches), 2), dtype=np.float32)
+        # Extract location of good matches
+        points1 = np.zeros((len(matches), 2), dtype=np.float32)
+        points2 = np.zeros((len(matches), 2), dtype=np.float32)
 
-    for i, match in enumerate(matches):
-        points1[i, :] = kp1[match.queryIdx].pt
-        points2[i, :] = kp2[match.trainIdx].pt
+        for i, match in enumerate(matches):
+            points1[i, :] = kp1[match.queryIdx].pt
+            points2[i, :] = kp2[match.trainIdx].pt
 
     # Find homography
-    h, _ = cv2.findHomography(points1, points2, cv2.RANSAC)
+    h, _ = cv2.findHomography(points1, points2, cv2.RANSAC) #, ransacReprojThreshold=2)
 
     # Use homography
     height, width, channels = im2.shape
