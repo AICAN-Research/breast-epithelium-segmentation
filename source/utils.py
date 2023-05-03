@@ -67,6 +67,7 @@ def class_categorical_focal_dice_loss(class_val, metric_name, gamma=2):
 
     return focal_dice_loss
 
+
 def class_dice_loss(class_val, metric_name):
     def dice_loss(y_true, y_pred):
         smooth = 1.
@@ -90,6 +91,7 @@ def class_dice_loss(class_val, metric_name):
 def normalize_img(image, label):
     """Normalizes images: `uint8` -> `float32`."""
     return tf.cast(image, tf.float32) / 255., label
+
 
 # Get image and gt from hdf5
 def patchReader(path):
@@ -136,6 +138,7 @@ def get_random_path(x1):
 
         yield random_patch
 
+
 # by André Pedersen:
 def create_multiscale_input(gt, nb_downsamples):
     hierarchical_gt = [gt, ]
@@ -145,6 +148,7 @@ def create_multiscale_input(gt, nb_downsamples):
         new_gt = tmp[0::limit, 0::limit]
         hierarchical_gt.append(new_gt)
     return tuple(hierarchical_gt)
+
 
 def define_logger(verbose=1):
     """
@@ -165,11 +169,6 @@ def define_logger(verbose=1):
         format="%(levelname)s %(filename)s %(lineno)s %(message)s",
         level=level
         )
-
-
-def alignImagesNew(im1, im2):
-
-    return 1
 
 
 # from: https://learnopencv.com/image-alignment-feature-based-using-opencv-c-python/
