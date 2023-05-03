@@ -11,7 +11,7 @@ from tensorflow.keras.layers import Input, Convolution2D, MaxPooling2D, SpatialD
     UpSampling2D, multiply, Reshape, Layer
 from tensorflow.keras.models import Model
 import tensorflow as tf
-from gradient_accumulator.layers import AccumBatchNormalization
+from gradient_accumulator import AccumBatchNormalization
 
 
 def convolution_block(x, nr_of_convolutions, accum_steps=None, use_bn=False, spatial_dropout=None, renorm=False,
@@ -46,15 +46,15 @@ def attention_block(g, x, nr_of_convolutions, accum_steps=None, renorm=False, us
         psi = AccumBatchNormalization(accum_steps=accum_steps)(psi)
         psi = Activation(activation='sigmoid')(psi)
     else:
-        g1 = BatchNormalization(renorm=renorm)(g1)
+        #g1 = BatchNormalization(renorm=renorm)(g1)
 
         x1 = Convolution2D(nr_of_convolutions, kernel_size=1, strides=1, padding='same', use_bias=True)(x)
-        x1 = BatchNormalization(renorm=renorm)(x1)
+        #x1 = BatchNormalization(renorm=renorm)(x1)
 
         psi = Concatenate()([g1, x1])
         psi = Activation(activation='relu')(psi)
         psi = Convolution2D(1, kernel_size=1, strides=1, padding='same', use_bias=True)(psi)
-        psi = BatchNormalization(renorm=renorm)(psi)
+        #psi = BatchNormalization(renorm=renorm)(psi)
         psi = Activation(activation='sigmoid')(psi)
 
     return multiply([x, psi])
@@ -62,8 +62,9 @@ def attention_block(g, x, nr_of_convolutions, accum_steps=None, renorm=False, us
 
 def encoder_block(x, nr_of_convolutions, accum_steps=None, use_bn=False, spatial_dropout=None, renorm=False,
                   use_grad_accum=False):
-    x_before_downsampling = convolution_block(x, nr_of_convolutions, accum_steps, use_bn, spatial_dropout,
-                                              renorm=renorm, use_grad_accum=use_grad_accum)
+    x_before_downsampling = convolution_block(x, nr_of_convolutions, accum_steps=accum_steps, use_bn=use_bn,
+                                              spatial_dropout=spatial_dropout, renorm=renorm,
+                                              use_grad_accum=use_grad_accum)
     downsample = [2, 2]
     for i in range(1, 3):
         if x.shape[i] <= 3:
@@ -80,8 +81,9 @@ def encoder_block_pyramid(x, input_ds, nr_of_convolutions, accum_steps=None, use
     pyramid_conv = Convolution2D(filters=nr_of_convolutions, kernel_size=(3, 3), padding='same', activation='relu')(
         input_ds)
     x = Concatenate(axis=-1)([pyramid_conv, x])
-    x_before_downsampling = convolution_block(x, nr_of_convolutions, accum_steps, use_bn, spatial_dropout,
-                                              renorm=renorm, use_grad_accum=use_grad_accum)
+    x_before_downsampling = convolution_block(x, nr_of_convolutions, accum_steps=accum_steps, use_bn=use_bn,
+                                              spatial_dropout=spatial_dropout, renorm=renorm,
+                                              use_grad_accum=use_grad_accum)
     downsample = [2, 2]
     for i in range(1, 3):
         if x.shape[i] <= 4:
@@ -109,8 +111,9 @@ def decoder_block(x, cross_over_connection, nr_of_convolutions, accum_steps=None
 
 
 class AttentionUnet:
-    def __init__(self, input_shape, nb_classes, decoder_spatial_dropout, accum_steps, deep_supervision=False,
-                 input_pyramid=False, grad_accum=False, encoder_use_bn=False, decoder_use_bn=False):
+    def __init__(self, input_shape, nb_classes, encoder_spatial_dropout, decoder_spatial_dropout, accum_steps,
+                 deep_supervision=False, input_pyramid=False, grad_accum=False, encoder_use_bn=False,
+                 decoder_use_bn=False):
         if len(input_shape) != 3 and len(input_shape) != 4:
             raise ValueError('Input shape must have 3 or 4 dimensions')
         if nb_classes <= 1:
@@ -123,7 +126,7 @@ class AttentionUnet:
         self.convolutions = None
         self.encoder_use_bn = encoder_use_bn
         self.decoder_use_bn = decoder_use_bn
-        self.encoder_spatial_dropout = None
+        self.encoder_spatial_dropout = encoder_spatial_dropout  # used to be None
         self.decoder_spatial_dropout = decoder_spatial_dropout  # used to be None
         self.renorm = False
         self.grad_accum = grad_accum
