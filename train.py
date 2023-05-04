@@ -20,17 +20,15 @@ def main(ret):
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 
-    img_size = 1024  #@TODO: None not allowed with convolutions, why?
+    img_size = 1024
 
     # network stuff
     encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
     nb_downsamples = len(encoder_convs) - 1
-    architecture = ret.network
     N_train_batches = 100  # @TODO: Change this number
     N_val_batches = 25
-    # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
 
-    name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size) + "_as_" + \
+    name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
         str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_conv_" + str(encoder_convs)
 
     # paths
@@ -118,7 +116,6 @@ def main(ret):
             args=val_paths
         )
 
-
     # load patch from randomly selected patch
     ds_train = ds_train.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]),
                             num_parallel_calls=ret.proc, deterministic=False)
@@ -131,26 +128,22 @@ def main(ret):
     ds_val = ds_val.map(normalize_img)  # , num_parallel_calls=tf.data.AUTOTUNE)
 
     # batch data before aug -> faster, can't do with agunet
-    #ds_train = ds_train.batch(ret.batch_size)
-    #ds_val = ds_val.batch(ret.batch_size)
-
-    # --------------------
-    # TODO: Put all above in a function and call them for both train/val to generate generators
+    # ds_train = ds_train.batch(ret.batch_size)
+    # ds_val = ds_val.batch(ret.batch_size)
 
     # only augment train data
-
     # shift last
     ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=1)  # ADDITIVE
-    #ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
-    #ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.2), y),
+    # ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
+    # ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.2), y),
     #                        num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
 
     # create multiscale input
     # tf.py_function(patchReader, [x], [tf.float32, tf.float32])
-    if architecture == "agunet":
+    if ret.network == "agunet":
         ds_train = ds_train.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
         ds_val = ds_val.map(lambda x, y: (x, create_multiscale_input(y, nb_downsamples)), num_parallel_calls=1)
 
@@ -162,26 +155,26 @@ def main(ret):
     ds_train = ds_train.prefetch(1)
     ds_val = ds_val.prefetch(1)
 
-    if architecture == "unet":
+    if ret.network == "unet":
         convs = encoder_convs + encoder_convs[:-1][::-1]
         network = Unet(input_shape=(img_size, img_size, 3), nb_classes=ret.nbr_classes)  # binary = 2
         network.set_convolutions(convs)
         model = network.create()
-    elif architecture == "agunet":
+    elif ret.network == "agunet":
         agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=ret.nbr_classes,
                                encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=ret.dropout,
                                accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=True,
                                encoder_use_bn=False, decoder_use_bn=False)
-        #agunet.decoder_dropout = 0.1
+        # agunet.decoder_dropout = 0.1
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
 
         # loss weights for deep supervision
-        #loss_weights = np.array([1 / (2 ** i) for i in range(nb_downsamples)])
-        #loss_weights = {"conv2d_" + str(54 - i): 1 / (1.2 ** i) for i in range(nb_downsamples)}
-        #loss_weights /= sum(loss_weights)
-        #loss_weights = np.array([1, 1, 1, 1, 1, 1, 1, 0])
-        #print("loss_weights:", loss_weights)
+        # loss_weights = np.array([1 / (2 ** i) for i in range(nb_downsamples)])
+        # loss_weights = {"conv2d_" + str(54 - i): 1 / (1.2 ** i) for i in range(nb_downsamples)}
+        # loss_weights /= sum(loss_weights)
+        # loss_weights = np.array([1, 1, 1, 1, 1, 1, 1, 0])
+        # print("loss_weights:", loss_weights)
     else:
         raise ValueError("Unsupported architecture chosen. Please, choose either 'unet' or 'agunet'.")
 
@@ -225,9 +218,9 @@ def main(ret):
         opt = mixed_precision.LossScaleOptimizer(opt)
 
     model.compile(
-        optimizer=opt, #tf.keras.optimizers.Adam(ret.learning_rate),#opt,
+        optimizer=opt,  # tf.keras.optimizers.Adam(ret.learning_rate),#opt,
         loss=get_dice_loss(nb_classes=ret.nbr_classes, use_background=False, dims=2),  # network.get_dice_loss(),  #@TODO: how does this worK??
-        #loss_weights=None if architecture == "unet" else loss_weights,
+        # loss_weights=None if architecture == "unet" else loss_weights,
         metrics=[
             *[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)]
         ],
