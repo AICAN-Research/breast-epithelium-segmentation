@@ -30,7 +30,8 @@ def main(ret):
     N_val_batches = 25
     # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
 
-    name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size)  # + "_eps_" + str(ret.epochs)
+    name = curr_date + "_" + curr_time + "_" + architecture + "_bs_" + str(ret.batch_size) + "_as_" + \
+        str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_conv_" + str(encoder_convs)
 
     # paths
     dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'  # path to directory
@@ -162,15 +163,11 @@ def main(ret):
     ds_val = ds_val.prefetch(1)
 
     if architecture == "unet":
-        # define network architecture
-        #convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
         convs = encoder_convs + encoder_convs[:-1][::-1]
         network = Unet(input_shape=(img_size, img_size, 3), nb_classes=ret.nbr_classes)  # binary = 2
         network.set_convolutions(convs)
         model = network.create()
     elif architecture == "agunet":
-        # Test new Attention UNet
-        # Use input_pyramind=True for multiscale input
         agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=ret.nbr_classes,
                                encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=ret.dropout,
                                accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=True,
