@@ -21,12 +21,11 @@ def main(ret):
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
 
     img_size = 1024  #@TODO: None not allowed with convolutions, why?
-    nb_classes = 4
 
     # network stuff
     encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
     nb_downsamples = len(encoder_convs) - 1
-    architecture = "agunet"
+    architecture = ret.network
     N_train_batches = 100  # @TODO: Change this number
     N_val_batches = 25
     # @TODO: Calculate which output layer name (top prediction) you get from deep supervision AGU-Net
@@ -45,7 +44,7 @@ def main(ret):
     model_path = './output/models/'  # path to directory
 
     # use this when only looking at all epithelium as one class
-    if nb_classes == 2:
+    if ret.nbr_classes == 2:
         class_names = ["epithelium"]
         train_paths = []
         for file_ in os.listdir(train_path + "/"):
@@ -73,7 +72,7 @@ def main(ret):
         )
 
     # use this with invasive, benign, insitu
-    if nb_classes == 4:
+    if ret.nbr_classes == 4:
         class_names = ["invasive", "benign", "insitu"]
         train_paths = []
         for directory in os.listdir(train_path):
@@ -142,10 +141,10 @@ def main(ret):
     # shift last
     ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
-    ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.1), y), num_parallel_calls=1)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.2), y),
-                            num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
+    ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=1)  # ADDITIVE
+    #ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
+    #ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.2), y),
+    #                        num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
 
     # create multiscale input
@@ -166,15 +165,16 @@ def main(ret):
         # define network architecture
         #convs = [8, 16, 32, 64, 64, 128, 128, 256]  # 128, 128, 64, 64, 32, 16, 8
         convs = encoder_convs + encoder_convs[:-1][::-1]
-        network = Unet(input_shape=(img_size, img_size, 3), nb_classes=nb_classes)  # binary = 2
+        network = Unet(input_shape=(img_size, img_size, 3), nb_classes=ret.nbr_classes)  # binary = 2
         network.set_convolutions(convs)
         model = network.create()
     elif architecture == "agunet":
         # Test new Attention UNet
         # Use input_pyramind=True for multiscale input
-        agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=nb_classes, encoder_spatial_dropout=0.1,
-                               decoder_spatial_dropout=0.1, accum_steps=ret.accum_steps, deep_supervision=True,
-                               input_pyramid=True, grad_accum=True, encoder_use_bn=False, decoder_use_bn=False)
+        agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=ret.nbr_classes,
+                               encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=ret.dropout,
+                               accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=True,
+                               encoder_use_bn=False, decoder_use_bn=False)
         #agunet.decoder_dropout = 0.1
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
@@ -229,7 +229,7 @@ def main(ret):
 
     model.compile(
         optimizer=opt, #tf.keras.optimizers.Adam(ret.learning_rate),#opt,
-        loss=get_dice_loss(nb_classes=nb_classes, use_background=False, dims=2),  # network.get_dice_loss(),  #@TODO: how does this worK??
+        loss=get_dice_loss(nb_classes=ret.nbr_classes, use_background=False, dims=2),  # network.get_dice_loss(),  #@TODO: how does this worK??
         #loss_weights=None if architecture == "unet" else loss_weights,
         metrics=[
             *[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)]
@@ -267,6 +267,12 @@ if __name__ == "__main__":
                         help="number of workers to use with tf.data.")
     parser.add_argument('--gpu', metavar='--g', type=str, nargs='?', default="0",
                         help="which gpu to use.")
+    parser.add_argument('--network', metavar='--nw', type=str, nargs='?', default="agunet",
+                        help="agunet or unet.")
+    parser.add_argument('--nbr_classes', metavar='--nbr_c', type=int, nargs='?', default=4,
+                        help="four classes for multiclass, two for single class epithelium segmentation.")
+    parser.add_argument('--dropout', metavar='--d', type=int, nargs='?', default=None,
+                        help="spatial dropout in encoder and decoder.")
     ret = parser.parse_known_args(sys.argv[1:])[0]
 
     print(ret)
