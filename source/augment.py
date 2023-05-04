@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow_addons as tfa
-import numpy as np
+import random
+
 
 # Augmentations
 def random_brightness(x,
@@ -42,9 +43,10 @@ def random_saturation(x, saturation):
     return x
 
 
+@tf.function
 def random_blur(x):
     nbr = tf.random.uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
-    sigma_ = np.random.uniform(1, 20)  # @TODO: find a way to avoid numpy, will switch to cpu
+    sigma_ = random.uniform(1, 3)  # @TODO: find a way to avoid numpy, will switch to cpu
     x = tf.cond(nbr < 0.9, lambda: x, lambda: tf.clip_by_value(tfa.image.gaussian_filter2d(
         x, filter_shape=15, sigma=sigma_), 0, 1))   # @TODO: get tf warning sometimes, find out why
     return x
