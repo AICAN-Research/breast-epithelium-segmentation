@@ -24,7 +24,7 @@ def main(ret):
     nb_classes = 4
 
     # network stuff
-    encoder_convs = [16, 32, 32, 64, 64, 128, 128]
+    encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
     nb_downsamples = len(encoder_convs) - 1
     architecture = "agunet"
     N_train_batches = 100  # @TODO: Change this number
@@ -142,9 +142,9 @@ def main(ret):
     # shift last
     ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
-    ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=1)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.005), y), num_parallel_calls=1)  # ADDITIVE
-    ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.5), y),
+    ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.1), y), num_parallel_calls=1)  # ADDITIVE
+    ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
+    ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.2), y),
                             num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
 
@@ -205,7 +205,7 @@ def main(ret):
     tb_logger = TensorBoard(log_dir="output/logs/" + name + "/", histogram_freq=0, update_freq="epoch")
 
     early = EarlyStopping(
-        monitor="val_conv2d_54_loss",  # "val_loss"
+        monitor="val_conv2d_72_loss",  # "val_loss"
         min_delta=0,  # 0: any improvement is considered an improvement
         patience=ret.patience,  # if not improved for 50 epochs, stops
         verbose=1,
@@ -215,7 +215,7 @@ def main(ret):
 
     save_best = ModelCheckpoint(
         model_path + "model_" + name,
-        monitor="val_conv2d_54_loss",  # "val_loss"
+        monitor="val_conv2d_72_loss",  # "val_loss"
         verbose=2,  #
         save_best_only=True,
         save_weights_only=False,
