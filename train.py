@@ -30,7 +30,8 @@ def main(ret):
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
         str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_conv_" + str(encoder_convs) + "_d_" + \
-        str(ret.dropout) + "_bl_" + str(ret.blur) + "_br_" + str(ret.brightness) + "_h_" + str(ret.hue)
+        str(ret.dropout) + "_bl_" + str(ret.blur) + "_br_" + str(ret.brightness) + "_h_" + str(ret.hue) + "_s_" + \
+        str(ret.saturation)
 
     # paths
     dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'  # path to directory
