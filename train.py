@@ -29,7 +29,8 @@ def main(ret):
     N_val_batches = 25
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
-        str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_conv_" + str(encoder_convs)
+        str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_conv_" + str(encoder_convs) + "_d_" + \
+        str(ret.dropout) + "_bl_" + str(ret.blur) + "_br_" + str(ret.brightness) + "_h_" + str(ret.hue)
 
     # paths
     dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'  # path to directory
@@ -135,11 +136,15 @@ def main(ret):
     # shift last
     ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
     ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
-    ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=0.2), y), num_parallel_calls=1)  # ADDITIVE
-    # ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=0.05), y), num_parallel_calls=1)  # ADDITIVE
-    # ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=0.2), y),
-    #                        num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
-    ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
+    if ret.brightness:
+        ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=ret.brightness), y), num_parallel_calls=1)  # ADDITIVE
+    if ret.hue:
+        ds_train = ds_train.map(lambda x, y: (random_hue(x, max_delta=ret.hue), y), num_parallel_calls=1)  # ADDITIVE
+    if ret.saturation:
+        ds_train = ds_train.map(lambda x, y: (random_saturation(x, saturation=ret.saturation), y),
+                            num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
+    if ret.blur:
+        ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
 
     # create multiscale input
     # tf.py_function(patchReader, [x], [tf.float32, tf.float32])
@@ -263,6 +268,14 @@ if __name__ == "__main__":
                         help="four classes for multiclass, two for single class epithelium segmentation.")
     parser.add_argument('--dropout', metavar='--d', type=int, nargs='?', default=None,
                         help="spatial dropout in encoder and decoder.")
+    parser.add_argument('--blur', metavar='--bl', type=int, nargs='?', default=0,
+                        help="blur aug added to train set.")
+    parser.add_argument('--brightness', metavar='--br', type=int, nargs='?', default=0,
+                        help="brightness aug added to train set.")
+    parser.add_argument('--hue', metavar='--h', type=int, nargs='?', default=0,
+                        help="hue aug added to train set.")
+    parser.add_argument('--saturation', metavar='--s', type=int, nargs='?', default=0,
+                        help="saturation aug added to train set.")
     ret = parser.parse_known_args(sys.argv[1:])[0]
 
     print(ret)
