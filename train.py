@@ -28,10 +28,17 @@ def main(ret):
     N_train_batches = 60  # @TODO: Change this number
     N_val_batches = 15
 
+    lr_temp = str(ret.learning_rate)
+    d_temp = str(ret.dropout)
+    br_temp = str(ret.brightness)
+    h_temp = str(ret.hue)
+    s_temp = str(ret.saturation)
+
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
-        str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_conv_" + str(encoder_convs) + "_d_" + \
-        str(ret.dropout) + "_bl_" + str(ret.blur) + "_br_" + str(ret.brightness) + "_h_" + str(ret.hue) + "_s_" + \
-        str(ret.saturation)
+        str(ret.accum_steps) + "_lr_" + lr_temp.split(".")[0] + lr_temp.split(".")[1] + "_d_" + \
+        d_temp.split(".")[0] + d_temp.split(".")[1] + "_bl_" + str(ret.blur) + "_br_" + br_temp.split(".")[0] + \
+        br_temp.split(".")[1] + "_h_" + h_temp.split(".")[0] + h_temp.split(".")[1] + "_s_" + s_temp.split(".")[0] + \
+        s_temp.split(".")[1]
 
     # paths
     dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'  # path to directory
