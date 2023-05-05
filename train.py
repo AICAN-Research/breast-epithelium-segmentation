@@ -25,8 +25,8 @@ def main(ret):
     # network stuff
     encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
     nb_downsamples = len(encoder_convs) - 1
-    N_train_batches = 100  # @TODO: Change this number
-    N_val_batches = 25
+    N_train_batches = 60  # @TODO: Change this number
+    N_val_batches = 15
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
         str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_conv_" + str(encoder_convs) + "_d_" + \
@@ -169,8 +169,8 @@ def main(ret):
     elif ret.network == "agunet":
         agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=ret.nbr_classes,
                                encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=ret.dropout,
-                               accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=True,
-                               encoder_use_bn=False, decoder_use_bn=False)
+                               accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=False,
+                               encoder_use_bn=True, decoder_use_bn=True)
         # agunet.decoder_dropout = 0.1
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
@@ -267,15 +267,15 @@ if __name__ == "__main__":
                         help="agunet or unet.")
     parser.add_argument('--nbr_classes', metavar='--nbr_c', type=int, nargs='?', default=4,
                         help="four classes for multiclass, two for single class epithelium segmentation.")
-    parser.add_argument('--dropout', metavar='--d', type=int, nargs='?', default=None,
+    parser.add_argument('--dropout', metavar='--d', type=float, nargs='?', default=None,
                         help="spatial dropout in encoder and decoder.")
     parser.add_argument('--blur', metavar='--bl', type=int, nargs='?', default=0,
                         help="blur aug added to train set.")
-    parser.add_argument('--brightness', metavar='--br', type=int, nargs='?', default=0,
+    parser.add_argument('--brightness', metavar='--br', type=float, nargs='?', default=0,
                         help="brightness aug added to train set.")
-    parser.add_argument('--hue', metavar='--h', type=int, nargs='?', default=0,
+    parser.add_argument('--hue', metavar='--h', type=float, nargs='?', default=0,
                         help="hue aug added to train set.")
-    parser.add_argument('--saturation', metavar='--s', type=int, nargs='?', default=0,
+    parser.add_argument('--saturation', metavar='--s', type=float, nargs='?', default=0,
                         help="saturation aug added to train set.")
     ret = parser.parse_known_args(sys.argv[1:])[0]
 
