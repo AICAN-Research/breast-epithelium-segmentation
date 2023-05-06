@@ -25,8 +25,8 @@ def main(ret):
     # network stuff
     encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
     nb_downsamples = len(encoder_convs) - 1
-    N_train_batches = 60  # @TODO: Change this number
-    N_val_batches = 15
+    N_train_batches = 120  # @TODO: Change this number
+    N_val_batches = 30
 
     lr_temp = str(ret.learning_rate)
     d_temp = str(ret.dropout)
@@ -36,17 +36,17 @@ def main(ret):
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
         str(ret.accum_steps) + "_lr_" + lr_temp.split(".")[0] + lr_temp.split(".")[1] + "_d_" + \
-        d_temp.split(".")[0] + d_temp.split(".")[1] + "_bl_" + str(ret.blur) + "_br_" + br_temp.split(".")[0] + \
-        br_temp.split(".")[1] + "_h_" + h_temp.split(".")[0] + h_temp.split(".")[1] + "_s_" + s_temp.split(".")[0] + \
-        s_temp.split(".")[1]
+        "_bl_" + str(ret.blur) + "_br_" + br_temp.split(".")[0] + \
+        br_temp.split(".")[1] + "_h_" + "_s_" + "_st_" + str(ret.shift)
 
     # paths
-    dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'  # path to directory
-    dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
+    dataset_path = './datasets/220223_140143_level_2_psize_1024_ds_4/'
+    #'/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'  # path to directory
+    #dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
     train_path = dataset_path + 'ds_train'
-    train_path_wsi = dataset_path_wsi + 'ds_train'
+    #train_path_wsi = dataset_path_wsi + 'ds_train'
     val_path = dataset_path + 'ds_val'
-    val_path_wsi = dataset_path_wsi + 'ds_val'
+    #val_path_wsi = dataset_path_wsi + 'ds_val'
     # test_path = dataset_path + 'ds_test'
     history_path = './output/history/'  # path to directory
     model_path = './output/models/'  # path to directory
@@ -90,11 +90,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-        for i, directory in enumerate(os.listdir(train_path_wsi)):
-            dir_path = train_path_wsi + "/" + directory + "/"
-            for file_ in os.listdir(dir_path):
-                file_path = dir_path + file_
-                train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
+        #for i, directory in enumerate(os.listdir(train_path_wsi)):
+        #    dir_path = train_path_wsi + "/" + directory + "/"
+        #    for file_ in os.listdir(dir_path):
+        #        file_path = dir_path + file_
+        #        train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         val_paths = []
         for directory in os.listdir(val_path):
@@ -104,11 +104,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-        for i, directory in enumerate(os.listdir(val_path_wsi)):
-            dir_path = val_path_wsi + "/" + directory + "/"
-            for file_ in os.listdir(dir_path):
-                file_path = dir_path + file_
-                val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
+        #for i, directory in enumerate(os.listdir(val_path_wsi)):
+        #    dir_path = val_path_wsi + "/" + directory + "/"
+        #    for file_ in os.listdir(dir_path):
+        #        file_path = dir_path + file_
+        #        val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         # combine all train/val paths
         ds_train = tf.data.Dataset.from_generator(
@@ -153,6 +153,8 @@ def main(ret):
                             num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     if ret.blur:
         ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
+    if ret.shift:
+        ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=1)
 
     # create multiscale input
     # tf.py_function(patchReader, [x], [tf.float32, tf.float32])
@@ -284,6 +286,8 @@ if __name__ == "__main__":
                         help="hue aug added to train set.")
     parser.add_argument('--saturation', metavar='--s', type=float, nargs='?', default=0,
                         help="saturation aug added to train set.")
+    parser.add_argument('--shift', metavar='--st', type=float, nargs='?', default=0,
+                        help="shift aug added to train set.")
     ret = parser.parse_known_args(sys.argv[1:])[0]
 
     print(ret)
