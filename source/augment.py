@@ -77,7 +77,7 @@ def random_shift(x, y, translate=50):
     shift_y = tf.random.uniform(shape=[], minval=-translate, maxval=translate, dtype=tf.int32)
 
     x, y = tf.cond(choice < 0.5, lambda: (x, y), lambda: (
-        tfa.image.translate(x, (shift_x, shift_y)),
+        tfa.image.translate(x, (shift_x, shift_y), fill_value=1.),
         gt_shift(y, shift_x, shift_y),
     )
                    )
