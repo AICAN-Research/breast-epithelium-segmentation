@@ -290,7 +290,7 @@ if __name__ == "__main__":
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # due to this: https://github.com/tensorflow/tensorflow/issues/35029
 
     # choose which GPU to use
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2" #ret.gpu
+    os.environ["CUDA_VISIBLE_DEVICES"] = ret.gpu
 
     if ret.seed:
         np.random.seed(ret.seed)
