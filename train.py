@@ -13,6 +13,8 @@ import sys
 from AttentionUNet import AttentionUnet
 from gradient_accumulator import GradientAccumulateModel
 from tensorflow.keras import mixed_precision
+import numpy as np
+import random as python_random
 
 
 def main(ret):
@@ -31,9 +33,8 @@ def main(ret):
     br_temp = str(ret.brightness)
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
-        str(ret.accum_steps) + "_lr_" + lr_temp.split(".")[0] + lr_temp.split(".")[1] + "_d_" + \
-        "_bl_" + str(ret.blur) + "_br_" + br_temp.split(".")[0] + \
-        br_temp.split(".")[1] + "_h_" + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift) + "_mp_" + \
+        str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_d_" + "_bl_" + str(ret.blur) + "_br_" + \
+        str(ret.brightness) + "_h_" + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift) + "_mp_" + \
         str(ret.mixed_precision) + "_ntb_" + str(N_train_batches) + "_nvb_" + str(N_val_batches)
 
     # paths
@@ -248,7 +249,7 @@ if __name__ == "__main__":
                         help="set which batch size to use for training.")
     parser.add_argument('--accum_steps', metavar='--as', type=int, nargs='?', default=2,
                         help="set how many gradient accumulations to perform.")
-    parser.add_argument('--mixed_precision', metavar='--mp', type=int, nargs='?', default=1,
+    parser.add_argument('--mixed_precision', metavar='--mp', type=int, nargs='?', default=0,
                         help="whether to perform mixed precision (float16). Default=1 (True).")
     parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
                         help="set which learning rate to use for training.")
@@ -280,6 +281,8 @@ if __name__ == "__main__":
                         help="number of train batches.")
     parser.add_argument('--nbr_val_batches', metavar='--nvb', type=int, nargs='?', default=30,
                         help="number of val batches.")
+    parser.add_argument('--seed', metavar='--se', type=int, nargs='?', default=0,
+                        help="perform seed or not.")
     ret = parser.parse_known_args(sys.argv[1:])[0]
 
     print(ret)
@@ -287,7 +290,17 @@ if __name__ == "__main__":
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'  # due to this: https://github.com/tensorflow/tensorflow/issues/35029
 
     # choose which GPU to use
-    os.environ["CUDA_VISIBLE_DEVICES"] = ret.gpu
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2" #ret.gpu
+
+    if ret.seed:
+        np.random.seed(ret.seed)
+        python_random.seed(ret.seed)
+        tf.random.set_seed(ret.seed)
+        try:
+            tf.config.experimental.enable_op_determinism()
+        except AttributeError as e:
+            print(e)
+
 
     if ret.mixed_precision:
         mixed_precision.set_global_policy('mixed_float16')
