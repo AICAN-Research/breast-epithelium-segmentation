@@ -32,7 +32,6 @@ def minmax(x):
     return x
 
 
-
 def cut_image(shift_h, shift_w, shape_h, shape_w):
     """
     Cutting registered images to remove padded areas due to shift
