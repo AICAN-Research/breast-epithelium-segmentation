@@ -4,7 +4,7 @@ import numpy as np
 from tensorflow.keras.models import load_model
 import os
 from tqdm import tqdm
-from source.utils import normalize_img, patchReader, class_dice_loss
+from source.utils import normalize_img, patchReader, class_dice_loss, get_random_path_from_random_class
 from stats import BCa_interval_macro_metric
 from tensorflow.python.keras import backend as K
 
@@ -17,8 +17,9 @@ def dice_metric(pred, gt):
     dice = (2. * intersection1 + smooth) / (union1 + smooth)
     return dice
 
+
 def class_dice_(y_true, y_pred, class_val):
-    smooth = 1.  #@TODO: should this be 1.? not 1
+    smooth = 1.
     output1 = y_pred[:, :, :, class_val]
     gt1 = y_true[:, :, :, class_val]
 
@@ -26,7 +27,6 @@ def class_dice_(y_true, y_pred, class_val):
     union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(gt1 * gt1)
     dice = (2. * intersection1 + smooth) / (union1 + smooth)
 
-    # self.dice_values.assign_add((1 - dice) / 10)
     return dice
 
 
@@ -78,19 +78,19 @@ def recall(y_true, y_pred, object_):
 
     return recall_
 def eval_on_dataset():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
     plot_flag = False
-    bs = 1
+    bs = 1  # @TODO: should bs match bs in train?
     network = "agunet"
 
     ds_name = '200423_125554_level_2_psize_1024_ds_4'  # change manually to determine desired dataset
     ds_name_2 = '210423_122737_wsi_level_2_psize_1024_ds_4'
-    model_name = 'model_260423_093216_agunet_bs_8'  # change manually to determine desired model
-    # bs = 4  # change manually to match batch size in train.py
+    model_name = 'model_300423_083816_agunet_bs_8'  # change manually to determine desired model
+    model_path = './output/models/' + model_name
 
-    ds_val_path1 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/invasive/'
+    ds_val_path1 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/inSitu/'
     ds_val_path2 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/benign/'
-    ds_val_path3 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/inSitu/'
+    ds_val_path3 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/invasive/'
     ds_val_path_1 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/invasive/'
     ds_val_path_2 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/benign/'
     ds_val_path_3 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/inSitu/'
@@ -119,7 +119,6 @@ def eval_on_dataset():
     ds_val = tf.data.Dataset.from_tensor_slices(paths)
     ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=8)
 
-    # ds_test = tf.data.experimental.load(ds_test_path, element_spec=None, compression=None, reader_func=None)
     ds_val = ds_val.map(normalize_img)
     ds_val = ds_val.batch(bs)  # @TODO: Shouldnt skip last incomplete batch, ok when bs = 1 or should it match bs in train?
     ds_val = ds_val.prefetch(1)
@@ -152,12 +151,12 @@ def eval_on_dataset():
             for j in range(mask.shape[0]):
                 plt.rcParams.update({'font.size': 28})
                 f, axes = plt.subplots(2, 3, figsize=(30, 30))
-                axes[0, 0].imshow(image[j])
-                axes[0, 1].imshow(mask[j, ..., 1])
-                axes[0, 2].imshow(mask[j, ..., 2])
-                axes[1, 0].imshow(np.array(pred_mask[0][j, ..., 2]))
-                axes[1, 1].imshow(np.array(threshold[j, ..., 2]))
-                axes[1, 2].imshow(np.array(pred_mask[0][j, ..., 3]))
+                axes[0, 0].imshow(mask[j, ..., 1])
+                axes[0, 1].imshow(mask[j, ..., 2])
+                axes[0, 2].imshow(mask[j, ..., 3])
+                axes[1, 0].imshow(threshold[j, ..., 1], cmap="gray")
+                axes[1, 1].imshow(threshold[j, ..., 2], cmap="gray")
+                axes[1, 2].imshow(threshold[j, ..., 3], cmap="gray")
                 plt.show()
 
         class_names = ["invasive", "benign", "insitu"]
