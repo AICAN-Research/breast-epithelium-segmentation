@@ -9,10 +9,12 @@ import cv2
 from skimage.registration import phase_cross_correlation
 from scipy import ndimage as ndi
 from skimage.exposure import equalize_hist
+import h5py
+import os
 
 
 def create_data(he_path, ck_path, dab_mask_path, class_annot_path, triplet_annot_path, remove_annot_path, level,
-                nb_iters, dist_limit, downsample_factor, patch_size, overlap):
+                nb_iters, dist_limit, downsample_factor, dataset_path, set_name):
     importer_he = fast.WholeSlideImageImporter.create(
         he_path)  # path to he image
     importer_ck = fast.WholeSlideImageImporter.create(
@@ -234,3 +236,13 @@ def create_data(he_path, ck_path, dab_mask_path, class_annot_path, triplet_annot
 
                 one_hot = np.stack(1 - (dab_core_correctly_placed.astype(bool) | healthy_ep.astype(bool) |
                                         in_situ_ep.astype(bool)), dab_core_correctly_placed, healthy_ep, in_situ_ep)
+
+                os.makedirs(dataset_path + set_name + "/", exist_ok=True)  # + add_to_path, exist_ok=True)
+
+                # insert saving patches as hdf5 (h5py) here:
+                with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" +
+                               str(patch_idx) + ".h5", "w") as f:
+                    f.create_dataset(name="input", data=he_tma_padded.astype("uint8"))
+                    f.create_dataset(name="output", data=one_hot.astype("uint8"))
+
+            tma_idx += 1
