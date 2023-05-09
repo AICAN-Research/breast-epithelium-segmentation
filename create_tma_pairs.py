@@ -309,13 +309,6 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
                                     tma_idx) + ".h5", "w") as f:
                         f.create_dataset(name="input", data=he_tma_padded.astype("uint8"))
                         f.create_dataset(name="output", data=gt_one_hot.astype("float32"))
-                if class_ == "singleclass":
-                    os.makedirs(dataset_path + set_name + "/", exist_ok=True)
-                    with h5py.File(
-                            dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" +
-                            ".h5", "w") as f:
-                        f.create_dataset(name="input", data=he_tma_padded.astype("uint8"))
-                        f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
 
 
 if __name__ == "__main__":
