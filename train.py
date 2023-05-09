@@ -5,9 +5,9 @@ from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
-from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss, \
+from source.utils import normalize_img, patchReader, get_random_path_from_random_class, \
      create_multiscale_input, get_random_path
-from source.losses import get_dice_loss
+from source.losses import get_dice_loss, class_dice_loss
 from argparse import ArgumentParser
 import sys
 from AttentionUNet import AttentionUnet
