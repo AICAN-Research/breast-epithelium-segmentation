@@ -4,14 +4,13 @@ from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping, TensorBoard
 from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
-    random_hue, random_saturation, random_shift, random_blur, random_contrast
+    random_hue, random_saturation, random_shift, random_blur
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class, class_dice_loss, \
-    class_categorical_focal_dice_loss, categorical_focal_dice_loss, create_multiscale_input, get_random_path
-from source.losses import get_dice_loss, categorical_focal_tversky_loss, categorical_focal_tversky_loss_2
+     create_multiscale_input, get_random_path
+from source.losses import get_dice_loss
 from argparse import ArgumentParser
 import sys
 from AttentionUNet import AttentionUnet
-import numpy as np
 from gradient_accumulator import GradientAccumulateModel
 from tensorflow.keras import mixed_precision
 
@@ -29,24 +28,20 @@ def main(ret):
     N_val_batches = 30
 
     lr_temp = str(ret.learning_rate)
-    d_temp = str(ret.dropout)
     br_temp = str(ret.brightness)
-    h_temp = str(ret.hue)
-    s_temp = str(ret.saturation)
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
         str(ret.accum_steps) + "_lr_" + lr_temp.split(".")[0] + lr_temp.split(".")[1] + "_d_" + \
         "_bl_" + str(ret.blur) + "_br_" + br_temp.split(".")[0] + \
-        br_temp.split(".")[1] + "_h_" + "_s_" + "_st_" + str(ret.shift)
+        br_temp.split(".")[1] + "_h_" + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift)
 
     # paths
-    dataset_path = './datasets/220223_140143_level_2_psize_1024_ds_4/'
-    #'/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'  # path to directory
-    #dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
+    dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'
+    dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
     train_path = dataset_path + 'ds_train'
-    #train_path_wsi = dataset_path_wsi + 'ds_train'
+    train_path_wsi = dataset_path_wsi + 'ds_train'
     val_path = dataset_path + 'ds_val'
-    #val_path_wsi = dataset_path_wsi + 'ds_val'
+    val_path_wsi = dataset_path_wsi + 'ds_val'
     # test_path = dataset_path + 'ds_test'
     history_path = './output/history/'  # path to directory
     model_path = './output/models/'  # path to directory
@@ -90,11 +85,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-        #for i, directory in enumerate(os.listdir(train_path_wsi)):
-        #    dir_path = train_path_wsi + "/" + directory + "/"
-        #    for file_ in os.listdir(dir_path):
-        #        file_path = dir_path + file_
-        #        train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
+        for i, directory in enumerate(os.listdir(train_path_wsi)):
+            dir_path = train_path_wsi + "/" + directory + "/"
+            for file_ in os.listdir(dir_path):
+                file_path = dir_path + file_
+                train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         val_paths = []
         for directory in os.listdir(val_path):
@@ -104,11 +99,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-        #for i, directory in enumerate(os.listdir(val_path_wsi)):
-        #    dir_path = val_path_wsi + "/" + directory + "/"
-        #    for file_ in os.listdir(dir_path):
-        #        file_path = dir_path + file_
-        #        val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
+        for i, directory in enumerate(os.listdir(val_path_wsi)):
+            dir_path = val_path_wsi + "/" + directory + "/"
+            for file_ in os.listdir(dir_path):
+                file_path = dir_path + file_
+                val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         # combine all train/val paths
         ds_train = tf.data.Dataset.from_generator(
@@ -180,21 +175,13 @@ def main(ret):
                                encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=ret.dropout,
                                accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=False,
                                encoder_use_bn=True, decoder_use_bn=True)
-        # agunet.decoder_dropout = 0.1
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
 
-        # loss weights for deep supervision
-        # loss_weights = np.array([1 / (2 ** i) for i in range(nb_downsamples)])
-        # loss_weights = {"conv2d_" + str(54 - i): 1 / (1.2 ** i) for i in range(nb_downsamples)}
-        # loss_weights /= sum(loss_weights)
-        # loss_weights = np.array([1, 1, 1, 1, 1, 1, 1, 0])
-        # print("loss_weights:", loss_weights)
     else:
         raise ValueError("Unsupported architecture chosen. Please, choose either 'unet' or 'agunet'.")
 
     if ret.accum_steps > 1:
-        # @TODO: does gradiant accumulation not work properly if one has batch norm in model?
         model = GradientAccumulateModel(
             accum_steps=ret.accum_steps, mixed_precision=ret.mixed_precision, inputs=model.input, outputs=model.outputs
         )
@@ -212,7 +199,7 @@ def main(ret):
     early = EarlyStopping(
         monitor="val_conv2d_72_loss",  # "val_loss"
         min_delta=0,  # 0: any improvement is considered an improvement
-        patience=ret.patience,  # if not improved for 50 epochs, stops
+        patience=ret.patience,  # if not improved for ret.patience epochs, stops
         verbose=1,
         mode="min",  # set "min" for catching the lowest val_loss
         restore_best_weights=False,
@@ -233,8 +220,8 @@ def main(ret):
         opt = mixed_precision.LossScaleOptimizer(opt)
 
     model.compile(
-        optimizer=opt,  # tf.keras.optimizers.Adam(ret.learning_rate),#opt,
-        loss=get_dice_loss(nb_classes=ret.nbr_classes, use_background=False, dims=2),  # network.get_dice_loss(),  #@TODO: how does this worK??
+        optimizer=opt,
+        loss=get_dice_loss(nb_classes=ret.nbr_classes, use_background=False, dims=2),
         # loss_weights=None if architecture == "unet" else loss_weights,
         metrics=[
             *[class_dice_loss(class_val=i + 1, metric_name=x) for i, x in enumerate(class_names)]
