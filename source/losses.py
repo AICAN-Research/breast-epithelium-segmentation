@@ -80,7 +80,7 @@ def categorical_focal_tversky_loss(delta=0.7, gamma=0.75, nb_classes=4):
 
 # based on code from https://github.com/mlyg/unified-focal-loss/blob/main/loss_functions.py and
 # equation (12) in https://arxiv.org/pdf/2102.04525.pdf
-def categorical_focal_tversky_loss_2(delta=0.7, gamma=0.75, smooth=0.000001, nb_classes=4):
+def categorical_focal_tversky_loss_2(nb_classes=4, dims=2, use_background=False):
     """
     A Novel Focal Tversky loss function with improved Attention U-Net for lesion segmentation
     Link: https://arxiv.org/abs/1810.07842
@@ -91,7 +91,7 @@ def categorical_focal_tversky_loss_2(delta=0.7, gamma=0.75, smooth=0.000001, nb_
     :param nb_classes:
     :return:
     """
-    def loss_function(y_true, y_pred, use_background=False):
+    def loss_function(y_true, y_pred, delta=0.7, gamma=0.75, smooth=0.000001):
         # Clip values to prevent division by zero error
         epsilon = K.epsilon()
         #y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
