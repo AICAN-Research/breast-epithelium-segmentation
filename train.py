@@ -33,7 +33,8 @@ def main(ret):
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
         str(ret.accum_steps) + "_lr_" + lr_temp.split(".")[0] + lr_temp.split(".")[1] + "_d_" + \
         "_bl_" + str(ret.blur) + "_br_" + br_temp.split(".")[0] + \
-        br_temp.split(".")[1] + "_h_" + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift)
+        br_temp.split(".")[1] + "_h_" + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift) + "_mp_" + \
+        ret(mixed_precision) + "_ntb_" + str(N_train_batches) + "_nvb_" + str(N_val_batches)
 
     # paths
     dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'
