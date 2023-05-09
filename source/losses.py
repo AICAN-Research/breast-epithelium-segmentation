@@ -28,6 +28,25 @@ def get_dice_loss(nb_classes=2, dims=2, use_background=False):
     return dice_loss
 
 
+def class_dice_loss(class_val, metric_name):
+    def dice_loss(y_true, y_pred):
+        smooth = 1.
+        output1 = y_pred[:, :, :, class_val]
+        gt1 = y_true[:, :, :, class_val]
+
+        intersection1 = tf.reduce_sum(output1 * gt1)
+        union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(gt1 * gt1)
+        dice = (2. * intersection1 + smooth) / (union1 + smooth)
+
+        # self.dice_values.assign_add((1 - dice) / 10)
+        return 1 - dice
+
+    # set name of metric to be shown in tensorflow progress bar
+    dice_loss.__name__ = metric_name
+
+    return dice_loss
+
+
 # Helper function to enable loss function to be flexibly used for
 # both 2D or 3D image segmentation - source: https://github.com/frankkramer-lab/MIScnn
 def identify_axis(shape):
