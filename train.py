@@ -24,8 +24,8 @@ def main(ret):
     # network stuff
     encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
     nb_downsamples = len(encoder_convs) - 1
-    N_train_batches = ret.number_train_batches
-    N_val_batches = ret.number_val_batches
+    N_train_batches = ret.nbr_train_batches
+    N_val_batches = ret.nbr_val_batches
 
     lr_temp = str(ret.learning_rate)
     br_temp = str(ret.brightness)
@@ -174,8 +174,8 @@ def main(ret):
     elif ret.network == "agunet":
         agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=ret.nbr_classes,
                                encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=ret.dropout,
-                               accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=False,
-                               encoder_use_bn=True, decoder_use_bn=True)
+                               accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=True,
+                               encoder_use_bn=False, decoder_use_bn=False)
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
 
