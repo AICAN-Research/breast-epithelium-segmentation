@@ -4,7 +4,8 @@ import numpy as np
 from tensorflow.keras.models import load_model
 import os
 from tqdm import tqdm
-from source.utils import normalize_img, patchReader, class_dice_loss, get_random_path_from_random_class
+from source.utils import normalize_img, patchReader
+from source.losses import class_dice_loss
 from stats import BCa_interval_macro_metric
 from tensorflow.python.keras import backend as K
 
@@ -30,7 +31,8 @@ def class_dice_(y_true, y_pred, class_val):
     return dice
 
 
-#  @TODO: look at what they do in scikit-learn for edge cases
+#  @TODO: look at what they do in scikit-learn for edge cases. They set precision/recall to zero if denominator is zero
+#  @TODO: by default, but one can set to 1
 def precision(y_true, y_pred, object_):
     """
     based on https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
@@ -50,7 +52,10 @@ def precision(y_true, y_pred, object_):
 
     true_positives = tf.reduce_sum(target1 * output1)
     predicted_positives = tf.reduce_sum(output1)
-    precision_ += ((true_positives + smooth) / (predicted_positives + K.epsilon() + smooth))
+    if predicted_positives == 0:
+        precision_ = 0
+    else:
+        precision_ += true_positives / predicted_positives
 
     return precision_
 
@@ -72,9 +77,12 @@ def recall(y_true, y_pred, object_):
     output1 = y_pred[:, :, :, object_]
     target1 = y_true[:, :, :, object_]
 
-    true_positives = K.sum(K.round(K.clip(target1 * output1, 0, 1)))  # TODO: consider reduce_sum instead, is there a difference in speed
-    possible_positives = K.sum(K.round(K.clip(target1, 0, 1)))
-    recall_ += ((true_positives + smooth) / (possible_positives + K.epsilon() + smooth))
+    true_positives = tf.reduce_sum(target1 * output1)  # TODO: consider reduce_sum vs K.sum, is there a difference in speed
+    possible_positives = tf.reduce_sum(target1)
+    if possible_positives == 0:
+        recall_ = 0
+    else:
+        recall_ += true_positives / possible_positives
 
     return recall_
 def eval_on_dataset():
@@ -84,39 +92,39 @@ def eval_on_dataset():
     network = "agunet"
 
     ds_name = '200423_125554_level_2_psize_1024_ds_4'  # change manually to determine desired dataset
-    ds_name_2 = '210423_122737_wsi_level_2_psize_1024_ds_4'
-    model_name = 'model_300423_083816_agunet_bs_8'  # change manually to determine desired model
+    #ds_name_2 = '210423_122737_wsi_level_2_psize_1024_ds_4'
+    model_name = 'model_070523_211917_agunet_bs_8_as_1_lr_00001_d__bl_1_br_02_h__s_0.2_st_1.0'  # change manually to determine desired model
     model_path = './output/models/' + model_name
 
     ds_val_path1 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/inSitu/'
     ds_val_path2 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/benign/'
     ds_val_path3 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/invasive/'
-    ds_val_path_1 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/invasive/'
-    ds_val_path_2 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/benign/'
-    ds_val_path_3 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/inSitu/'
+    #ds_val_path_1 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/invasive/'
+    #ds_val_path_2 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/benign/'
+    #ds_val_path_3 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name_2 + '/ds_val/inSitu/'
     model_path = './output/models/' + model_name
 
     # load generated tf test dataset
     patches1 = os.listdir(ds_val_path1)
     patches2 = os.listdir(ds_val_path2)
     patches3 = os.listdir(ds_val_path3)
-    patches_1 = os.listdir(ds_val_path_1)
-    patches_2 = os.listdir(ds_val_path_2)
-    patches_3 = os.listdir(ds_val_path_3)
+    #patches_1 = os.listdir(ds_val_path_1)
+    #patches_2 = os.listdir(ds_val_path_2)
+    #patches_3 = os.listdir(ds_val_path_3)
     paths1 = np.array([ds_val_path1 + x for x in patches1]).astype("U400")
     paths2 = np.array([ds_val_path2 + x for x in patches2]).astype("U400")
     paths3 = np.array([ds_val_path3 + x for x in patches3]).astype("U400")
-    paths_1 = np.array([ds_val_path_1 + x for x in patches_1]).astype("U400")
-    paths_2 = np.array([ds_val_path_2 + x for x in patches_2]).astype("U400")
-    paths_3 = np.array([ds_val_path_3 + x for x in patches_3]).astype("U400")
+    #paths_1 = np.array([ds_val_path_1 + x for x in patches_1]).astype("U400")
+    #paths_2 = np.array([ds_val_path_2 + x for x in patches_2]).astype("U400")
+    #paths_3 = np.array([ds_val_path_3 + x for x in patches_3]).astype("U400")
 
     path_append1 = np.append(paths1, paths2)
     path_append2 = np.append(path_append1, paths3)
-    path_append3 = np.append(path_append2, paths_1)
-    path_append4 = np.append(path_append3, paths_2)
-    paths = np.append(path_append4, paths_3)
+    #path_append3 = np.append(path_append2, paths_1)
+    #path_append4 = np.append(path_append3, paths_2)
+    #paths = np.append(path_append4, paths_3)
 
-    ds_val = tf.data.Dataset.from_tensor_slices(paths)
+    ds_val = tf.data.Dataset.from_tensor_slices(path_append2)
     ds_val = ds_val.map(lambda x: tf.py_function(patchReader, [x], [tf.float32, tf.float32]), num_parallel_calls=8)
 
     ds_val = ds_val.map(normalize_img)
@@ -162,18 +170,18 @@ def eval_on_dataset():
         class_names = ["invasive", "benign", "insitu"]
         for i, x in enumerate(class_names):
             c_dice = class_dice_(mask, threshold, class_val=i + 1)
-            c_precision = precision(mask, threshold, object_=i + 1).numpy()
-            c_recall = recall(mask, threshold, object_=i + 1).numpy()
+            c_precision = precision(mask, threshold, object_=i + 1)
+            c_recall = recall(mask, threshold, object_=i + 1)
             c_dice = [c_dice.numpy()]
-            if i == 1:
+            if i == 0:
                 dices_1.extend(c_dice)
                 precisions_1 += c_precision
                 recalls_1 += c_recall
-            elif i == 2:
+            elif i == 1:
                 dices_2.extend(c_dice)
                 precisions_2 += c_precision
                 recalls_2 += c_recall
-            else:
+            elif i == 2:
                 dices_3.extend(c_dice)
                 precisions_3 += c_precision
                 recalls_3 += c_recall
