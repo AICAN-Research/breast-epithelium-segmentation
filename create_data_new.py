@@ -69,7 +69,7 @@ def dsc(pred, target):
     return np.clip((2 * intersection + 1) / (union + 1), 0, 1)
 
 
-def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, dataset_path, set_name,
+def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triplet_path, dataset_path, set_name,
                     plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap):
 
     #fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
@@ -89,12 +89,15 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
         annot_path)  # path to annotated image
     importer_remove = fast.TIFFImagePyramidImporter.create(
         remove_path)  # path to annotated remove cores image
+    importer_triplet = fast.TIFFImagePyramidImporter.create(
+        triplet_path)  # path to annotated triplet image
 
     # access annotated mask (generated from QuPath)
     mask = importer_mask.runAndGetOutputData()
     annot = importer_annot.runAndGetOutputData()
     annot_remove = importer_remove.runAndGetOutputData()
     annot_for_width = importer_annot.runAndGetOutputData()
+    annot_triplet = importer_triplet.runAndGetOutputData()
 
     height_mask = mask.getLevelHeight(level)
     width_mask = mask.getLevelWidth(level)
@@ -105,6 +108,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
     access = mask.getAccess(fast.ACCESS_READ)
     access_annot = annot.getAccess(fast.ACCESS_READ)
     access_remove = annot_remove.getAccess(fast.ACCESS_READ)
+    access_triplet = annot_triplet.getAccess(fast.ACCESS_READ)
 
     # plot whole TMA image (does not work on level 0-3, image level too large to convert to FAST image)
     if plot_flag:
@@ -163,6 +167,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
     count_benign = 0
     count_inSitu = 0
     count = 0
+    triplet_nbr = 0
 
     for he_counter in range(len(he_tmas)):
         for ck_counter in range(len(ck_tmas)):
@@ -186,8 +191,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
             if np.abs(dist_x) < dist_limit and np.abs(dist_y) < dist_limit:  # if positions are close we have a pair
                 count += 1
-
-                # @TODO: why do I need to do this, should not be necessary
                 try:
                     ck_tma = np.asarray(ck_tma)
                     he_tma = np.asarray(he_tma)
@@ -224,6 +227,18 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 if np.count_nonzero(tma_remove) > 0:
                     continue
 
+                # get id number for triplet
+                try:
+                    triplet_annot = access_triplet.getPatchAsImage(int(level), int(position_ck_x), int(position_ck_y),
+                                                                 int(width_ck), int(height_ck), False)
+                except RuntimeError as e:
+                    print(e)
+                    continue
+                triplet = np.asarray(triplet_annot)
+                print("triplet:", np.unique(triplet))
+                triplet_nbr = np.amax(triplet)
+                print("triplet nbr: ", triplet_nbr)
+
                 # downsample image before registration
                 curr_shape = ck_tma_padded.shape[:2]
                 ck_tma_padded_ds = cv2.resize(ck_tma_padded,
@@ -251,7 +266,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 
                 # remove cylinders with dice score below threshold, remove cores with different tissue
                 # ex due to only parts of one stain extracted with TMA extractor or very broken TMAs in one stain
-                # @TODO: it is possible that one stain has half of a cylinder and the other a whole still (not shifted)
                 he_tma_padded_ = minmax(he_tma_padded)  # to account for intensity differences in staining
                 ck_tma_padded_ = minmax(ck_tma_padded_shifted)
                 intensity_away_from_white_thresh_he = 0.20
@@ -331,8 +345,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
-                
-                # @TODO: find out why the error below sometimes happens
+
                 for patch_idx, (patch_he, patch_ck, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
                     try:
                         # convert from FAST image to numpy array
@@ -399,11 +412,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                             np.mean(patch_he, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
                     he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
 
-                    # normalize he and ck intensity. Has to be done after thresholding
-                    # @TODO: should I intensity norm when normalizing during training too?Then divide by 255 now 0-1.
-                    # patch_he = minmax(patch_he)
-                    # patch_ck = minmax(patch_ck)
-
                     if he_tissue_ < skip_percentage:
                         continue
 
@@ -441,15 +449,23 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                         add_to_path = 'invasive/'
                         count_invasive += 1
 
+                    triplet_nbr = str(triplet_nbr)
+                    triplet_nbr_front = triplet_nbr[0]  # first element in nbr is cylinder number
+                    triplet_nbr_end = triplet_nbr[1:]  # number corresponding to triplet
+
                     # create folder if not exists
                     if class_ == "multiclass":
                         os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
-                        with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                        with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) +
+                                       "_" + str(tma_idx) + "_" + str(patch_idx) + triplet_nbr_end + "-" +
+                                       triplet_nbr_front + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("float32"))
                     if class_ == "singleclass":
                         os.makedirs(dataset_path + set_name + "/", exist_ok=True)
-                        with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_" + str(patch_idx) + ".h5", "w") as f:
+                        with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_"
+                                       + str(patch_idx) + triplet_nbr_end + "-" +
+                                       triplet_nbr_front + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
 
@@ -486,7 +502,7 @@ if __name__ == "__main__":
     plot_flag_test = False
     level = 2  # image pyramid level
     nb_iters = -1
-    patch_size = 1024  # @TODO: change placement in benign/inSitu (?) when size 1024
+    patch_size = 1024
     downsample_factor = 4  # tested with 8, but not sure if better
     wsi_idx = 0
     dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed  # @TODO: Check if okay
@@ -542,10 +558,13 @@ if __name__ == "__main__":
                          '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
             remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/' + str(file_front) \
                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
+            triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
+                           + '_EFI_CK_BC_' + str(id_) + '.vsi -EFI 40x-labels.ome.tif'
+
 
             # create dataset for current WSI in a separate process
             # this process will be killed when it is done, hence, all memory will be freed
-            inputs_ = [[HE_path, CK_path, mask_path, annot_path, remove_path, dataset_path, set_name,
+            inputs_ = [[HE_path, CK_path, mask_path, annot_path, remove_path, triplet_path, dataset_path, set_name,
                        plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap]]
             p = mp.Pool(1)
             output = p.map(create_datasets_wrapper, inputs_)
