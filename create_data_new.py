@@ -213,6 +213,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
                 # skip cores that should be removed
                 position_ck_x /= (2 ** level)
                 position_ck_y /= (2 ** level)
+                # @TODO: get warning from TIFFReadTile for edge cases, ok?
                 try:
                     remove_annot = access_remove.getPatchAsImage(int(level), int(position_ck_x), int(position_ck_y),
                                                                  int(width_ck), int(height_ck), False)
@@ -478,7 +479,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, datase
 if __name__ == "__main__":
     import os
     # from multiprocessing import Process
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # GPU is cringe
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
     # --- HYPER PARAMS
     plot_flag = False
