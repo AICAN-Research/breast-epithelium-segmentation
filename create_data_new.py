@@ -70,7 +70,8 @@ def dsc(pred, target):
 
 
 def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triplet_path, dataset_path, set_name,
-                    plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap):
+                    plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap,
+                    file_front, id_):
 
     #fast.Reporter.setGlobalReportMethod(fast.Reporter.COUT)  # verbose
 
@@ -167,7 +168,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
     count_benign = 0
     count_inSitu = 0
     count = 0
-    triplet_nbr = 0
 
     for he_counter in range(len(he_tmas)):
         for ck_counter in range(len(ck_tmas)):
@@ -235,9 +235,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                     print(e)
                     continue
                 triplet = np.asarray(triplet_annot)
-                print("triplet:", np.unique(triplet))
                 triplet_nbr = np.amax(triplet)
-                print("triplet nbr: ", triplet_nbr)
 
                 # downsample image before registration
                 curr_shape = ck_tma_padded.shape[:2]
@@ -450,22 +448,20 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                         count_invasive += 1
 
                     triplet_nbr = str(triplet_nbr)
-                    triplet_nbr_front = triplet_nbr[0]  # first element in nbr is cylinder number
-                    triplet_nbr_end = triplet_nbr[1:]  # number corresponding to triplet
 
                     # create folder if not exists
                     if class_ == "multiclass":
                         os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) +
-                                       "_" + str(tma_idx) + "_" + str(patch_idx) + triplet_nbr_end + "-" +
-                                       triplet_nbr_front + ".h5", "w") as f:
+                                       "_" + str(tma_idx) + "_" + str(patch_idx) + "_" + str(file_front) + "_" +
+                                       "_" + str(id_) + "_" + triplet_nbr + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("float32"))
                     if class_ == "singleclass":
                         os.makedirs(dataset_path + set_name + "/", exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_"
-                                       + str(patch_idx) + triplet_nbr_end + "-" +
-                                       triplet_nbr_front + ".h5", "w") as f:
+                                       + str(patch_idx) + "_" + str(file_front) + "_" +
+                                       "_" + str(id_) + "_" + triplet_nbr + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
 
@@ -559,13 +555,14 @@ if __name__ == "__main__":
             remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/' + str(file_front) \
                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
             triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
-                           + '_EFI_CK_BC_' + str(id_) + '.vsi -EFI 40x-labels.ome.tif'
+                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-labels.ome.tif'
 
 
             # create dataset for current WSI in a separate process
             # this process will be killed when it is done, hence, all memory will be freed
             inputs_ = [[HE_path, CK_path, mask_path, annot_path, remove_path, triplet_path, dataset_path, set_name,
-                       plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap]]
+                       plot_flag, level, nb_iters, patch_size, downsample_factor, wsi_idx, dist_limit, overlap,
+                        file_front, id_]]
             p = mp.Pool(1)
             output = p.map(create_datasets_wrapper, inputs_)
             p.terminate()
