@@ -216,7 +216,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                 # skip cores that should be removed
                 position_ck_x /= (2 ** level)
                 position_ck_y /= (2 ** level)
-                # @TODO: get warning from TIFFReadTile for edge cases, ok?
+                # @TODO: get warning from TIFFReadTile for edge cases, ok? They are padded when too small
                 try:
                     remove_annot = access_remove.getPatchAsImage(int(level), int(position_ck_x), int(position_ck_y),
                                                                  int(width_ck), int(height_ck), False)
@@ -242,7 +242,8 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                 ck_tma_padded_ds = cv2.resize(ck_tma_padded,
                                               np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
                                               interpolation=cv2.INTER_NEAREST)
-                he_tma_padded_ds = cv2.resize(he_tma_padded, np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
+                he_tma_padded_ds = cv2.resize(he_tma_padded,
+                                              np.round(np.array(curr_shape) / downsample_factor).astype("int32"),
                                               interpolation=cv2.INTER_NEAREST)
 
                 # detect shift between ck and he, histogram equalization for better shift in tmas with few
@@ -303,7 +304,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                 dab_core = np.asarray(dab_core)
                 annot_core = np.asarray(annot_core)
 
-                # annotation image is RGB (gray) -> keep only first dim to get intensity image -> single class uint8
                 dab_core = dab_core[..., 0]
                 annot_core = annot_core[..., 0]
                 dab_core = np.flip(dab_core, axis=0)  # since dab annotation is flipped
@@ -321,19 +321,10 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                 annot_core_padded = annot_core_padded[int(start_h):int(stop_h), int(start_w):int(stop_w)]
                 dab_core_padded_shifted = dab_core_padded_shifted[int(start_h):int(stop_h), int(start_w):int(stop_w)]
 
-                # @TODO: think about whether just keep padded, otherwise one will be "cut"
-                # @TODO: then that will be the same for he_tma_padded that is cut below too
-                # @TODO: is it possible that the padding will be top left, then below is wrong
-                # the correctly placed dab and manual annot:
-                #dab_core_correctly_placed = dab_core_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]]
-                #annot_core_correctly_placed = annot_core_padded[:annot_core.shape[0], :annot_core.shape[1]]
-                #he_core_correctly_placed = he_tma_padded[:annot_core.shape[0], :annot_core.shape[1]]  # is this corrrect??
-                #ck_tma_padded_shifted = ck_tma_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]] # is this corrrect??
-
                 # get each GT annotation as its own binary image + fix manual annotations
                 manual_annot = np.asarray(annot_core_padded)
-                healthy_ep = ((manual_annot == 1) & (dab_core_padded_shifted == 1)).astype("float32")
-                in_situ_ep = ((manual_annot == 2) & (dab_core_padded_shifted == 1)).astype("float32")
+                healthy_ep = ((manual_annot == 1) & (dab_core_padded_shifted == 1)).astype("uint8")
+                in_situ_ep = ((manual_annot == 2) & (dab_core_padded_shifted == 1)).astype("uint8")
 
                 if class_ == "multiclass":
                     dab_core_padded_shifted[healthy_ep == 1] = 0
@@ -356,10 +347,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                         print(e)
                         continue
 
-                    # normalizing gt, # @TODO: should not be necessary??
-                    patch_mask = minmax(patch_mask)
-                    patch_healthy = minmax(patch_healthy)
-                    patch_in_situ = minmax(patch_in_situ)
 
                     # create one-hot, one channel for each class
                     if class_ == "multiclass":
@@ -491,7 +478,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
 if __name__ == "__main__":
     import os
     # from multiprocessing import Process
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     # --- HYPER PARAMS
     plot_flag = False
