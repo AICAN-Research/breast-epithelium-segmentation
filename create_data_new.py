@@ -332,10 +332,12 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
 
                 data = [he_tma_padded, ck_tma_padded_shifted, dab_core_padded_shifted, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
-                generators = [fast.PatchGenerator.create(patch_size, patch_size, overlapPercent=overlap).connect(0, curr) for curr in data_fast]
+                generators = [fast.PatchGenerator.create(patch_size, patch_size,
+                                                         overlapPercent=overlap).connect(0, curr) for curr in data_fast]
                 streamers = [fast.DataStream(curr) for curr in generators]
 
-                for patch_idx, (patch_he, patch_ck, patch_mask, patch_healthy, patch_in_situ) in enumerate(zip(*streamers)):  # get error here sometimes, find out why?
+                for patch_idx, (patch_he, patch_ck, patch_mask, patch_healthy, patch_in_situ) in \
+                        enumerate(zip(*streamers)):  # get error here sometimes, find out why?
                     try:
                         # convert from FAST image to numpy array
                         patch_he = np.asarray(patch_he)
@@ -353,7 +355,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                         gt_one_hot = np.stack([1 - (patch_mask.astype(bool) | patch_healthy.astype(bool) | patch_in_situ.astype(bool)), patch_mask, patch_healthy, patch_in_situ], axis=-1)
                         if np.any(gt_one_hot[..., 0] < 0):
                             [print(np.mean(gt_one_hot[..., iii])) for iii in range(4)]
-                            raise ValueError("Negative values occurred in the background class, check the segmentations...")
+                            raise ValueError("Negative values occurred in the background class, check segmentations...")
 
                         if np.any(np.sum(gt_one_hot, axis=-1) > 1):
                             raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
@@ -364,10 +366,10 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
 
                     # for all epithelium as one class:
                     if class_ == "singleclass":
-                        gt_one_hot = np.stack([1 - (patch_mask.astype(bool)), patch_mask], axis=-1)  # for dataset with all epithelium as one class
+                        gt_one_hot = np.stack([1 - (patch_mask.astype(bool)), patch_mask], axis=-1)
                         if np.any(gt_one_hot[..., 0] < 0):
                             [print(np.mean(gt_one_hot[..., iii])) for iii in range(2)]
-                            raise ValueError("Negative values occurred in the background class, check the segmentations...")
+                            raise ValueError("Negative values occurred in the background class, check segmentations...")
 
                         if np.any(np.sum(gt_one_hot, axis=-1) > 1):
                             raise ValueError("One-hot went wrong - multiple classes in the same pixel...")
@@ -444,13 +446,15 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                                        "_" + str(id_) + "_" + triplet_nbr + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("float32"))
-                    if class_ == "singleclass":
+                    elif class_ == "singleclass":
                         os.makedirs(dataset_path + set_name + "/", exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_"
                                        + str(patch_idx) + "_" + str(file_front) + "_" +
                                        "_" + str(id_) + "_" + triplet_nbr + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+                    else:
+                        raise ValueError("Unknown class_ variable closen:", class_)
 
                 # delete streamers and stuff to potentially avoid threading issues in FAST
                 del data_fast, generators, streamers
@@ -488,7 +492,7 @@ if __name__ == "__main__":
     patch_size = 1024
     downsample_factor = 4  # tested with 8, but not sure if better
     wsi_idx = 0
-    dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed  # @TODO: Check if okay
+    dist_limit = 2000  # / 2 ** level  # distance shift between HE and IHC TMA allowed
     overlap = 0.25
     class_ = "multiclass"  # singleclass
     skip_percentage = 0.25
@@ -497,9 +501,6 @@ if __name__ == "__main__":
 
     # paths to wsis included in train and validation sets
     data_splits_path = "./data_splits/250123_093254/dataset_split.h5"
-
-    # path to wsis included in test set
-    # @TODO: create patches for test set when time for it
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
