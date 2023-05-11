@@ -5,30 +5,55 @@ from tensorflow.keras.models import load_model
 import os
 from tqdm import tqdm
 from source.utils import normalize_img, patchReader
-from source.losses import class_dice_loss
 from stats import BCa_interval_macro_metric
 from tensorflow.python.keras import backend as K
 
 
 # make dice function (pred, gt) -> DSC value (float)
+# No smoothing when evaluating, to make differenciable during training
 def dice_metric(pred, gt):
-    smooth = 1.
     intersection1 = tf.reduce_sum(pred * gt)
     union1 = tf.reduce_sum(pred * pred) + tf.reduce_sum(gt * gt)
-    dice = (2. * intersection1 + smooth) / (union1 + smooth)
+    dice = (2. * intersection1) / union1
     return dice
 
 
+# No smoothing when evaluating, to make differenciable during training
 def class_dice_(y_true, y_pred, class_val):
-    smooth = 1.
     output1 = y_pred[:, :, :, class_val]
     gt1 = y_true[:, :, :, class_val]
 
     intersection1 = tf.reduce_sum(output1 * gt1)
-    union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(gt1 * gt1)
-    dice = (2. * intersection1 + smooth) / (union1 + smooth)
+    union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(gt1 * gt1)  #@TODO: why do we need output*output in reduce sum?
+    if union1 == 0:
+        dice = 0.
+        dice_u = True
+    else:
+        dice = (2. * intersection1) / union1
+        dice_u = False
 
-    return dice
+    return dice, dice_u
+
+
+def class_dice_class_present(y_true, y_pred, class_val):
+    count = False
+
+    output1 = y_pred[:, :, :, class_val]
+    gt1 = y_true[:, :, :, class_val]
+
+    intersection1 = tf.reduce_sum(output1 * gt1)
+    union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(gt1 * gt1)  #@TODO: why do we need output*output in reduce sum?
+    if union1 == 0:
+        dice = 0.
+        dice_u = True
+    else:
+        dice = (2. * intersection1) / union1
+        dice_u = False
+
+    if tf.reduce_sum(gt1):
+        count = True
+
+    return dice, count, dice_u
 
 
 #  @TODO: look at what they do in scikit-learn for edge cases. They set precision/recall to zero if denominator is zero
@@ -45,7 +70,6 @@ def precision(y_true, y_pred, object_):
     :return: precision: tp / (tp + fp)
     """
     precision_ = 0
-    smooth = 1.
 
     output1 = y_pred[:, :, :, object_]
     target1 = y_true[:, :, :, object_]
@@ -60,6 +84,34 @@ def precision(y_true, y_pred, object_):
     return precision_
 
 
+def precision_class_present(y_true, y_pred, object_):
+    """
+    Only calculate precision when there are positives in y_true
+    :param y_true: true values
+    :param y_pred: predicted values
+    :param nb_classes: number of classes
+    :param use_background: True or False
+    :param dims:
+    :return: precision: tp / (tp + fp), True/False depending on whether there are positives in image
+    """
+    precision_ = 0
+    count = False
+
+    output1 = y_pred[:, :, :, object_]
+    target1 = y_true[:, :, :, object_]
+
+    true_positives = tf.reduce_sum(target1 * output1)
+    predicted_positives = tf.reduce_sum(output1)
+    if predicted_positives == 0:
+        precision_ = 0
+    else:
+        precision_ += true_positives / predicted_positives
+    if tf.reduce_sum(target1):
+        count = True
+
+    return precision_, count
+
+
 def recall(y_true, y_pred, object_):
     """
     based on https://github.com/andreped/H2G-Net/blob/main/src/utils/metrics.py
@@ -72,7 +124,6 @@ def recall(y_true, y_pred, object_):
     :return: recall: tp / (tp + fn)
     """
     recall_ = 0
-    smooth = 1.
 
     output1 = y_pred[:, :, :, object_]
     target1 = y_true[:, :, :, object_]
@@ -85,15 +136,48 @@ def recall(y_true, y_pred, object_):
         recall_ += true_positives / possible_positives
 
     return recall_
+
+
+def recall_class_present(y_true, y_pred, object_):
+    """
+    Only calculate recall when there are positives in y_true
+    :param y_true: true values
+    :param y_pred: predicted values
+    :param nb_classes: number of classes
+    :param use_background: True or False
+    :param dims:
+    :return: recall: tp / (tp + fn)
+    """
+    recall_ = 0
+    count = False
+
+    output1 = y_pred[:, :, :, object_]
+    target1 = y_true[:, :, :, object_]
+
+    true_positives = tf.reduce_sum(target1 * output1)  # TODO: consider reduce_sum vs K.sum, is there a difference in speed
+    possible_positives = tf.reduce_sum(target1)
+    if possible_positives == 0:
+        recall_ = 0
+    else:
+        recall_ += true_positives / possible_positives
+    if tf.reduce_sum(target1):
+        count = True
+
+    return recall_, count
+
+
+# @TODO: add Jaccard similarity coefficient score
+
+
 def eval_on_dataset():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     plot_flag = False
     bs = 1  # @TODO: should bs match bs in train?
     network = "agunet"
 
     ds_name = '200423_125554_level_2_psize_1024_ds_4'  # change manually to determine desired dataset
     #ds_name_2 = '210423_122737_wsi_level_2_psize_1024_ds_4'
-    model_name = 'model_070523_211917_agunet_bs_8_as_1_lr_00001_d__bl_1_br_02_h__s_0.2_st_1.0'  # change manually to determine desired model
+    model_name = ''  # change manually to determine desired model
     model_path = './output/models/' + model_name
 
     ds_val_path1 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/inSitu/'
@@ -141,14 +225,36 @@ def eval_on_dataset():
     dices_1 = []  # invasive
     dices_2 = []  # benign
     dices_3 = []  # insitu
+    dices_1_exist = []  # invasive
+    dices_2_exist = []  # benign
+    dices_3_exist = []  # insitu
     precisions_1 = 0
     precisions_2 = 0
     precisions_3 = 0
     recalls_1 = 0
     recalls_2 = 0
     recalls_3 = 0
+    precisions_1_exist = 0
+    precisions_2_exist = 0
+    precisions_3_exist = 0
+    recalls_1_exist = 0
+    recalls_2_exist = 0
+    recalls_3_exist = 0
 
-    cnt = 0
+    cnt = 0  # number of patches in total
+    count_present_1_d = 0  # number of patches with invasive ep present
+    count_present_2_d = 0  # number of patches with benign ep present
+    count_present_3_d = 0  # number of patches with in situ ep present
+
+    count_present_1_p = 0  # number of patches with invasive ep present
+    count_present_2_p = 0  # number of patches with benign ep present
+    count_present_3_p = 0  # number of patches with in situ ep present
+
+    count_present_1_r = 0  # number of patches with invasive ep present
+    count_present_2_r = 0  # number of patches with benign ep present
+    count_present_3_r = 0  # number of patches with in situ ep present
+
+
     for image, mask in tqdm(ds_val):
         pred_mask = model.predict_on_batch(image)
         if network == "agunet":
@@ -169,22 +275,66 @@ def eval_on_dataset():
 
         class_names = ["invasive", "benign", "insitu"]
         for i, x in enumerate(class_names):
-            c_dice = class_dice_(mask, threshold, class_val=i + 1)
+            c_dice, union_d = class_dice_(mask, threshold, class_val=i + 1)
             c_precision = precision(mask, threshold, object_=i + 1)
             c_recall = recall(mask, threshold, object_=i + 1)
-            c_dice = [c_dice.numpy()]
+            if  union_d:
+                c_dice = [c_dice]
+            else:
+                c_dice = [c_dice.numpy()]
+
+            c_dice_exist, count_d, union_d = class_dice_class_present(mask, threshold, class_val=i + 1)
+            c_precision_exist, count_p = precision_class_present(mask, threshold, object_=i + 1)
+            c_recall_exist, count_r = recall_class_present(mask, threshold, object_=i + 1)
+            if union_d:
+                c_dice_exist = [c_dice_exist]
+            else:
+                c_dice_exist = [c_dice_exist.numpy()]
+
             if i == 0:
                 dices_1.extend(c_dice)
                 precisions_1 += c_precision
                 recalls_1 += c_recall
+
+                if count_d:
+                    dices_1_exist.extend(c_dice_exist)
+                    count_present_1_d += 1
+                if count_p:
+                    precisions_1_exist += c_precision_exist
+                    count_present_1_p += 1
+                if count_r:
+                    recalls_1_exist += c_recall_exist
+                    count_present_1_r += 1
+
             elif i == 1:
                 dices_2.extend(c_dice)
                 precisions_2 += c_precision
                 recalls_2 += c_recall
+
+                if count_d:
+                    dices_2_exist.extend(c_dice_exist)
+                    count_present_2_d += 1
+                if count_p:
+                    precisions_2_exist += c_precision_exist
+                    count_present_2_p += 1
+                if count_r:
+                    recalls_2_exist += c_recall_exist
+                    count_present_2_r += 1
+
             elif i == 2:
                 dices_3.extend(c_dice)
                 precisions_3 += c_precision
                 recalls_3 += c_recall
+
+                if count_d:
+                    dices_3_exist.extend(c_dice_exist)
+                    count_present_3_d += 1
+                if count_p:
+                    precisions_3_exist += c_precision_exist
+                    count_present_3_p += 1
+                if count_r:
+                    recalls_3_exist += c_recall_exist
+                    count_present_3_r += 1
 
         cnt = cnt + 1
 
@@ -203,6 +353,16 @@ def eval_on_dataset():
     dice_ci_2, _ = BCa_interval_macro_metric(dices_2, func=lambda x: np.mean(x), B=10000)
     dice_ci_3, _ = BCa_interval_macro_metric(dices_3, func=lambda x: np.mean(x), B=10000)
 
+    mu_1_exist = np.mean(dices_1_exist)
+    mu_2_exist = np.mean(dices_2_exist)
+    mu_3_exist = np.mean(dices_3_exist)
+    p_1_exist = precisions_1_exist / count_present_1_p
+    p_2_exist = precisions_2_exist / count_present_2_p
+    p_3_exist = precisions_3_exist / count_present_3_p
+    r_1_exist = recalls_1_exist / count_present_1_r
+    r_2_exist = recalls_2_exist / count_present_2_r
+    r_3_exist = recalls_3_exist / count_present_3_r
+
     print(mu_1, dice_ci_1)
     print("mean precisions invasive: ", p_1)
     print("mean recalls invasive: ", r_1)
@@ -214,6 +374,24 @@ def eval_on_dataset():
     print(mu_3, dice_ci_3)
     print("mean precisions inSitu: ", p_3)
     print("mean recalls inSitu: ", r_3)
+
+    print("EXISTS: ")
+    print(mu_1_exist)
+    print("mean precisions invasive exist: ", p_1_exist)
+    print("mean recalls invasive exist: ", r_1_exist)
+    print()
+    print(mu_2_exist)
+    print("mean precisions benign exist: ", p_2_exist)
+    print("mean recalls benign exist: ", r_2_exist)
+    print()
+    print(mu_3_exist)
+    print("mean precisions inSitu exist: ", p_3_exist)
+    print("mean recalls inSitu exist: ", r_3_exist)
+
+    print("COUNT:")
+    print(count_present_1_p, count_present_1_r, count_present_1_d)
+    print(count_present_2_p, count_present_2_r, count_present_2_d)
+    print(count_present_3_p, count_present_3_r, count_present_3_d)
 
 
 if __name__ == "__main__":
