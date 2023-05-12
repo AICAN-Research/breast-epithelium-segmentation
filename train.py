@@ -34,7 +34,7 @@ def main(ret):
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
         str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_d_" + "_bl_" + str(ret.blur) + "_br_" + \
-        str(ret.brightness) + "_h_" + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift) + "_mp_" + \
+        str(ret.brightness) + "_h_" + str(ret.hue) + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift) + "_mp_" + \
         str(ret.mixed_precision) + "_ntb_" + str(N_train_batches) + "_nvb_" + str(N_val_batches)
 
     # paths
