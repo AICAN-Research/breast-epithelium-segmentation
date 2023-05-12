@@ -1,7 +1,7 @@
 import tensorflow as tf
 import os
 from deep_learning_tools.network import Unet
-from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping, TensorBoard
+from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping, TensorBoard, ReduceLROnPlateau
 from datetime import datetime, date
 from source.augment import random_brightness, random_fliplr, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
@@ -39,11 +39,11 @@ def main(ret):
 
     # paths
     dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'
-    dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
+    #dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
     train_path = dataset_path + 'ds_train'
-    train_path_wsi = dataset_path_wsi + 'ds_train'
+    #train_path_wsi = dataset_path_wsi + 'ds_train'
     val_path = dataset_path + 'ds_val'
-    val_path_wsi = dataset_path_wsi + 'ds_val'
+    #val_path_wsi = dataset_path_wsi + 'ds_val'
     # test_path = dataset_path + 'ds_test'
     history_path = './output/history/'  # path to directory
     model_path = './output/models/'  # path to directory
@@ -87,11 +87,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-        for i, directory in enumerate(os.listdir(train_path_wsi)):
-            dir_path = train_path_wsi + "/" + directory + "/"
-            for file_ in os.listdir(dir_path):
-                file_path = dir_path + file_
-                train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
+        #for i, directory in enumerate(os.listdir(train_path_wsi)):
+        #    dir_path = train_path_wsi + "/" + directory + "/"
+        #    for file_ in os.listdir(dir_path):
+        #        file_path = dir_path + file_
+        #        train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         val_paths = []
         for directory in os.listdir(val_path):
@@ -101,11 +101,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-        for i, directory in enumerate(os.listdir(val_path_wsi)):
-            dir_path = val_path_wsi + "/" + directory + "/"
-            for file_ in os.listdir(dir_path):
-                file_path = dir_path + file_
-                val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
+        #for i, directory in enumerate(os.listdir(val_path_wsi)):
+        #    dir_path = val_path_wsi + "/" + directory + "/"
+        #    for file_ in os.listdir(dir_path):
+        #        file_path = dir_path + file_
+        #        val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         # combine all train/val paths
         ds_train = tf.data.Dataset.from_generator(
@@ -175,8 +175,8 @@ def main(ret):
     elif ret.network == "agunet":
         agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=ret.nbr_classes,
                                encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=ret.dropout,
-                               accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=True,
-                               encoder_use_bn=False, decoder_use_bn=False)
+                               accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=False,
+                               encoder_use_bn=True, decoder_use_bn=True)
         agunet.set_convolutions(encoder_convs)
         model = agunet.create()
 
@@ -205,6 +205,13 @@ def main(ret):
         verbose=1,
         mode="min",  # set "min" for catching the lowest val_loss
         restore_best_weights=False,
+    )
+
+    reduce_lr = ReduceLROnPlateau(
+        mointor="val_conv2d_72_loss",
+        factor=0.5,
+        patience=10,
+        mode="min",
     )
 
     save_best = ModelCheckpoint(
@@ -237,7 +244,7 @@ def main(ret):
         epochs=ret.epochs,
         validation_data=ds_val,
         validation_steps=N_val_batches,
-        callbacks=[save_best, history, early, tb_logger],
+        callbacks=[save_best, history, early, tb_logger, reduce_lr],
         verbose=1,
     )
 
@@ -251,7 +258,7 @@ if __name__ == "__main__":
                         help="set how many gradient accumulations to perform.")
     parser.add_argument('--mixed_precision', metavar='--mp', type=int, nargs='?', default=0,
                         help="whether to perform mixed precision (float16). Default=1 (True).")
-    parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0001,
+    parser.add_argument('--learning_rate', metavar='--lr', type=float, nargs='?', default=0.0005,
                         help="set which learning rate to use for training.")
     parser.add_argument('--epochs', metavar='--ep', type=int, nargs='?', default=500,
                         help="number of epochs to train.")
@@ -296,10 +303,10 @@ if __name__ == "__main__":
         np.random.seed(ret.seed)
         python_random.seed(ret.seed)
         tf.random.set_seed(ret.seed)
-        try:
-            tf.config.experimental.enable_op_determinism()
-        except AttributeError as e:
-            print(e)
+        #try:
+        #    tf.config.experimental.enable_op_determinism()
+        #except AttributeError as e:
+        #    print(e)
 
 
     if ret.mixed_precision:
