@@ -446,14 +446,14 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                         os.makedirs(dataset_path + set_name + "/" + add_to_path, exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + add_to_path + "/" + "wsi_" + str(wsi_idx) +
                                        "_" + str(tma_idx) + "_" + str(patch_idx) + "_" + str(file_front) + "_" +
-                                       "_" + str(id_) + "_" + triplet_nbr + ".h5", "w") as f:
+                                       "_" + str(id_) + "_" + str(triplet_nbr) + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("float32"))
                     elif class_ == "singleclass":
                         os.makedirs(dataset_path + set_name + "/", exist_ok=True)
                         with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) + "_" + str(tma_idx) + "_"
                                        + str(patch_idx) + "_" + str(file_front) + "_" +
-                                       "_" + str(id_) + "_" + triplet_nbr + ".h5", "w") as f:
+                                       "_" + str(id_) + "_" + str(triplet_nbr) + ".h5", "w") as f:
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
                     else:
