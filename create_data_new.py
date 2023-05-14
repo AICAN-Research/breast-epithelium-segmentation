@@ -237,6 +237,10 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                 triplet = np.asarray(triplet_annot)
                 triplet_nbr = np.amax(triplet)
 
+                # if no triplet is marked, ex if cylinder moved so much it is difficult to determine triplet
+                if triplet_nbr == 0:
+                    continue
+
                 # downsample image before registration
                 curr_shape = ck_tma_padded.shape[:2]
                 ck_tma_padded_ds = cv2.resize(ck_tma_padded,
@@ -426,6 +430,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                         gt_one_hot = patch_gt_padded
 
                     # check if patch includes benign or in situ
+                    #@TODO: check this below that correct, seemed off i eval
                     if np.count_nonzero(patch_in_situ) > 0:
                         add_to_path = 'inSitu/'
                         count_inSitu += 1
@@ -435,8 +440,6 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                     else:
                         add_to_path = 'invasive/'
                         count_invasive += 1
-
-                    triplet_nbr = str(triplet_nbr)
 
                     # create folder if not exists
                     if class_ == "multiclass":
@@ -454,7 +457,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                             f.create_dataset(name="input", data=patch_he.astype("uint8"))
                             f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
                     else:
-                        raise ValueError("Unknown class_ variable closen:", class_)
+                        raise ValueError("Unknown class_ variable chosen:", class_)
 
                 # delete streamers and stuff to potentially avoid threading issues in FAST
                 del data_fast, generators, streamers
@@ -482,7 +485,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
 if __name__ == "__main__":
     import os
     # from multiprocessing import Process
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
     # --- HYPER PARAMS
     plot_flag = False
