@@ -348,12 +348,13 @@ if __name__ == "__main__":
     with h5py.File(data_splits_path, "r") as f:
         val_set = np.array(f['val']).astype(str)
 
-    set_name = val_set
+    set_ = val_set
+    set_name = 'ds_val'
     n_val = len(list(val_set))
-    print("file set: ", set_name)
+    print("file set: ", set_)
     print("n_val: ", n_val)
 
-    for file in tqdm(set_name, "WSI"):
+    for file in tqdm(set_, "WSI"):
 
         print(file)
 
@@ -372,7 +373,6 @@ if __name__ == "__main__":
         triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
                            + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-labels.ome.tif'
 
-        dataset_path = dataset_path + "/" + file_front + "/" + file + "/"
 
         create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, triplet_path, dataset_path, set_name,
                           plot_flag, nb_iters, level, downsample_factor, wsi_idx, dist_limit, class_)
