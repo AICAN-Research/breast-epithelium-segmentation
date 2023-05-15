@@ -14,6 +14,7 @@ from scipy import ndimage as ndi
 from datetime import datetime, date
 import h5py
 import os
+import matplotlib.pyplot as plt
 
 
 
@@ -60,8 +61,8 @@ def dsc(pred, target):
     return np.clip((2 * intersection + 1) / (union + 1), 0, 1)
 
 
-def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, dataset_path, set_name,
-                    plot_flag, nb_iters, level, downsample_factor, wsi_idx, dist_limit, class_):
+def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, triplet_path, dataset_path, set_name,
+                          plot_flag, nb_iters, level, downsample_factor, wsi_idx, dist_limit, class_):
 
     # import fast here to free memory when this is done (if running in a separate process)
     import fast
@@ -77,12 +78,15 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
         annot_path)  # path to annotated image
     importer_remove = fast.TIFFImagePyramidImporter.create(
         remove_path)  # path to remove cores image
+    importer_triplet = fast.TIFFImagePyramidImporter.create(
+        triplet_path)  # path to annotated triplet image
 
     # access annotated mask (generated from QuPath)
     mask = importer_mask.runAndGetOutputData()
     annot = importer_annot.runAndGetOutputData()
     annot_for_width = importer_annot.runAndGetOutputData()
     annot_remove = importer_remove.runAndGetOutputData()
+    annot_triplet = importer_triplet.runAndGetOutputData()
 
     height_mask = mask.getLevelHeight(level)
     width_mask = mask.getLevelWidth(level)
@@ -93,8 +97,9 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
     access = mask.getAccess(fast.ACCESS_READ)
     access_annot = annot.getAccess(fast.ACCESS_READ)
     access_remove = annot_remove.getAccess(fast.ACCESS_READ)
+    access_triplet = annot_triplet.getAccess(fast.ACCESS_READ)
 
-    # get CK TMA cores at level 0
+    # get CK TMA cores at level 1 (20x)
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importer_ck)
     ck_tmas = []
     ck_stream = fast.DataStream(extractor)
@@ -104,7 +109,7 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
             break
     del extractor, ck_stream
 
-    # get HE TMA cores at level 0
+    # get HE TMA cores at level 1 (20x)
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importer_he)
     he_tmas = []
     he_stream = fast.DataStream(extractor)
@@ -140,8 +145,6 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
 
             if np.abs(dist_x) < dist_limit and np.abs(dist_y) < dist_limit:  # if positions are close we have a pair
                 count += 1
-
-                # @TODO: why do I need to do this, should not be necessary
                 try:
                     ck_tma = np.asarray(ck_tma)
                     he_tma = np.asarray(he_tma)
@@ -167,20 +170,36 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
                 he_tma_padded[:he_tma.shape[0], :he_tma.shape[1]] = he_tma
 
                 # skip cores that should be removed
-                position_he_x /= (2 ** level)
-                position_he_y /= (2 ** level)
+                position_ck_x /= (2 ** level)
+                position_ck_y /= (2 ** level)
+
                 try:
-                    remove_annot = access_remove.getPatchAsImage(int(level), int(position_he_x), int(position_he_y),
+                    remove_annot = access_remove.getPatchAsImage(int(level), int(position_ck_x), int(position_ck_y),
                                                                  int(width_ck), int(height_ck), False)
                 except RuntimeError as e:
                     print(e)
-                    print("HOPPER OVER FOR MYE")
                     continue
 
                 tma_remove = np.asarray(remove_annot)
                 # continue to next core if the current tma core should be skipped
                 if np.count_nonzero(tma_remove) > 0:
                     continue
+
+                # get id number for triplet
+                try:
+                    triplet_annot = access_triplet.getPatchAsImage(int(level), int(position_ck_x),
+                                                                   int(position_ck_y),
+                                                                   int(width_ck), int(height_ck), False)
+                except RuntimeError as e:
+                    print(e)
+                    continue
+                triplet = np.asarray(triplet_annot)
+                triplet_nbr = np.amax(triplet)
+
+                # if no triplet is marked, ex if cylinder moved so much it is difficult to determine triplet
+                if triplet_nbr == 0:
+                    continue
+
                 # downsample image before registration
                 curr_shape = ck_tma_padded.shape[:2]
                 ck_tma_padded_ds = cv2.resize(ck_tma_padded,
@@ -209,7 +228,6 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
 
                 # remove cylinders with dice score below threshold, remove cores with different tissue
                 # ex due to only parts of one stain extracted with TMA extractor or very broken TMAs in one stain
-                # @TODO: it is possible that one stain has half of a cylinder and the other a whole still (not shifted)
                 he_tma_padded_ = minmax(he_tma_padded)  # to account for intensity differences in staining
                 ck_tma_padded_ = minmax(ck_tma_padded_shifted)
                 intensity_away_from_white_thresh_he = 0.20
@@ -269,19 +287,10 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
                 dab_core_padded_shifted = dab_core_padded_shifted[int(start_h):int(stop_h),
                                           int(start_w):int(stop_w)]
 
-                # @TODO: think about whether just keep padded, otherwise one will be "cut"
-                # @TODO: then that will be the same for he_tma_padded that is cut below too
-                # @TODO: is it possible that the padding will be top left, then below is wrong
-                # the correctly placed dab and manual annot:
-                # dab_core_correctly_placed = dab_core_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]]
-                # annot_core_correctly_placed = annot_core_padded[:annot_core.shape[0], :annot_core.shape[1]]
-                # he_core_correctly_placed = he_tma_padded[:annot_core.shape[0], :annot_core.shape[1]]  # is this corrrect??
-                # ck_tma_padded_shifted = ck_tma_padded_shifted[:annot_core.shape[0], :annot_core.shape[1]] # is this corrrect??
-
                 # get each GT annotation as its own binary image + fix manual annotations
                 manual_annot = np.asarray(annot_core_padded)
-                healthy_ep = ((manual_annot == 1) & (dab_core_padded_shifted == 1)).astype("float32")
-                in_situ_ep = ((manual_annot == 2) & (dab_core_padded_shifted == 1)).astype("float32")
+                healthy_ep = ((manual_annot == 1) & (dab_core_padded_shifted == 1)).astype("uint8")
+                in_situ_ep = ((manual_annot == 2) & (dab_core_padded_shifted == 1)).astype("uint8")
 
                 if class_ == "multiclass":
                     dab_core_padded_shifted[healthy_ep == 1] = 0
@@ -303,20 +312,23 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, datas
 
                     # create folder if not exists
                 if class_ == "multiclass":
-                    os.makedirs(dataset_path + set_name + "/", exist_ok=True)
-                    with h5py.File(
-                            dataset_path + set_name + "/" + "/" + "wsi_" + str(wsi_idx) + "_" + str(
-                                    tma_idx) + ".h5", "w") as f:
+                    os.makedirs(dataset_path + set_name + "/" , exist_ok=True)
+                    with h5py.File(dataset_path + set_name + "/" + "wsi_" + str(wsi_idx) +
+                                   "_" + str(tma_idx) + "_" + str(file_front) +
+                                   "_" + str(id_) + "_" + str(triplet_nbr) + ".h5", "w") as f:
                         f.create_dataset(name="input", data=he_tma_padded.astype("uint8"))
                         f.create_dataset(name="output", data=gt_one_hot.astype("float32"))
 
+                tma_idx += 1
+
 
 if __name__ == "__main__":
-    level = 2
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    level = 1
     downsample_factor = 4
-    nb_iters = 5
-    plot_flag = True
-    dist_limit = 2000
+    nb_iters = -1
+    plot_flag = False
+    dist_limit = 4000
     wsi_idx = 0
     class_ = "multiclass"
 
@@ -334,13 +346,16 @@ if __name__ == "__main__":
                     "_ds_" + str(downsample_factor) + "/"
 
     with h5py.File(data_splits_path, "r") as f:
-        test_set = np.array(f['test']).astype(str)
+        val_set = np.array(f['val']).astype(str)
 
-    set_name = test_set
-    n_test = len(list(test_set))
-    print("n_test: ", n_test)
+    set_name = val_set
+    n_val = len(list(val_set))
+    print("file set: ", set_name)
+    print("n_val: ", n_val)
 
     for file in tqdm(set_name, "WSI"):
+
+        print(file)
 
         file_front = file.split("_EFI_CK")[0]
         id_ = file.split("BC_")[1].split(".tiff")[0]
@@ -354,10 +369,12 @@ if __name__ == "__main__":
                       '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
         remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/' + str(file_front) \
                        + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
+        triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
+                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-labels.ome.tif'
 
         dataset_path = dataset_path + "/" + file_front + "/" + file + "/"
 
-        create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, dataset_path, set_name,
+        create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, triplet_path, dataset_path, set_name,
                           plot_flag, nb_iters, level, downsample_factor, wsi_idx, dist_limit, class_)
 
         wsi_idx += 1
