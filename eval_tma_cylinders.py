@@ -194,8 +194,6 @@ def eval_patch(path, model):
         image = np.asarray(f["input"])
         gt = np.asarray(f["output"])
 
-    # gt = np.argmax(gt, axis=-1)  # @TODO: this I shouldn't keep, right? removes one-hot
-
     image = image.astype("uint8")
 
     data_fast = fast.Image.createFromArray(image)
@@ -223,8 +221,6 @@ def eval_patch(path, model):
 
     gt = np.argmax(gt, axis=-1).astype("uint8")
     pred = pred[..., 0].astype("uint8")
-
-
 
     fig, ax = plt.subplots(1, 3, figsize=(30, 20))
     ax[0].imshow(image)
