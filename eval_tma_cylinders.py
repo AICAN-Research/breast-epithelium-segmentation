@@ -165,54 +165,102 @@ def recall_class_present(y_true, y_pred, object_):
 # @TODO: add Jaccard similarity coefficient score
 
 
-def eval_on_dataset():
+class PadderPO(fast.PythonProcessObject):
+    def __init__(self, width=1024, height=1024):
+        super().__init__()
+        self.createInputPort(0)
+        self.createOutputPort(0)
 
+        self.height = height
+        self.width = width
+
+    def execute(self):
+        # Get image and invert it with numpy
+        image = self.getInputData()
+        np_image = np.asarray(image)
+        tmp = np.zeros((self.height, self.width, 3), dtype="uint8")
+        shapes = np_image.shape
+        tmp[:shapes[0], :shapes[1]] = np_image
+
+        # Create new fast image and add as output
+        new_output_image = fast.Image.createFromArray(tmp)
+        new_output_image.setSpacing(image.getSpacing())
+        self.addOutputData(0, new_output_image)
+
+
+def eval_patch(path, model):
+
+    with h5py.File(path, "r") as f:
+        image = np.asarray(f["input"])
+        gt = np.asarray(f["output"])
+
+    # gt = np.argmax(gt, axis=-1)  # @TODO: this I shouldn't keep, right? removes one-hot
+
+    image = image.astype("uint8")
+
+    data_fast = fast.Image.createFromArray(image)
+    generator = fast.PatchGenerator.create(2048, 2048, overlapPercent=0.3).connect(0, data_fast)
+    padder = PadderPO.create(width=2048, height=2048).connect(generator)
+    network = fast.NeuralNetwork.create(modelFilename=model, inferenceEngine="OpenVINO", scaleFactor=0.00392156862)\
+        .connect(padder)
+    converter = fast.TensorToSegmentation.create(threshold=0.5).connect(0, network, 7)
+    resizer = fast.ImageResizer.create(width=2048, height=2048, useInterpolation=False, preserveAspectRatio=True)\
+        .connect(converter)
+    stitcher = fast.PatchStitcher.create().connect(resizer)
+
+    for _ in fast.DataStream(stitcher):
+        pass
+
+    pred = stitcher.runAndGetOutputData()
+
+    pred = np.asarray(pred)
+
+    gt_shape = gt.shape
+    pred = pred[:gt_shape[0], :gt_shape[1]]
+
+    print(pred.shape)
+    print(gt.shape)
+
+    gt = np.argmax(gt, axis=-1).astype("uint8")
+    pred = pred[..., 0].astype("uint8")
+
+
+
+    fig, ax = plt.subplots(1, 3, figsize=(30, 20))
+    ax[0].imshow(image)
+    ax[1].imshow(pred, vmin=0, vmax=3)
+    ax[2].imshow(gt, vmin=0, vmax=3)
+    plt.show()
+
+    print()
+
+
+
+def eval_on_dataset():
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     plot_flag = False
     bs = 1  # @TODO: should bs match bs in train?
 
     path = './datasets_tma_cores/150523_180206_level_1_ds_4/ds_val/'
-    model_name = ''
+    model_name = './output/converted_models/model_120523_094220_agunet_bs_8_as_1_lr_0.0005_d__bl_1_br_0.2_h__s_0.2_st_1.0_mp_0_ntb_160_nvb_40.onnx'
 
-    with h5py.File(path, "r") as f:
-        image = np.asarray(f["input"]).astype("float32")
-        gt = np.asarray(f["output"]).astype("float32")
+    cylinders_paths = os.listdir(path)
+    paths_ = np.array([path + x for x in cylinders_paths]).astype("U400")
 
-    # gt = np.argmax(gt, axis=-1)  # @TODO: this I shouldn't keep, right? removes one-hot
+    for path in paths_:
+        eval_patch(path, model_name)
 
-    print(image.shape, gt.shape)
-    image = image.astype("uint8")
 
-    plt.rcParams.update({'font.size': 28})
-    f, axes = plt.subplots(2, 2, figsize=(30, 30))
-    axes[0, 0].imshow(image)
-    axes[0, 1].imshow(gt[:, :, 1])
-    axes[1, 0].imshow(gt[:, :, 2])
-    axes[1, 1].imshow(gt[:, :, 3])
-    plt.show()
+    ds_val = tf.data.Dataset.from_tensor_slices(paths_)
+    ds_val = ds_val.map(lambda x: tf.py_function(eval_patch, [x], [tf.float32, tf.float32]), num_parallel_calls=8)
+    ds_val = ds_val.batch(bs)
+    ds_val.prefetch(1)
 
-    # patch generator that makes patches of size (2048, 2048) then resize to (1024, 1024)
-    data = [image, gt]
-    data_fast = [fast.Image.createFromArray(curr) for curr in data]
-    generators = [fast.PatchGenerator.create(2048, 2048).connect(0, curr) for curr in data_fast]
-    streamers = [fast.DataStream(curr) for curr in generators]
+    for image, mask in tqdm(ds_val):
+        print(image.shape)
+        print(mask.shape)
 
-    for patch_idx, (patch_he, patch_gt) in enumerate(zip(*streamers)):
-        try:
-            patch_he = np.asarray(patch_he)
-            patch_gt = np.asarray(patch_gt)
-        except RuntimeError as e:
-            print(e)
-            continue
 
-        # resize patch to (1024, 1024)
-        patch_he = cv2.resize(patch_he, (1024, 1024, 3), interpolation=cv2.INTER_NEAREST)
-        patch_gt = cv2.resize((patch_gt, (1024, 1024, gt.shape[2])), interpolation=cv2.INTER_NEAREST)
-
-        print(patch_he.shape)
-        print(patch_gt.shape)
-
-    exit()
 
 if __name__ == "__main__":
     eval_on_dataset()
