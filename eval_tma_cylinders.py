@@ -232,14 +232,14 @@ def eval_patch(path, model, plot_flag):
     print()
 
     # one-hot gt and pred
-    gt_back = (gt == 0).astype("uint8")
-    gt_inv = (gt == 1).astype("uint8")
-    gt_healthy = (gt == 2).astype("uint8")
-    gt_inSitu = (gt == 3).astype("uint8")
-    pred_back = (pred == 0).astype("uint8")
-    pred_inv = (pred == 1).astype("uint8")
-    pred_healthy = (pred == 2).astype("uint8")
-    pred_inSitu = (pred == 3).astype("uint8")
+    gt_back = (gt == 0).astype("float32")
+    gt_inv = (gt == 1).astype("float32")
+    gt_healthy = (gt == 2).astype("float32")
+    gt_inSitu = (gt == 3).astype("float32")
+    pred_back = (pred == 0).astype("float32")
+    pred_inv = (pred == 1).astype("float32")
+    pred_healthy = (pred == 2).astype("float32")
+    pred_inSitu = (pred == 3).astype("float32")
 
     gt_one_hot = np.stack(
         [gt_back, gt_inv,
@@ -299,9 +299,12 @@ def eval_on_dataset():
 
     for path in paths_:
         image, gt, pred = eval_patch(path, model_name, plot_flag)
-        print(image.shape)
-        print(gt.shape)
-        print(pred.shape)
+        fig, ax = plt.subplots(1, 3, figsize=(30, 20))
+        ax[0].imshow(image)
+        ax[1].imshow(pred[:, :, 1])
+        ax[2].imshow(gt[:, :, 1])
+        plt.show()
+        continue
         class_names = ["invasive", "benign", "insitu"]
         for i, x in enumerate(class_names):
             c_dice, union_d = class_dice_(gt, pred, class_val=i + 1)
@@ -366,6 +369,7 @@ def eval_on_dataset():
                     count_present_3_r += 1
 
         cnt = cnt + 1
+        print("count: ", cnt)
 
     print("cnt: ", cnt)
     mu_1 = np.mean(dices_1)
