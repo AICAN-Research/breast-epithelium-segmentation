@@ -16,8 +16,8 @@ import cv2
 
 # No smoothing when evaluating, to make differenciable during training
 def class_dice_(y_true, y_pred, class_val):
-    output1 = y_pred[:, :, :, class_val]
-    gt1 = y_true[:, :, :, class_val]
+    output1 = y_pred[:, :, class_val]
+    gt1 = y_true[:, :, class_val]
 
     intersection1 = tf.reduce_sum(output1 * gt1)
     union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(gt1 * gt1)  #@TODO: why do we need output*output in reduce sum?
@@ -34,8 +34,8 @@ def class_dice_(y_true, y_pred, class_val):
 def class_dice_class_present(y_true, y_pred, class_val):
     count = False
 
-    output1 = y_pred[:, :, :, class_val]
-    gt1 = y_true[:, :, :, class_val]
+    output1 = y_pred[:, :, class_val]
+    gt1 = y_true[:, :, class_val]
 
     intersection1 = tf.reduce_sum(output1 * gt1)
     union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(gt1 * gt1)  #@TODO: why do we need output*output in reduce sum?
@@ -67,8 +67,8 @@ def precision(y_true, y_pred, object_):
     """
     precision_ = 0
 
-    output1 = y_pred[:, :, :, object_]
-    target1 = y_true[:, :, :, object_]
+    output1 = y_pred[:, :, object_]
+    target1 = y_true[:, :, object_]
 
     true_positives = tf.reduce_sum(target1 * output1)
     predicted_positives = tf.reduce_sum(output1)
@@ -93,8 +93,8 @@ def precision_class_present(y_true, y_pred, object_):
     precision_ = 0
     count = False
 
-    output1 = y_pred[:, :, :, object_]
-    target1 = y_true[:, :, :, object_]
+    output1 = y_pred[:, :, object_]
+    target1 = y_true[:, :, object_]
 
     true_positives = tf.reduce_sum(target1 * output1)
     predicted_positives = tf.reduce_sum(output1)
@@ -121,8 +121,8 @@ def recall(y_true, y_pred, object_):
     """
     recall_ = 0
 
-    output1 = y_pred[:, :, :, object_]
-    target1 = y_true[:, :, :, object_]
+    output1 = y_pred[:, :, object_]
+    target1 = y_true[:, :, object_]
 
     true_positives = tf.reduce_sum(target1 * output1)  # TODO: consider reduce_sum vs K.sum, is there a difference in speed
     possible_positives = tf.reduce_sum(target1)
@@ -147,8 +147,8 @@ def recall_class_present(y_true, y_pred, object_):
     recall_ = 0
     count = False
 
-    output1 = y_pred[:, :, :, object_]
-    target1 = y_true[:, :, :, object_]
+    output1 = y_pred[:, :, object_]
+    target1 = y_true[:, :, object_]
 
     true_positives = tf.reduce_sum(target1 * output1)  # TODO: consider reduce_sum vs K.sum, is there a difference in speed
     possible_positives = tf.reduce_sum(target1)
@@ -231,7 +231,24 @@ def eval_patch(path, model, plot_flag):
 
     print()
 
-    return image, gt, pred
+    # one-hot gt and pred
+    gt_back = (gt == 0).astype("uint8")
+    gt_inv = (gt == 1).astype("uint8")
+    gt_healthy = (gt == 2).astype("uint8")
+    gt_inSitu = (gt == 3).astype("uint8")
+    pred_back = (pred == 0).astype("uint8")
+    pred_inv = (pred == 1).astype("uint8")
+    pred_healthy = (pred == 2).astype("uint8")
+    pred_inSitu = (pred == 3).astype("uint8")
+
+    gt_one_hot = np.stack(
+        [gt_back, gt_inv,
+         gt_healthy, gt_inSitu], axis=-1)
+    pred_one_hot = np.stack(
+        [pred_back, pred_inv,
+         pred_healthy, pred_inSitu], axis=-1)
+
+    return image, gt_one_hot, pred_one_hot
 
 
 
