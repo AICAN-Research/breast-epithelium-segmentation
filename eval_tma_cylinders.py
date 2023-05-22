@@ -4,14 +4,13 @@ Script for evaluating models trained on patche son 10x on whole TMA cylinders cr
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
-from tensorflow.keras.models import load_model
-import os
-from tqdm import tqdm
-from source.utils import normalize_img, patchReader
 from stats import BCa_interval_macro_metric
 import h5py
+
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+
 import fast
-import cv2
 
 
 # No smoothing when evaluating, to make differenciable during training
@@ -253,7 +252,7 @@ def eval_patch(path, model, plot_flag):
 
 
 def eval_on_dataset():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    #os.environ["CUDA_VISIBLE_DEVICES"] = "2"
     plot_flag = False
     bs = 1  # @TODO: should bs match bs in train?
 
@@ -299,12 +298,6 @@ def eval_on_dataset():
 
     for path in paths_:
         image, gt, pred = eval_patch(path, model_name, plot_flag)
-        fig, ax = plt.subplots(1, 3, figsize=(30, 20))
-        ax[0].imshow(image)
-        ax[1].imshow(pred[:, :, 1])
-        ax[2].imshow(gt[:, :, 1])
-        plt.show()
-        continue
         class_names = ["invasive", "benign", "insitu"]
         for i, x in enumerate(class_names):
             c_dice, union_d = class_dice_(gt, pred, class_val=i + 1)
