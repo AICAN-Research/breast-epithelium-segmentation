@@ -3,7 +3,7 @@ import os
 from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping, TensorBoard, ReduceLROnPlateau
 from datetime import datetime, date
-from source.augment import random_brightness, random_fliplr, random_flipud, \
+from source.augment import random_brightness, random_rot90, random_flipud, \
     random_hue, random_saturation, random_shift, random_blur
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class, \
      create_multiscale_input, get_random_path
@@ -24,7 +24,7 @@ def main(ret):
     img_size = 1024
 
     # network stuff
-    encoder_convs = [16, 32, 32, 64, 64, 128, 128, 256, 256]
+    encoder_convs = [16, 32, 32, 64, 64, 128, 128]
     nb_downsamples = len(encoder_convs) - 1
     N_train_batches = ret.nbr_train_batches
     N_val_batches = ret.nbr_val_batches
@@ -38,7 +38,7 @@ def main(ret):
         str(ret.mixed_precision) + "_ntb_" + str(N_train_batches) + "_nvb_" + str(N_val_batches)
 
     # paths
-    dataset_path = '/mnt/EncryptedSSD1/maren/datasets/200423_125554_level_2_psize_1024_ds_4/'
+    dataset_path = '/mnt/EncryptedSSD1/maren/datasets/140523_165318_level_2_psize_1024_ds_4/'
     #dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
     train_path = dataset_path + 'ds_train'
     #train_path_wsi = dataset_path_wsi + 'ds_train'
@@ -139,8 +139,6 @@ def main(ret):
 
     # only augment train data
     # shift last
-    ds_train = ds_train.map(lambda x, y: random_fliplr(x, y), num_parallel_calls=1)
-    ds_train = ds_train.map(lambda x, y: random_flipud(x, y), num_parallel_calls=1)
     if ret.brightness:
         ds_train = ds_train.map(lambda x, y: (random_brightness(x, brightness=ret.brightness), y), num_parallel_calls=1)  # ADDITIVE
     if ret.hue:
@@ -150,6 +148,8 @@ def main(ret):
                             num_parallel_calls=1)  # @TODO: MULTIPLICATIVE?
     if ret.blur:
         ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
+    if ret.rot:
+        ds_train = ds_train.map(lambda x, y: (random_rot90(x, y)), num_parallel_calls=1)
     if ret.shift:
         ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=1)
 
@@ -174,7 +174,7 @@ def main(ret):
         model = network.create()
     elif ret.network == "agunet":
         agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=ret.nbr_classes,
-                               encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=ret.dropout,
+                               encoder_spatial_dropout=None, decoder_spatial_dropout=None,
                                accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=False,
                                encoder_use_bn=True, decoder_use_bn=True)
         agunet.set_convolutions(encoder_convs)
@@ -199,7 +199,7 @@ def main(ret):
     tb_logger = TensorBoard(log_dir="output/logs/" + name + "/", histogram_freq=0, update_freq="epoch")
 
     early = EarlyStopping(
-        monitor="val_conv2d_72_loss",  # "val_loss"
+        monitor="val_conv2d_54_loss",  # "val_loss"
         min_delta=0,  # 0: any improvement is considered an improvement
         patience=ret.patience,  # if not improved for ret.patience epochs, stops
         verbose=1,
@@ -208,7 +208,7 @@ def main(ret):
     )
 
     reduce_lr = ReduceLROnPlateau(
-        mointor="val_conv2d_72_loss",
+        mointor="val_conv2d_54_loss",
         factor=0.5,
         patience=10,
         mode="min",
@@ -216,7 +216,7 @@ def main(ret):
 
     save_best = ModelCheckpoint(
         model_path + "model_" + name,
-        monitor="val_conv2d_72_loss",  # "val_loss"
+        monitor="val_conv2d_54_loss",  # "val_loss"
         verbose=2,  #
         save_best_only=True,
         save_weights_only=False,
@@ -284,6 +284,8 @@ if __name__ == "__main__":
                         help="saturation aug added to train set.")
     parser.add_argument('--shift', metavar='--st', type=float, nargs='?', default=0,
                         help="shift aug added to train set.")
+    parser.add_argument('--rot', metavar='--rt', type=float, nargs='?', default=0,
+                        help="rot 90 aug added to train set.")
     parser.add_argument('--nbr_train_batches', metavar='--ntb', type=int, nargs='?', default=120,
                         help="number of train batches.")
     parser.add_argument('--nbr_val_batches', metavar='--nvb', type=int, nargs='?', default=30,
@@ -300,6 +302,7 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = ret.gpu
 
     if ret.seed:
+        os.environ["PYTHONHASHSEED"] = str(ret.seed)
         np.random.seed(ret.seed)
         python_random.seed(ret.seed)
         tf.random.set_seed(ret.seed)
