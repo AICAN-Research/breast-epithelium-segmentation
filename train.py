@@ -4,7 +4,7 @@ from deep_learning_tools.network import Unet
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping, TensorBoard, ReduceLROnPlateau
 from datetime import datetime, date
 from source.augment import random_brightness, random_rot90, random_flipud, \
-    random_hue, random_saturation, random_shift, random_blur
+    random_fliplr, random_hue, random_saturation, random_shift, random_blur
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class, \
      create_multiscale_input, get_random_path
 from source.losses import get_dice_loss, class_dice_loss
@@ -34,7 +34,8 @@ def main(ret):
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
         str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_d_" + "_bl_" + str(ret.blur) + "_br_" + \
-        str(ret.brightness) + "_h_" + str(ret.hue) + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift) + "_mp_" + \
+        str(ret.brightness) + "_h_" + str(ret.hue) + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift) + \
+        "_fl_" + str(ret.flip) + "_rt_" + str(ret.rot) + "_mp_" + \
         str(ret.mixed_precision) + "_ntb_" + str(N_train_batches) + "_nvb_" + str(N_val_batches)
 
     # paths
@@ -150,6 +151,9 @@ def main(ret):
         ds_train = ds_train.map(lambda x, y: (random_blur(x), y), num_parallel_calls=1)
     if ret.rot:
         ds_train = ds_train.map(lambda x, y: (random_rot90(x, y)), num_parallel_calls=1)
+    if ret.flip:
+        ds_train = ds_train.map(lambda x, y: (random_flipud(x, y)), num_parallel_calls=1)
+        ds_train = ds_train.map(lambda x, y: (random_fliplr(x, y)), num_parallel_calls=1)
     if ret.shift:
         ds_train = ds_train.map(lambda x, y: random_shift(x, y, translate=50), num_parallel_calls=1)
 
@@ -286,6 +290,8 @@ if __name__ == "__main__":
                         help="shift aug added to train set.")
     parser.add_argument('--rot', metavar='--rt', type=float, nargs='?', default=0,
                         help="rot 90 aug added to train set.")
+    parser.add_argument('--flip', metavar='--fl', type=float, nargs='?', default=0,
+                        help="flip aug added to train set.")
     parser.add_argument('--nbr_train_batches', metavar='--ntb', type=int, nargs='?', default=120,
                         help="number of train batches.")
     parser.add_argument('--nbr_val_batches', metavar='--nvb', type=int, nargs='?', default=30,
