@@ -33,7 +33,7 @@ def main(ret):
     br_temp = str(ret.brightness)
 
     name = curr_date + "_" + curr_time + "_" + ret.network + "_bs_" + str(ret.batch_size) + "_as_" + \
-        str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_d_" + "_bl_" + str(ret.blur) + "_br_" + \
+        str(ret.accum_steps) + "_lr_" + str(ret.learning_rate) + "_d_" + str(ret.dropout) + "_bl_" + str(ret.blur) + "_br_" + \
         str(ret.brightness) + "_h_" + str(ret.hue) + "_s_" + str(ret.saturation) + "_st_" + str(ret.shift) + \
         "_fl_" + str(ret.flip) + "_rt_" + str(ret.rot) + "_mp_" + \
         str(ret.mixed_precision) + "_ntb_" + str(N_train_batches) + "_nvb_" + str(N_val_batches)
@@ -178,7 +178,7 @@ def main(ret):
         model = network.create()
     elif ret.network == "agunet":
         agunet = AttentionUnet(input_shape=(1024, 1024, 3), nb_classes=ret.nbr_classes,
-                               encoder_spatial_dropout=None, decoder_spatial_dropout=None,
+                               encoder_spatial_dropout=ret.dropout, decoder_spatial_dropout=None,
                                accum_steps=ret.accum_steps, deep_supervision=True, input_pyramid=True, grad_accum=False,
                                encoder_use_bn=True, decoder_use_bn=True)
         agunet.set_convolutions(encoder_convs)
@@ -228,9 +228,12 @@ def main(ret):
         save_freq="epoch"
     )
 
-    opt = tf.keras.optimizers.Adam(ret.learning_rate)  # , epsilon=1e-4)
+
     if ret.mixed_precision:
+        opt = tf.keras.optimizers.Adam(ret.learning_rate, epsilon=1e-4)  # , epsilon=1e-4)
         opt = mixed_precision.LossScaleOptimizer(opt)
+    else:
+        opt = tf.keras.optimizers.Adam(ret.learning_rate, epsilon=1e-7)
 
     model.compile(
         optimizer=opt,
