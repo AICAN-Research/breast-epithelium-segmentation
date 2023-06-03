@@ -197,9 +197,9 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
     roi_annot_ = roi_annot_[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
 
     # differentiate between insitu, benign, invasive
-    healthy_ep = ((annot_ == 1) & (dab_large_reg == 1)).astype("float32")
-    in_situ_ep = ((annot_ == 2) & (dab_large_reg == 1)).astype("float32")
-    invasive_ep = dab_large_reg.copy().astype("float32")
+    healthy_ep = ((annot_ == 1) & (dab_large_reg == 1)).astype("uint8")
+    in_situ_ep = ((annot_ == 2) & (dab_large_reg == 1)).astype("uint8")
+    invasive_ep = dab_large_reg.copy().astype("uint8")
     invasive_ep[healthy_ep == 1] = 0
     invasive_ep[in_situ_ep == 1] = 0
 
@@ -226,12 +226,6 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
         except RuntimeError as e:
             print(e)
             continue
-
-        # normalize intensities, he and ck after thresholding
-        patch_healthy = minmax(patch_healthy)
-        patch_in_situ = minmax(patch_in_situ)
-        patch_invasive = minmax(patch_invasive)
-        patch_roi_ = minmax(patch_roi_)
 
         # one-hot encode ground truth
         gt_one_hot = np.stack(
@@ -263,18 +257,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
             gt_one_hot = patch_gt_padded
 
         # skip patches including areas annotated for removal or with tissue below tissue_level percent
-        #intensity_away_from_white_thresh = 40
-        #he_tissue = (
-        #        np.mean(patch_he_, axis=-1) < 255 - intensity_away_from_white_thresh).astype("uint8")
-        #he_tissue_ = np.sum(he_tissue) / (he_tissue.shape[0] * he_tissue.shape[1])
-
-        # normalize he and ck intensity. Has to be done after thresholding
-        # @TODO: should I intensity normalize when normalizing during training too? Then divide by 255, now 0-1.
-        #patch_he_ = minmax(patch_he_)
-        #patch_ck_ = minmax(patch_ck_)
-
-        # @TODO: some patches with a lot of fat will be removed, ok?
-        if 1. in np.unique(patch_roi_): #or he_tissue_ < tissue_level:
+        if 1. in np.unique(patch_roi_):
             continue
 
         # register on patch level
@@ -326,7 +309,7 @@ def create_dataset(he_path, ck_path, roi_annot_path, annot_path, dab_path, datas
         with h5py.File(dataset_path + set_name + add_to_path + "wsi_" + str(wsi_idx) + "_" + str(square_idx) + "_" +
                        str(patch_idx) + ".h5", "w") as f:
             f.create_dataset(name="input", data=patch_he_.astype("uint8"))
-            f.create_dataset(name="output", data=gt_one_hot.astype("uint8"))
+            f.create_dataset(name="output", data=gt_one_hot.astype("float32"))
 
     # delete streamers and stuff to potentially avoid threading issues in FAST
     del data_fast, generators, streamers, data
