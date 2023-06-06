@@ -3,7 +3,7 @@ Script to create TMA-core pairs from test set and save on disk for evaluation of
 The TMAs cores are saved on "level" resolution (image pyramid level)
 The cores are registrerd and saved in hdf5 format.
 """
-import fast
+# import fast
 import numpy as np
 from tqdm import tqdm
 from skimage.exposure import equalize_hist
@@ -154,6 +154,8 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, tripl
 
                 shapes_ck_tma = ck_tma.shape
                 shapes_he_tma = he_tma.shape
+                print(shapes_he_tma)
+                print(shapes_ck_tma)
 
                 height_ck, width_ck, _ = ck_tma.shape  # need when finding TMA in mask slide
                 height_he, width_he, _ = he_tma.shape
@@ -323,7 +325,7 @@ def create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, tripl
 
 
 if __name__ == "__main__":
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     level = 1
     downsample_factor = 4
     nb_iters = -1
@@ -346,13 +348,13 @@ if __name__ == "__main__":
                     "_ds_" + str(downsample_factor) + "/"
 
     with h5py.File(data_splits_path, "r") as f:
-        val_set = np.array(f['val']).astype(str)
+        test_set = np.array(f['test']).astype(str)
 
-    set_ = val_set
-    set_name = 'ds_val'
-    n_val = len(list(val_set))
+    set_ = test_set
+    set_name = 'ds_test'
+    n_test = len(list(test_set))
     print("file set: ", set_)
-    print("n_val: ", n_val)
+    print("n_test: ", n_test)
 
     for file in tqdm(set_, "WSI"):
 
