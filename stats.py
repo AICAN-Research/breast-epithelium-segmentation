@@ -11,6 +11,14 @@ def gamma2_func(a, b, q):
 
 
 def BCa_interval_macro_metric(X, func, B=1000, q=0.975):
+    """
+    from: https://github.com/andreped/adverse-events/blob/85cb8c59e6f3f86fdc52f985d17ba846ce0f5474/python/utils/stats.py
+    :param X:
+    :param func:
+    :param B:
+    :param q:
+    :return:
+    """
     X = np.array(X)
     theta_hat = func(X)
     print(theta_hat)
