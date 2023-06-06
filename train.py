@@ -40,11 +40,11 @@ def main(ret):
 
     # paths
     dataset_path = '/mnt/EncryptedSSD1/maren/datasets/140523_165318_level_2_psize_1024_ds_4/'
-    #dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/210423_122737_wsi_level_2_psize_1024_ds_4/'
+    dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/030623_205109_wsi_level_2_psize_1024_ds_4/'
     train_path = dataset_path + 'ds_train'
-    #train_path_wsi = dataset_path_wsi + 'ds_train'
+    train_path_wsi = dataset_path_wsi + 'ds_train'
     val_path = dataset_path + 'ds_val'
-    #val_path_wsi = dataset_path_wsi + 'ds_val'
+    val_path_wsi = dataset_path_wsi + 'ds_val'
     # test_path = dataset_path + 'ds_test'
     history_path = './output/history/'  # path to directory
     model_path = './output/models/'  # path to directory
@@ -88,11 +88,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             train_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-        #for i, directory in enumerate(os.listdir(train_path_wsi)):
-        #    dir_path = train_path_wsi + "/" + directory + "/"
-        #    for file_ in os.listdir(dir_path):
-        #        file_path = dir_path + file_
-        #        train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
+        for i, directory in enumerate(os.listdir(train_path_wsi)):
+            dir_path = train_path_wsi + "/" + directory + "/"
+            for file_ in os.listdir(dir_path):
+                file_path = dir_path + file_
+                train_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         val_paths = []
         for directory in os.listdir(val_path):
@@ -102,11 +102,11 @@ def main(ret):
                 file_path = dir_path + file_
                 dir_paths.append(file_path)
             val_paths.append(dir_paths)  # nested list of three lists containing paths for each folder/class
-        #for i, directory in enumerate(os.listdir(val_path_wsi)):
-        #    dir_path = val_path_wsi + "/" + directory + "/"
-        #    for file_ in os.listdir(dir_path):
-        #        file_path = dir_path + file_
-        #        val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
+        for i, directory in enumerate(os.listdir(val_path_wsi)):
+            dir_path = val_path_wsi + "/" + directory + "/"
+            for file_ in os.listdir(dir_path):
+                file_path = dir_path + file_
+                val_paths[i].append(file_path)  # nested list of three lists containing paths for each folder/class
 
         # combine all train/val paths
         ds_train = tf.data.Dataset.from_generator(
@@ -230,7 +230,7 @@ def main(ret):
 
 
     if ret.mixed_precision:
-        opt = tf.keras.optimizers.Adam(ret.learning_rate, epsilon=1e-4)  # , epsilon=1e-4)
+        opt = tf.keras.optimizers.Adam(ret.learning_rate, epsilon=1e-4)  # , was epsilon=1e-4) before 30.05.23
         opt = mixed_precision.LossScaleOptimizer(opt)
     else:
         opt = tf.keras.optimizers.Adam(ret.learning_rate, epsilon=1e-7)
