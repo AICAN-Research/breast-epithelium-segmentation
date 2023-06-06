@@ -3,23 +3,6 @@ import logging as log
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import h5py
-#from tensorflow.keras.optimizers import LearningRateSchedule
-
-
-class CustomLearningRateSchedule(LearningRateSchedule):
-    
-    #Learning rate schedule which halves the learning rate for every 10th epoch
-    #without improvement
-    #Based on:
-    #https://www.tensorflow.org/text/tutorials/transformer
-    #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers/schedules/LearningRateSchedule
-    
-    def __init__(self, current_learning_rate):
-        self.current_learning_rate = current_learning_rate
-
-    def __call__(self, step):
-
-        return self.current_learning_rate
 
 
 # from tensorflow example, modified
