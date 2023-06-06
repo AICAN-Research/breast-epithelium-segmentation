@@ -334,6 +334,7 @@ def create_datasets(he_path, ck_path, mask_path, annot_path, remove_path, triple
                     dab_core_padded_shifted[healthy_ep == 1] = 0
                     dab_core_padded_shifted[in_situ_ep == 1] = 0
 
+                # @TODO: does fast.PatchGenerator pad or stretch image if not "enough"?
                 data = [he_tma_padded, ck_tma_padded_shifted, dab_core_padded_shifted, healthy_ep, in_situ_ep]
                 data_fast = [fast.Image.createFromArray(curr) for curr in data]
                 generators = [fast.PatchGenerator.create(patch_size, patch_size,
