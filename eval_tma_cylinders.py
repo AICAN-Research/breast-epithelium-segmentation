@@ -23,7 +23,7 @@ def class_dice_(y_true, y_pred, class_val):
     union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(
         gt1 * gt1)  # @TODO: why do we need output*output in reduce sum?
     if union1 == 0:
-        dice = 0.
+        dice = 1.  # used to be 0 before 28.05.23
         dice_u = True
     else:
         dice = (2. * intersection1) / union1
@@ -42,13 +42,13 @@ def class_dice_class_present(y_true, y_pred, class_val):
     union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(
         gt1 * gt1)  # @TODO: why do we need output*output in reduce sum?
     if union1 == 0:
-        dice = 0.
+        dice = 1.  # used to be 0 before 28.05.23
         dice_u = True
     else:
         dice = (2. * intersection1) / union1
         dice_u = False
 
-    if tf.reduce_sum(gt1):
+    if tf.reduce_sum(gt1) or tf.reduce_sum(output1):  # used to be tf.reduce_sum(gt1) before 28.05.23
         count = True
 
     return dice, count, dice_u
@@ -75,7 +75,7 @@ def precision(y_true, y_pred, object_):
     true_positives = tf.reduce_sum(target1 * output1)
     predicted_positives = tf.reduce_sum(output1)
     if predicted_positives == 0:
-        precision_ = 0
+        precision_ = 1  # used to be 0 before 28.05.23
     else:
         precision_ += true_positives / predicted_positives
 
@@ -101,10 +101,10 @@ def precision_class_present(y_true, y_pred, object_):
     true_positives = tf.reduce_sum(target1 * output1)
     predicted_positives = tf.reduce_sum(output1)
     if predicted_positives == 0:
-        precision_ = 0
+        precision_ = 1  # used to be 0 before 28.05.23
     else:
         precision_ += true_positives / predicted_positives
-    if tf.reduce_sum(target1):
+    if tf.reduce_sum(target1) or tf.reduce_sum(output1):  # used to be tf.reduce_sum(target1) before 28.05.23
         count = True
 
     return precision_, count
@@ -130,7 +130,7 @@ def recall(y_true, y_pred, object_):
         target1 * output1)  # TODO: consider reduce_sum vs K.sum, is there a difference in speed
     possible_positives = tf.reduce_sum(target1)
     if possible_positives == 0:
-        recall_ = 0
+        recall_ = 1  # used to be 0 before 28.05.23
     else:
         recall_ += true_positives / possible_positives
 
@@ -157,10 +157,10 @@ def recall_class_present(y_true, y_pred, object_):
         target1 * output1)  # TODO: consider reduce_sum vs K.sum, is there a difference in speed
     possible_positives = tf.reduce_sum(target1)
     if possible_positives == 0:
-        recall_ = 0
+        recall_ = 1  # used to be 0 before 28.05.23
     else:
         recall_ += true_positives / possible_positives
-    if tf.reduce_sum(target1):
+    if tf.reduce_sum(target1) or tf.reduce_sum(output1):  # used to be tf.reduce_sum(target1) before 28.05.23
         count = True
 
     return recall_, count
@@ -208,7 +208,7 @@ def eval_patch(path, model):
     padder = PadderPO.create(width=2048, height=2048).connect(generator)
     network = fast.NeuralNetwork.create(modelFilename=model, inferenceEngine="OpenVINO", scaleFactor=0.00392156862) \
         .connect(padder)
-    converter = fast.TensorToSegmentation.create(threshold=0.5).connect(0, network, 7)
+    converter = fast.TensorToSegmentation.create(threshold=0.5).connect(0, network, 5)
     resizer = fast.ImageResizer.create(width=2048, height=2048, useInterpolation=False, preserveAspectRatio=True) \
         .connect(converter)
     stitcher = fast.PatchStitcher.create().connect(resizer)
@@ -288,8 +288,8 @@ def eval_on_dataset():
     # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
     plot_flag = False
 
-    path = './datasets_tma_cores/150523_180206_level_1_ds_4/ds_val/'
-    model_name = './output/converted_models/model_140523_222332_agunet_bs_8_as_1_lr_0.0005_d__bl_1_br_0.2_h_0.05_s_0.2_st_1.0_mp_0_ntb_160_nvb_40.onnx'
+    path = './datasets_tma_cores/040623_113425_level_1_ds_4/ds_test/'
+    model_name = './output/converted_models/model_030623_224255_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx'
     metrics_path = './eval_outputs/'
 
     cylinders_paths = os.listdir(path)
@@ -335,8 +335,11 @@ def eval_on_dataset():
 
     print("cnt: ", cnt)
     mu_1 = np.mean(dice_scores_total[0])
+    std_1 = np.std(dice_scores_total[0])
     mu_2 = np.mean(dice_scores_total[1])
+    std_2 = np.std(dice_scores_total[1])
     mu_3 = np.mean(dice_scores_total[2])
+    std_3 = np.std(dice_scores_total[2])
     p_1 = np.mean(precisions_total[0])
     p_2 = np.mean(precisions_total[1])
     p_3 = np.mean(precisions_total[2])
@@ -360,14 +363,17 @@ def eval_on_dataset():
     r_3_exist = np.mean(recalls_exists_total[2])
 
     print(mu_1, dice_ci_1)
+    print("std_1: ", std_1)
     print("mean precisions invasive: ", p_1)
     print("mean recalls invasive: ", r_1)
     print()
     print(mu_2, dice_ci_2)
+    print("std_2: ", std_2)
     print("mean precisions benign: ", p_2)
     print("mean recalls benign: ", r_2)
     print()
     print(mu_3, dice_ci_3)
+    print("std_3: ", std_3)
     print("mean precisions inSitu: ", p_3)
     print("mean recalls inSitu: ", r_3)
 
@@ -388,6 +394,10 @@ def eval_on_dataset():
     print(len(dice_scores_exist_total[0]), len(precisions_exists_total[0]), len(recalls_exists_total[0]))
     print(len(dice_scores_exist_total[1]), len(precisions_exists_total[1]), len(recalls_exists_total[1]))
     print(len(dice_scores_exist_total[2]), len(precisions_exists_total[2]), len(recalls_exists_total[2]))
+
+    print()
+    print(model_name)
+    print(path)
 
 
 if __name__ == "__main__":
