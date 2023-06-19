@@ -1,7 +1,19 @@
 # ep-segmentation
-Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using cytokeratin as ground truth.
+Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using cytokeratin and pathologists annotations
+as ground truth.
 
-## Create dataset and train model:
+### To use the code base you need:
+
+1. HE and CK images of tissue slides (.vsi)
+3. Manual annotations of: 
+   4. Benign and in situ lesions, annotated in HE images (.ome.tif)
+   5. Cylinders (for tma slides) or areas (for wsi slides) to remove, annotated in CK images (.ome.tif)
+   6. Triplet info (for tma slides), annotated in CK images (ome.tif)
+4. QuPath v 3.2 
+5. FastPathology (for inference)
+6. Libraries in requirements.txt
+
+## Create dataset:
 To create the datasets you need five (for wsi) or six (for tma) images of each slide: he images (.vsi), ck images (.vsi), thresholded dab-channel (.tiff),
 manual annotations of benign/in situ lesions (.ome.tif), annotations of areas to remove (.ome.tif), 
 and triplet info (.ome.tif).
