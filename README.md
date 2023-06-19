@@ -12,6 +12,7 @@ All groovy scripts are run in QuPath. Open QuPath-project. Go to Automate -> Pro
 editor go to Run -> Run for project. Select images to run script on.
 
 ### Create epithelial mask from ck images:
+Create QuPath project and add ck images.
 
 Threshold dab-channel in QuPath (uses pixel classifier dab_seg2.json):
 
@@ -27,7 +28,9 @@ Convert geojson to tiff:
 convert_to_tiff.py
 ```
 ### Convert annotations to ome-tif:
-Convert manual annotations of benign/in situ lesions, cores to remove, triplet info. to ome-tiff.
+Create QuPath projects for the different tasks (1-3). Add images and annotations. 
+
+Convert manual annotations of benign/in situ lesions (1), cores to remove (2), and triplet info (3). to ome-tiff.
 Remember to change annotation name depending on annotation category.
 ```
 ome_tif_exporter.groovy
