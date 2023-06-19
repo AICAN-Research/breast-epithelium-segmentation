@@ -3,7 +3,16 @@ Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using
 
 ## Create dataset and train model:
 ### Create epithelial mask from ck images:
+QuPath: 
+
+
+All groovy scripts are run in QuPath. Open QuPath-project. Go to Automate -> Project scripts -> Script name. In script
+editor go to Run -> Run -> Run for project. Select images to run script on.
+
 Threshold dab-channel in QuPath:
+
+All groovy scripts are run in QuPath. Open quPath-project. Go to Automate -> Project scripts -> Script name. In script
+editor go to Run -> Run for project. Select images to run script on.
 ```
 dab_seg.groovy
 ```
