@@ -1,27 +1,27 @@
 # ep-segmentation
 Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using cytokeratin and pathologists annotations
-as ground truth.
+as ground truth. A multiclass model which separates epithelium into invasive, benign and *in situ* lesions.
 
 This repository includes the source code used for the model presented in (manuscript when published). 
 The final model presented in the paper has been integrated in [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) and can
-be run on new tissue slides.
+be run on new HE tissue slides.
 
 ### To use the code base you need:
-**Disclamer:** The source code includes hard-coded solutions. To train the model on a new dataset, the code requires some
+**Disclaimer:** The source code includes hard-coded solutions. To train the model on a new dataset, the code requires some
 modifications, and the new dataset needs to be created, in which case you would need:
 
 1. HE and CK images of tissue slides (.vsi)
 2. Manual annotations of: 
-   - Benign and in situ lesions, annotated in HE images (.ome.tif)
+   - Benign and *in situ* lesions, annotated in HE images (.ome.tif)
    - Cylinders (for tma slides) or areas (for wsi slides) to remove, annotated in CK images (.ome.tif)
    - Triplet info (for tma slides), annotated in CK images (ome.tif)
 3. [QuPath v 3.2](https://github.com/qupath/qupath)
-4. [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) (for inference)
-5. Libraries in requirements.txt
+4. Libraries in requirements.txt
+5. [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) (for evaluation)
 
 ## Create dataset:
 To create the datasets you need five (for wsi) or six (for tma) images of each slide: he images (.vsi), ck images (.vsi), thresholded dab-channel (.tiff),
-manual annotations of benign/in situ lesions (.ome.tif), annotations of areas to remove (.ome.tif), 
+manual annotations of benign/*in situ* lesions (.ome.tif), annotations of areas to remove (.ome.tif), 
 and triplet info (.ome.tif).
 
 QuPath: 
@@ -48,7 +48,7 @@ convert_to_tiff.py
 ### Convert annotations to ome-tif:
 Create QuPath projects for the different tasks (1-3). Add images and annotations. 
 
-Convert manual annotations of benign/in situ lesions (1), cores to remove (2), and triplet info (3). to ome-tiff.
+Convert manual annotations of benign/*in situ* lesions (1), cores to remove (2), and triplet info (3). to ome-tiff.
 Remember to change annotation name depending on annotation category.
 ```
 ome_tif_exporter.groovy
@@ -110,7 +110,7 @@ Evaluate model with:
 python /path/to/eval_tma_cylinders.py
 ```
 
-## Run tf models in FastPathology: 
+## Run models in FastPathology: 
 Convert model to onnx for FastPathology
 ```
 pip install tf2onnx
@@ -120,6 +120,11 @@ python -m tf2onnx.convert --saved-model output/models/model_060223_122342_unet_b
 Add models from disk: Press "add models from disk" and find correct model and open
 
 If pipeline already exists, press "Edit pipeline" and change model name to current model
+
+pipeline:
+```
+multiclass_ep_seg_agunet.fpl
+```
 
 ## Import segmentation from FastPathology to QuPath:
 ```
