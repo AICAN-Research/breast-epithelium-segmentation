@@ -10,13 +10,13 @@ The final model presented in the paper has been integrated in [FastPathology](ht
 modifications, and the new dataset needs to be created, in which case you would need:
 
 1. HE and CK images of tissue slides (.vsi)
-3. Manual annotations of: 
-   4. Benign and in situ lesions, annotated in HE images (.ome.tif)
-   5. Cylinders (for tma slides) or areas (for wsi slides) to remove, annotated in CK images (.ome.tif)
-   6. Triplet info (for tma slides), annotated in CK images (ome.tif)
-4. QuPath v 3.2
-5. [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) (for inference)
-6. Libraries in requirements.txt
+2. Manual annotations of: 
+   - Benign and in situ lesions, annotated in HE images (.ome.tif)
+   - Cylinders (for tma slides) or areas (for wsi slides) to remove, annotated in CK images (.ome.tif)
+   - Triplet info (for tma slides), annotated in CK images (ome.tif)
+3. [QuPath v 3.2](https://github.com/qupath/qupath)
+4. [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) (for inference)
+5. Libraries in requirements.txt
 
 ## Create dataset:
 To create the datasets you need five (for wsi) or six (for tma) images of each slide: he images (.vsi), ck images (.vsi), thresholded dab-channel (.tiff),
