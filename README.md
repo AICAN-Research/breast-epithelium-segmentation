@@ -3,10 +3,11 @@ Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using
 as ground truth.
 
 This repository includes the source code used for the model presented in (manuscript when published). 
-The final model presented in the paper has been integrated in [FastPathology](https://github.com/AICAN-Research/FAST-Pathology).
+The final model presented in the paper has been integrated in [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) and can
+be run on new tissue slides.
 
 ### To use the code base you need:
-**Disclamer:** The source code includes hard-coded solutions. To use on a new dataset, the code requires some
+**Disclamer:** The source code includes hard-coded solutions. To train the model on a new dataset, the code requires some
 modifications, and the new dataset needs to be created, in which case you would need:
 
 1. HE and CK images of tissue slides (.vsi)
