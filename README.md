@@ -2,6 +2,26 @@
 Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using cytokeratin as ground truth.
 
 ## Create dataset and train model:
+### Create epithelial mask from ck images:
+Threshold dab-channel in QuPath:
+```
+dab_seg.groovy
+```
+Export dab-channel annotations to geojson:
+```
+geojson_exporter.groovy
+```
+Convert geojson to tiff:
+```
+convert_to_tiff.py
+```
+### Convert annotations to ome-tif:
+Convert manual annotations of benign/in situ lesions, cores to remove etc. to ome-tiff.
+Remember to change annotation name depending on annotation category.
+```
+ome_tif_exporter.groovy
+```
+### Create datasets:
 Create dataset from tma:
 ```
 python /path/to/create_data_new.py 
@@ -10,6 +30,7 @@ Create dataset from wsi:
 ```
 python /path/to/create_data_wsi.py 
 ```
+### Train model:
 Train model (remember to change dataset name and pars argument values. Toggle/untoggle deep supervision/multiscale input/grad 
 accumulation when creating model) Use only tma, only wsi or both datasets:
 ```
@@ -68,7 +89,9 @@ Add models from disk: Press "add models from disk" and find correct model and op
 If pipeline already exists, press "Edit pipeline" and change model name to current model
 
 ## Import segmentation from FastPathology to QuPath:
-
+```
+import_from_fastpathology.groovy
+```
 
 ## Troubleshoot: 
 ### QuPath: 
