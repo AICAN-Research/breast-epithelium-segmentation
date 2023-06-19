@@ -11,8 +11,6 @@ editor go to Run -> Run for project. Select images to run script on.
 
 Threshold dab-channel in QuPath:
 
-All groovy scripts are run in QuPath. Open quPath-project. Go to Automate -> Project scripts -> Script name. In script
-editor go to Run -> Run for project. Select images to run script on.
 ```
 dab_seg.groovy
 ```
