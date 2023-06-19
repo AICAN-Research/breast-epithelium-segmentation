@@ -13,7 +13,7 @@ editor go to Run -> Run for project. Select images to run script on.
 
 ### Create epithelial mask from ck images:
 
-Threshold dab-channel in QuPath:
+Threshold dab-channel in QuPath (uses pixel classifier dab_seg2.json):
 
 ```
 dab_seg.groovy
