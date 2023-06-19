@@ -29,6 +29,11 @@ Remember to change annotation name depending on annotation category.
 ome_tif_exporter.groovy
 ```
 ### Create datasets:
+To create the datasets you need five (for wsi) or six (for tma) images of each slide: he images (.vsi), ck images (.vsi), thresholded dab-channel (.tiff),
+manual annotations of benign/in situ lesions (.ome.tif), annotations of areas to remove (.ome.tif), 
+and triplet info (.ome.tif).
+
+
 Create dataset from tma:
 ```
 python /path/to/create_data_new.py 
