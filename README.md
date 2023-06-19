@@ -1,6 +1,21 @@
 # ep-segmentation
 Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using cytokeratin as ground truth.
 
+## Create dataset and train model:
+Create dataset from tma:
+```
+python /path/to/create_data_new.py 
+```
+Create dataset from wsi: 
+```
+python /path/to/create_data_wsi.py 
+```
+Train model (remember to change dataset name and pars argument values. Toggle/untoggle deep supervision/multiscale input/grad 
+accumulation when creating model) Use only tma, only wsi or both datasets:
+```
+python /path/to/train.py 
+```
+
 ## Train network from terminal: 
 
 Create a screen session: 
@@ -31,7 +46,17 @@ Check if in screen session:
 ```
 ctr at
 ```
-## Run models in FastPathology: 
+## Evaluate model:
+Create tma-level dataset for evaluation: 
+```
+python /path/to/create_tma_pairs.py
+```
+Evaluate model with: 
+```
+python /path/to/eval_tma_cylinders.py
+```
+
+## Run tf models in FastPathology: 
 Convert model to onnx for FastPathology
 ```
 pip install tf2onnx
@@ -41,6 +66,8 @@ python -m tf2onnx.convert --saved-model output/models/model_060223_122342_unet_b
 Add models from disk: Press "add models from disk" and find correct model and open
 
 If pipeline already exists, press "Edit pipeline" and change model name to current model
+
+## Import segmentation from FastPathology to QuPath:
 
 
 ## Troubleshoot: 
