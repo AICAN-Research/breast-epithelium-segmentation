@@ -2,15 +2,20 @@
 Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using cytokeratin and pathologists annotations
 as ground truth.
 
+This repository includes the source code used for the model presented in (manuscript when published). 
+The final model presented in the paper has been integrated in [FastPathology](https://github.com/AICAN-Research/FAST-Pathology).
+
 ### To use the code base you need:
+**Disclamer:** The source code includes hard-coded solutions. To use on a new dataset, the code requires some
+modifications, and the new dataset needs to be created, in which case you would need:
 
 1. HE and CK images of tissue slides (.vsi)
 3. Manual annotations of: 
    4. Benign and in situ lesions, annotated in HE images (.ome.tif)
    5. Cylinders (for tma slides) or areas (for wsi slides) to remove, annotated in CK images (.ome.tif)
    6. Triplet info (for tma slides), annotated in CK images (ome.tif)
-4. QuPath v 3.2 
-5. FastPathology (for inference)
+4. QuPath v 3.2
+5. [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) (for inference)
 6. Libraries in requirements.txt
 
 ## Create dataset:
@@ -124,3 +129,29 @@ import_from_fastpathology.groovy
 ### QuPath: 
 Error when exporting annotations to geojson with QuPath script: 
 Make sure "Include default imports" under "Run" in Script Editor is toggled.
+
+## Acknowledgements
+Code for AGU-Net from:
+<pre>
+@misc{bouget2021meningioma,
+  title={Meningioma segmentation in T1-weighted MRI leveraging global context and attention mechanisms},
+  author={David Bouget and André Pedersen and Sayied Abdol Mohieb Hosainey and Ole Solheim and Ingerid Reinertsen},
+  year={2021},
+  eprint={2101.07715},
+  archivePrefix={arXiv},
+  primaryClass={eess.IV}
+}
+</pre>
+and 
+<pre>
+@article{10.3389/fmed.2022.971873,
+  author={Pedersen, André and Smistad, Erik and Rise, Tor V. and Dale, Vibeke G. and Pettersen, Henrik S. and Nordmo, Tor-Arne S. and Bouget, David and Reinertsen, Ingerid and Valla, Marit},
+  title={H2G-Net: A multi-resolution refinement approach for segmentation of breast cancer region in gigapixel histopathological images},
+  journal={Frontiers in Medicine},
+  volume={9},
+  year={2022},
+  url={https://www.frontiersin.org/articles/10.3389/fmed.2022.971873},
+  doi={10.3389/fmed.2022.971873},
+  issn={2296-858X}
+}
+</pre>
