@@ -6,13 +6,12 @@ To create the datasets you need five (for wsi) or six (for tma) images of each s
 manual annotations of benign/in situ lesions (.ome.tif), annotations of areas to remove (.ome.tif), 
 and triplet info (.ome.tif).
 
-### Create epithelial mask from ck images:
-
 QuPath: 
-
 
 All groovy scripts are run in QuPath. Open QuPath-project. Go to Automate -> Project scripts -> Script name. In script
 editor go to Run -> Run for project. Select images to run script on.
+
+### Create epithelial mask from ck images:
 
 Threshold dab-channel in QuPath:
 
@@ -28,7 +27,7 @@ Convert geojson to tiff:
 convert_to_tiff.py
 ```
 ### Convert annotations to ome-tif:
-Convert manual annotations of benign/in situ lesions, cores to remove etc. to ome-tiff.
+Convert manual annotations of benign/in situ lesions, cores to remove, triplet info. to ome-tiff.
 Remember to change annotation name depending on annotation category.
 ```
 ome_tif_exporter.groovy
