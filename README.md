@@ -54,11 +54,22 @@ ome_tif_exporter.groovy
 ```
 ### Create datasets:
 
-Create dataset from tma:
+Split data into train, validation and test sets:
+
+for tma:
+```
+python /path/to/divide_data.py 
+```
+for wsi:
+```
+python /path/to/divide_data_wsi.py 
+```
+
+Create train/val dataset from tma:
 ```
 python /path/to/create_data_new.py 
 ```
-Create dataset from wsi: 
+Create train/val dataset from wsi: 
 ```
 python /path/to/create_data_wsi.py 
 ```
