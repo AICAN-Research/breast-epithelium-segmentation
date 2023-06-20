@@ -1,6 +1,6 @@
 # ep-segmentation
-Segmentation of epithelial cells from Hematoxylin and Eosin stained slides using cytokeratin and pathologists annotations
-as ground truth. A multiclass model which separates epithelium into invasive, benign and *in situ* lesions.
+Segmentation of epithelial cells from Hematoxylin and Eosin (HE) stained slides using cytokeratin and pathologists' annotations
+as ground truth. A multiclass segmentation model which separates epithelium into invasive, benign and *in situ* lesions.
 
 This repository includes the source code used for the model presented in (manuscript when published). 
 The final model presented in the paper has been integrated in [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) and can
@@ -14,10 +14,9 @@ modifications, and the new dataset needs to be created, in which case you would 
 2. Manual annotations of: 
    - Benign and *in situ* lesions, annotated in HE images (.ome.tif)
    - Cylinders (for tma slides) or areas (for wsi slides) to remove, annotated in CK images (.ome.tif)
-   - Triplet info (for tma slides), annotated in CK images (ome.tif)
-3. [QuPath v 3.2](https://github.com/qupath/qupath)
+   - Triplet info (for tma slides), annotated in CK images (.ome.tif)
+3. [QuPath v 3.2](https://github.com/qupath/qupath) for annotations and masks
 4. Libraries in requirements.txt
-5. [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) (for evaluation)
 
 ## Create dataset:
 To create the datasets you need five (for wsi) or six (for tma) images of each slide: he images (.vsi), ck images (.vsi), thresholded dab-channel (.tiff),
@@ -30,7 +29,7 @@ All groovy scripts are run in QuPath. Open QuPath-project. Go to Automate -> Pro
 editor go to Run -> Run for project. Select images to run script on.
 
 ### Create epithelial mask from ck images:
-Create QuPath project and add ck images.
+Create QuPath project and add CK images.
 
 Threshold dab-channel in QuPath (uses pixel classifier dab_seg2.json):
 
@@ -46,7 +45,7 @@ Convert geojson to tiff:
 convert_to_tiff.py
 ```
 ### Convert annotations to ome-tif:
-Create QuPath projects for the different tasks (1-3). Add images and annotations. 
+Create QuPath projects for the different tasks (1-3). Add images and create annotations. 
 
 Convert manual annotations of benign/*in situ* lesions (1), cores to remove (2), and triplet info (3). to ome-tiff.
 Remember to change annotation name depending on annotation category.
@@ -111,7 +110,7 @@ python /path/to/eval_tma_cylinders.py
 ```
 
 ## Run models in FastPathology: 
-Convert model to onnx for FastPathology
+Convert model to .onnx for FastPathology
 ```
 pip install tf2onnx
 python -m tf2onnx.convert --saved-model output/models/model_060223_122342_unet_bs_32/ --output output/converted_models/model_060223_122342_unet_bs_32.onnx
