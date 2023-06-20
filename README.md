@@ -6,7 +6,7 @@ This repository includes the source code used for the model presented in (manusc
 The final model presented in the paper has been integrated in [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) and can
 be run on new HE tissue slides.
 
-### To use the code base you need:
+## To use the code base you need:
 **Disclaimer:** The source code includes hard-coded solutions. To train the model on a new dataset, the code requires some
 modifications, and the new dataset needs to be created, in which case you would need:
 
@@ -73,7 +73,7 @@ Create train/val dataset from wsi:
 ```
 python /path/to/create_data_wsi.py 
 ```
-### Train model:
+## Train model:
 Train model (remember to change dataset name and pars argument values. Toggle/untoggle deep supervision/multiscale input/grad 
 accumulation when creating model) Use only tma, only wsi or both datasets:
 ```
