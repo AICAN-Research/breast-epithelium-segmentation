@@ -296,11 +296,7 @@ def eval_on_dataset():
     dice_scores_exist_total = [[], [], []]
     precisions_exists_total = [[], [], []]
     recalls_exists_total = [[], [], []]
-    count_stop = 0
     for path in paths_:
-        if count_stop == 20:
-            continue
-        count_stop+=1
         inputs_ = [[path, model_name]]
         p = mp.Pool(1)
         output = p.map(eval_wrapper, inputs_)
@@ -417,7 +413,7 @@ def eval_on_dataset():
                                    len(recalls_exists_total[2])]), index=['d_e_1', 'p_e_1', 'r_e_1', 'd_e_2', 'p_e_2',
                                                                           'r_e_2', 'd_e_3', 'p_e_3', 'r_e_3'])
 
-    os.makedirs(dataframe_path, exist_ok=True)
+    os.makedirs(dataframe_path + name + '/', exist_ok=True)
     results.to_csv(dataframe_path + name + '/' + 'results' + ".csv")
     eval_results.to_csv(dataframe_path + name + '/' + 'eval_results' + ".csv")
     count.to_csv(dataframe_path + name + '/' + 'count' + ".csv")
