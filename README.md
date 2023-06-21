@@ -1,5 +1,5 @@
 # ep-segmentation
-Segmentation of epithelial cells from Hematoxylin and Eosin (HE) stained slides using cytokeratin and pathologists' annotations
+Segmentation of epithelial cells from Hematoxylin and Eosin (HE) stained slides using cytokeratin (CK) and pathologists' annotations
 as ground truth. A multiclass segmentation model which separates epithelium into invasive, benign and *in situ* lesions.
 
 This repository includes the source code used for the model presented in (manuscript when published). 
@@ -27,6 +27,15 @@ QuPath:
 
 All groovy scripts are run in QuPath. Open QuPath-project. Go to Automate -> Project scripts -> Script name. In script
 editor go to Run -> Run for project. Select images to run script on.
+
+The code for dataset creation from tmas assumes a folder structure like: 
+
+     └── path/to/data
+          └── cohorts 
+              ├── cohort 1
+              ├── cohort 2
+              ├── ...
+              └──  cohort n
 
 ### Create epithelial mask from ck images:
 Create QuPath project and add CK images.
