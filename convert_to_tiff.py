@@ -22,11 +22,6 @@ log_config = os.path.join(os.path.split(__file__)[0], "resources", "log4j.proper
 # Parameters:
 level = 0  # image pyramid level to get size from
 
-#CK_paths = "/data/Maren_P1/epithelium/CK/"
-#geojson_path = "/home/maren/workspace/qupath-ck-seg/export_geojson_291122/"
-#tmp_path = "/home/maren/workspace/qupath-ck-seg/tmp_results/"
-#output_path = "/home/maren/workspace/qupath-ck-seg/pyramidal_tiff/"
-
 # Need to run this script once for every folder with CK paths
 cohorts_path = "/data/Maren_P1/data/TMA/cohorts/"
 geojson_path = "/data/Maren_P1/data/annotations_converted/blue_channel_tumor_only/"
@@ -36,7 +31,6 @@ output_path = "/data/Maren_P1/data/annotations_converted/blue_channel_tiff/"
 # delete folders
 if os.path.exists(tmp_path):
     shutil.rmtree(tmp_path)
-#shutil.rmtree(output_path)  # do not remove if images one wants to keep
 
 os.makedirs(tmp_path, exist_ok=True)
 os.makedirs(output_path, exist_ok=True)
@@ -44,14 +38,11 @@ os.makedirs(output_path, exist_ok=True)
 wsis = []
 for cohort in os.listdir(cohorts_path):
     curr_cohort_path = cohorts_path + cohort + "/"
-    if cohort in ["HPA"]:
-        for file in os.listdir(curr_cohort_path):
-            full_path = curr_cohort_path + file
-            # get CK only
-            if (".vsi" in full_path) and ("Overview" not in full_path) and ("_CK_" in full_path):
-                wsis.append(full_path)
-    else:
-        continue
+    for file in os.listdir(curr_cohort_path):
+        full_path = curr_cohort_path + file
+        # get CK only
+        if (".vsi" in full_path) and ("Overview" not in full_path) and ("_CK_" in full_path):
+            wsis.append(full_path)
 
 print(wsis)
 
