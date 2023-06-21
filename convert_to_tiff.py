@@ -1,6 +1,7 @@
 """
 Script to convert annotations from geoJSON to geoTIFF, then pyramidal TIFF
 Get shape of CK image
+Requires numpy version above 1.22.0 (upgrade numpy before running this script)
 """
 import os
 import fast
@@ -44,19 +45,21 @@ wsis = []
 for cohort in os.listdir(cohorts_path):
     curr_cohort_path = cohorts_path + cohort + "/"
     if cohort in ["HPA"]:
+        for file in os.listdir(curr_cohort_path):
+            full_path = curr_cohort_path + file
+            # get CK only
+            if (".vsi" in full_path) and ("Overview" not in full_path) and ("_CK_" in full_path):
+                wsis.append(full_path)
+    else:
         continue
-    for file in os.listdir(curr_cohort_path):
-        full_path = curr_cohort_path + file
-        # get CK only
-        if (".vsi" in full_path) and ("Overview" not in full_path) and ("_CK_" in full_path):
-            wsis.append(full_path)
+
+print(wsis)
 
 for pathCK in tqdm(wsis, "WSI:"):
     print(pathCK)
 
     # get ID
     id_ = pathCK.split("/")[-1].split(".")[0]
-
     ImageReader = bf.formatreader.make_image_reader_class()
 
     # with ImageReader() as reader:
