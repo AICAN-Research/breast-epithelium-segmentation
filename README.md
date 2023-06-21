@@ -35,7 +35,7 @@ The code for dataset creation from tmas assumes a folder structure like:
               ├── cohort 1
               ├── cohort 2
               ├── ...
-              └──  cohort n
+              └── cohort n
 
 ### Create epithelial mask from ck images:
 Create QuPath project and add CK images.
@@ -56,7 +56,7 @@ convert_to_tiff.py
 ### Convert annotations to ome-tif:
 Create QuPath projects for the different tasks (1-3). Add images and create annotations. 
 
-Convert manual annotations of benign/*in situ* lesions (1), cores to remove (2), and triplet info (3). to ome-tiff.
+Convert manual annotations of benign/*in situ* lesions (1), cores to remove (2), and triplet info (3) to ome-tiff.
 Remember to change annotation name depending on annotation category.
 ```
 ome_tif_exporter.groovy
@@ -136,9 +136,9 @@ pip install tf2onnx
 python -m tf2onnx.convert --saved-model output/models/model_060223_122342_unet_bs_32/ --output output/converted_models/model_060223_122342_unet_bs_32.onnx
 ```
 ### Run model in FastPathology:
-Add models from disk: Press "add models from disk" and find correct model and open
+Add models from disk: Press "add models from disk", find correct model and open.
 
-If pipeline already exists, press "Edit pipeline" and change model name to current model
+If pipeline already exists, press "Edit pipeline" and change model name to current model.
 
 pipeline:
 ```
