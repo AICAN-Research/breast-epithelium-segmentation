@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
-    dataset_path = "/mnt/EncryptedSSD1/maren/datasets/datasets_tma_cores/" + curr_date + "_" + curr_time + \
+    dataset_path = "./datasets_tma_cores/" + curr_date + "_" + curr_time + \
                     "_level_" + str(level) + \
                     "_ds_" + str(downsample_factor) + "/"
 
@@ -359,7 +359,7 @@ if __name__ == "__main__":
         print("n_test: ", n_test)
         HE_add = '_EFI_HE_BC_'
         CK_add = '_EFI_CK_BC_'
-        remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/'
+        remove_path_ = '/data/Maren_P1/data/annotations_converted/remove_TMA/'
     else:
         external_files = []
         external_paths = '/data/Maren_P1/data/annotations_converted/remove_TMA_external/'
@@ -373,7 +373,7 @@ if __name__ == "__main__":
         print("n_test: ", n_external_test)
         HE_add = '_EFI_HE_'
         CK_add = '_EFI_CK_'
-        remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA_external/'
+        remove_path_ = '/data/Maren_P1/data/annotations_converted/remove_TMA_external/'
 
     for file in tqdm(set_, "WSI"):
 
@@ -392,7 +392,7 @@ if __name__ == "__main__":
                      CK_add + str(id_) + '.tiff'
         annot_path = '/data/Maren_P1/data/annotations_converted/TMA/' + str(file_front) + \
                       HE_add + str(id_) + '-labels.ome.tif'
-        remove_path = remove_path + str(file_front) \
+        remove_path = remove_path_ + str(file_front) \
                        + CK_add + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
         triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
                            + CK_add + str(id_) + '.vsi - EFI 40x-labels.ome.tif'
