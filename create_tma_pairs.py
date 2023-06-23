@@ -333,6 +333,7 @@ if __name__ == "__main__":
     dist_limit = 4000
     wsi_idx = 0
     class_ = "multiclass"
+    internal = False
 
     he_ck_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
@@ -347,33 +348,54 @@ if __name__ == "__main__":
                     "_level_" + str(level) + \
                     "_ds_" + str(downsample_factor) + "/"
 
-    with h5py.File(data_splits_path, "r") as f:
-        test_set = np.array(f['test']).astype(str)
+    if internal:
+        with h5py.File(data_splits_path, "r") as f:
+            test_set = np.array(f['test']).astype(str)
 
-    set_ = test_set
-    set_name = 'ds_test'
-    n_test = len(list(test_set))
-    print("file set: ", set_)
-    print("n_test: ", n_test)
+        set_ = test_set
+        set_name = 'ds_test'
+        n_test = len(list(test_set))
+        print("file set: ", set_)
+        print("n_test: ", n_test)
+        HE_add = '_EFI_HE_BC_'
+        CK_add = '_EFI_CK_BC_'
+        remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/'
+    else:
+        external_files = []
+        external_paths = '/data/Maren_P1/data/annotations_converted/remove_TMA_external/'
+        for file_ in os.listdir(external_paths):
+            external_files.append(file_)
+        set_ = external_files
+        set_ = np.array(set_)
+        set_name = 'ds_test_external'
+        n_external_test = len(external_files)
+        print("file set: ", set_)
+        print("n_test: ", n_external_test)
+        HE_add = '_EFI_HE_'
+        CK_add = '_EFI_CK_'
+        remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA_external/'
 
     for file in tqdm(set_, "WSI"):
 
         print(file)
-
+        
         file_front = file.split("_EFI_CK")[0]
-        id_ = file.split("BC_")[1].split(".tiff")[0]
+        if internal:
+            id_ = file.split("BC_")[1].split(".tiff")[0]
+        else:
+            id_ = file.split("CK_")[1].split(".vsi")[0]
 
-        he_path = he_ck_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_HE_BC_' + str(id_) + '.vsi'
-        ck_path = he_ck_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_CK_BC_' + str(id_) + '.vsi'
+        he_path = he_ck_dir_path + str(file_front) + "/" + str(file_front) + HE_add + str(id_) + '.vsi'
+        ck_path = he_ck_dir_path + str(file_front) + "/" + str(file_front) + CK_add+ str(id_) + '.vsi'
 
         mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/' + str(file_front) + \
-                     '_EFI_CK_BC_' + str(id_) + '.tiff'
+                     CK_add + str(id_) + '.tiff'
         annot_path = '/data/Maren_P1/data/annotations_converted/TMA/' + str(file_front) + \
-                      '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
-        remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/' + str(file_front) \
-                       + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
+                      HE_add + str(id_) + '-labels.ome.tif'
+        remove_path = remove_path + str(file_front) \
+                       + CK_add + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
         triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
-                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-labels.ome.tif'
+                           + CK_add + str(id_) + '.vsi - EFI 40x-labels.ome.tif'
 
 
         create_tma_pairs(he_path, ck_path, mask_path, annot_path, remove_path, triplet_path, dataset_path, set_name,
