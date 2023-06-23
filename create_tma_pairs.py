@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
-    dataset_path = "./datasets_tma_cores/" + curr_date + "_" + curr_time + \
+    dataset_path = "/mnt/EncryptedSSD1/maren/datasets/datasets_tma_cores/" + curr_date + "_" + curr_time + \
                     "_level_" + str(level) + \
                     "_ds_" + str(downsample_factor) + "/"
 
@@ -378,7 +378,7 @@ if __name__ == "__main__":
     for file in tqdm(set_, "WSI"):
 
         print(file)
-        
+
         file_front = file.split("_EFI_CK")[0]
         if internal:
             id_ = file.split("BC_")[1].split(".tiff")[0]
