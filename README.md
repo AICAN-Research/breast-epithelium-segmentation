@@ -1,4 +1,7 @@
 # ep-segmentation
+
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
 Segmentation of epithelial cells from Hematoxylin and Eosin (HE) stained slides using cytokeratin (CK) and pathologists' annotations
 as ground truth. A multiclass segmentation model which separates epithelium into invasive, benign and *in situ* lesions.
 
