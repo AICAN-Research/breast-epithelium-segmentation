@@ -4,6 +4,7 @@ PipelineInputData WSI "Whole-slide image"
 PipelineOutputData segmentation stitcher 0
 Attribute classes "Background;invasive;benign;inSitu"
 
+
 ### Processing chain
 ProcessObject tissueSeg TissueSegmentation
 Attribute threshold 70
@@ -18,15 +19,17 @@ Input 0 WSI
 Input 1 tissueSeg 0
 
 ProcessObject network NeuralNetwork
+#ProcessObject network SegmentationNetwork
 Attribute scale-factor 0.00392156862
 #Attribute inference-engine TensorRT
 Attribute inference-engine OpenVINO
-Attribute model "$CURRENT_PATH$/../models/model_220223_150903_unet_bs_16.onnx"
+#Attribute threshold 0.5
+Attribute model "$CURRENT_PATH$/../models/model_030623_224255_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx"
 Input 0 patch 0
 
 ProcessObject converter TensorToSegmentation
-Attribute threshold 0.01
-Input 0 network 6
+Attribute threshold 0.5
+Input 0 network 5
 
 ProcessObject stitcher PatchStitcher
 Input 0 converter 0
