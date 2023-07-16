@@ -280,10 +280,10 @@ def eval_on_dataset():
     # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
     plot_flag = False
 
-    path = './datasets_tma_cores/040623_113425_level_1_ds_4/ds_test/'
+    path = './datasets_tma_cores/230623_141305_level_1_ds_4/ds_test_external/'
     model_name = './output/converted_models/model_030623_224255_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx'
     dataframe_path = './output/eval/dataframes/'
-    name = 'model_' + '030623_224255' + 'ds_' + '040623_113425'
+    name = 'model_' + '030623_224255_' + '_ds_' + '230623_141305'
 
     cylinders_paths = os.listdir(path)
     paths_ = np.array([path + x for x in cylinders_paths]).astype("U400")
@@ -387,21 +387,21 @@ def eval_on_dataset():
     print(model_name)
     print(path)
 
-    results = pd.DataFrame(np.array([dice_scores_total[0], dice_scores_total[1], dice_scores_total[2],
+    results = pd.DataFrame([dice_scores_total[0], dice_scores_total[1], dice_scores_total[2],
                                      precisions_total[0], precisions_total[1], precisions_total[2], recalls_total[0],
                                      recalls_total[1], recalls_total[2], dice_scores_exist_total[0],
                                      dice_scores_exist_total[1], dice_scores_exist_total[2], precisions_exists_total[0],
                                      precisions_exists_total[1], precisions_exists_total[2], recalls_exists_total[0],
-                                     recalls_exists_total[1], recalls_exists_total[2]]),
+                                     recalls_exists_total[1], recalls_exists_total[2]],
                            index=['dice_total invasive', 'dice_total benign', 'dice_total inSitu',
                                   'precision_total invasive', 'precision_total benign', 'precision_total inSitu',
                                   'recall_total invasive', 'recall_total benign', 'recall_total inSitu',
                                   'dice_exist invasive', 'dice_exist benign', 'dice_exist inSitu',
                                   'precision_exist invasive', 'precision_exist benign', 'precision_exist inSitu',
                                   'recall_exist invasive', 'recall_exist benign', 'recall_exist inSitu'])
-    eval_results = pd.DataFrame(np.array([mu_1, std_1, mu_2, std_2, mu_3, std_3, p_1, p_2, p_3, r_1, r_2, r_3,
+    eval_results = pd.DataFrame([mu_1, std_1, mu_2, std_2, mu_3, std_3, p_1, p_2, p_3, r_1, r_2, r_3,
                                           mu_1_exist, mu_2_exist, mu_3_exist, p_1_exist, p_2_exist, p_3_exist,
-                                          r_1_exist, r_2_exist, r_3_exist]),
+                                          r_1_exist, r_2_exist, r_3_exist],
                                 index=['mu_1', 'std_1', 'mu_2', 'std_2', 'mu_3', 'std_3', 'p_1', 'p_2', 'p_3', 'r_1',
                                        'r_2', 'r_3', 'mu_1_exist', 'mu_2_exist', 'mu_3_exist', 'p_1_exist', 'p_2_exist',
                                        'p_3_exist', 'r_1_exist', 'r_2_exist', 'r_3_exist'])
