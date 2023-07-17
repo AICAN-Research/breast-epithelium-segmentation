@@ -224,9 +224,16 @@ def eval_patch(path, model):
 
     gt_shape = gt.shape
     pred = pred[:gt_shape[0], :gt_shape[1]]
-
+    print("pred shape: ", pred.shape)
+    print("gt shape: ", gt.shape)
+    print("gt unique: ", np.unique(gt))
     gt = np.argmax(gt, axis=-1).astype("uint8")
+    #pred = np.argmax(pred, axis=-1).astype("uint8")
+    print("gt unique: ", np.unique(gt))
+    print("gt shape: ", gt.shape)
     pred = pred[..., 0].astype("uint8")
+    print("pred unique: ", np.unique(pred))
+    print("pred shape; ", pred.shape)
 
     # one-hot gt and pred
     gt_back = (gt == 0).astype("float32")
@@ -303,7 +310,11 @@ def eval_on_dataset():
     dice_scores_exist_total = [[], [], []]
     precisions_exists_total = [[], [], []]
     recalls_exists_total = [[], [], []]
+    count_stop = 0
     for path in paths_:
+        if count_stop == 20:
+            continue
+        count_stop+=1
         inputs_ = [[path, model_name]]
         p = mp.Pool(1)
         output = p.map(eval_wrapper, inputs_)
