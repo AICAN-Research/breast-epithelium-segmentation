@@ -129,7 +129,7 @@ python /path/to/create_tma_pairs.py
 ```
 Evaluate model with: 
 ```
-python /path/to/eval_tma_cylinders.py
+python /path/to/eval3.py
 ```
 
 ## Run models in FastPathology: 
