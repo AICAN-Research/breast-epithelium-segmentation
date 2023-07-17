@@ -177,7 +177,7 @@ def eval_on_dataset():
 
     ds_name = '200423_125554_level_2_psize_1024_ds_4'  # change manually to determine desired dataset
     #ds_name_2 = '210423_122737_wsi_level_2_psize_1024_ds_4'
-    model_name = ''  # change manually to determine desired model
+    model_name = 'model_10523_185001_agunet_bs_8_as_1_lr_0.0001_d__bl_1_br_0.2_h__s_0.2_st_1.0_mp_0_ntb_160_nvb_40'  # change manually to determine desired model
     model_path = './output/models/' + model_name
 
     ds_val_path1 = '/mnt/EncryptedSSD1/maren/datasets/' + ds_name + '/ds_val/inSitu/'
@@ -264,13 +264,19 @@ def eval_on_dataset():
         if plot_flag:
             for j in range(mask.shape[0]):
                 plt.rcParams.update({'font.size': 28})
-                f, axes = plt.subplots(2, 3, figsize=(30, 30))
+                f, axes = plt.subplots(3, 3, figsize=(30, 30))
                 axes[0, 0].imshow(mask[j, ..., 1])
                 axes[0, 1].imshow(mask[j, ..., 2])
                 axes[0, 2].imshow(mask[j, ..., 3])
                 axes[1, 0].imshow(threshold[j, ..., 1], cmap="gray")
                 axes[1, 1].imshow(threshold[j, ..., 2], cmap="gray")
                 axes[1, 2].imshow(threshold[j, ..., 3], cmap="gray")
+                axes[2, 0].imshow(image[0])
+                axes[2, 1].imshow(image[0])
+                axes[2, 2].imshow(image[0])
+                axes[2, 0].imshow(threshold[j, ..., 1], cmap="gray", alpha=0.5)
+                axes[2, 1].imshow(threshold[j, ..., 2], cmap="gray", alpha=0.5)
+                axes[2, 2].imshow(threshold[j, ..., 3], cmap="gray", alpha=0.5)
                 plt.show()
 
         class_names = ["invasive", "benign", "insitu"]
