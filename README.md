@@ -127,9 +127,17 @@ Create tma-level dataset for evaluation:
 ```
 python /path/to/create_tma_pairs.py
 ```
-Evaluate model with: 
+Evaluate model on cylinder level with: 
+
+(Make sure the correct model and dataset is used).
 ```
 python /path/to/eval3.py
+```
+Evaluate model on histological subtype/grade with:
+
+(Make sure the correct model and dataset is used).
+```
+python /path/to/eval_histologic_subtype.py
 ```
 
 ## Run models in FastPathology: 
