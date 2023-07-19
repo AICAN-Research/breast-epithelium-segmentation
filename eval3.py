@@ -18,7 +18,7 @@ def class_dice_(y_true, y_pred, class_val):
     union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(
         gt1 * gt1)  # @TODO: why do we need output*output in reduce sum?
     if union1 == 0:
-        dice = 1.  # used to be 0 before 28.05.23
+        dice = 1.
         dice_u = True
     else:
         dice = (2. * intersection1) / union1
@@ -37,13 +37,13 @@ def class_dice_class_present(y_true, y_pred, class_val):
     union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(
         gt1 * gt1)  # @TODO: why do we need output*output in reduce sum?
     if union1 == 0:
-        dice = 1.  # used to be 0 before 28.05.23
+        dice = 1.
         dice_u = True
     else:
         dice = (2. * intersection1) / union1
         dice_u = False
 
-    if tf.reduce_sum(gt1) or tf.reduce_sum(output1):  # used to be tf.reduce_sum(gt1) before 28.05.23
+    if tf.reduce_sum(gt1) or tf.reduce_sum(output1):
         count = True
 
     return dice, count, dice_u
@@ -70,7 +70,7 @@ def precision(y_true, y_pred, object_):
     true_positives = tf.reduce_sum(target1 * output1)
     predicted_positives = tf.reduce_sum(output1)
     if predicted_positives == 0:
-        precision_ = 1  # used to be 0 before 28.05.23
+        precision_ = 1
     else:
         precision_ += true_positives / predicted_positives
 
@@ -96,10 +96,10 @@ def precision_class_present(y_true, y_pred, object_):
     true_positives = tf.reduce_sum(target1 * output1)
     predicted_positives = tf.reduce_sum(output1)
     if predicted_positives == 0:
-        precision_ = 1  # used to be 0 before 28.05.23
+        precision_ = 1
     else:
         precision_ += true_positives / predicted_positives
-    if tf.reduce_sum(target1) or tf.reduce_sum(output1):  # used to be tf.reduce_sum(target1) before 28.05.23
+    if tf.reduce_sum(target1) or tf.reduce_sum(output1):
         count = True
 
     return precision_, count
@@ -122,10 +122,10 @@ def recall(y_true, y_pred, object_):
     target1 = y_true[..., object_]
 
     true_positives = tf.reduce_sum(
-        target1 * output1)  # TODO: consider reduce_sum vs K.sum, is there a difference in speed
+        target1 * output1)
     possible_positives = tf.reduce_sum(target1)
     if possible_positives == 0:
-        recall_ = 1  # used to be 0 before 28.05.23
+        recall_ = 1
     else:
         recall_ += true_positives / possible_positives
 
@@ -152,10 +152,10 @@ def recall_class_present(y_true, y_pred, object_):
         target1 * output1)  # TODO: consider reduce_sum vs K.sum, is there a difference in speed
     possible_positives = tf.reduce_sum(target1)
     if possible_positives == 0:
-        recall_ = 1  # used to be 0 before 28.05.23
+        recall_ = 1
     else:
         recall_ += true_positives / possible_positives
-    if tf.reduce_sum(target1) or tf.reduce_sum(output1):  # used to be tf.reduce_sum(target1) before 28.05.23
+    if tf.reduce_sum(target1) or tf.reduce_sum(output1):
         count = True
 
     return recall_, count
@@ -277,13 +277,10 @@ def eval_patch(path, model):
 
 
 def eval_on_dataset():
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-    plot_flag = False
-
-    path = './datasets_tma_cores/230623_141305_level_1_ds_4/ds_test_external/'
-    model_name = './output/converted_models/model_030623_224255_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx'
+    path = './datasets_tma_cores/150523_180206_level_1_ds_4/ds_val/'
+    model_name = './output/converted_models/model_240523_143808_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx'
     dataframe_path = './output/eval/dataframes/'
-    name = 'model_' + '030623_224255_' + '_ds_' + '230623_141305'
+    name = 'model_' + '240523_143808' + '_ds_' + '150523_180206'
 
     cylinders_paths = os.listdir(path)
     paths_ = np.array([path + x for x in cylinders_paths]).astype("U400")
