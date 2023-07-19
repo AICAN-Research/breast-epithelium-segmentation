@@ -43,7 +43,7 @@ def class_dice_class_present(y_true, y_pred, class_val):
         dice = (2. * intersection1) / union1
         dice_u = False
 
-    if tf.reduce_sum(gt1) or tf.reduce_sum(output1):
+    if tf.reduce_sum(gt1):
         count = True
 
     return dice, count, dice_u
@@ -99,7 +99,7 @@ def precision_class_present(y_true, y_pred, object_):
         precision_ = 1
     else:
         precision_ += true_positives / predicted_positives
-    if tf.reduce_sum(target1) or tf.reduce_sum(output1):
+    if tf.reduce_sum(target1):
         count = True
 
     return precision_, count
@@ -155,7 +155,7 @@ def recall_class_present(y_true, y_pred, object_):
         recall_ = 1
     else:
         recall_ += true_positives / possible_positives
-    if tf.reduce_sum(target1) or tf.reduce_sum(output1):
+    if tf.reduce_sum(target1):
         count = True
 
     return recall_, count
@@ -280,7 +280,7 @@ def eval_on_dataset():
     path = './datasets_tma_cores/150523_180206_level_1_ds_4/ds_val/'
     model_name = './output/converted_models/model_240523_143808_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx'
     dataframe_path = './output/eval/dataframes/'
-    name = 'model_' + '240523_143808' + '_ds_' + '150523_180206'
+    name = 'model_' + '240523_143808' + '_ds_' + '150523_180206_positive_target'
 
     cylinders_paths = os.listdir(path)
     paths_ = np.array([path + x for x in cylinders_paths]).astype("U400")
@@ -417,6 +417,6 @@ def eval_on_dataset():
 
 
 if __name__ == "__main__":
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     eval_on_dataset()
 
