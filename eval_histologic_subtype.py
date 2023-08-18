@@ -151,6 +151,8 @@ if __name__ == "__main__":
 
         # get histological subtype and grade for case
         type_ = int(filtered_data["type_six"])  # 1, 2, 3, 4, 5, 8, still need eight in dice_types
+        if 8 > type_ > 2:  # combine type 3, 4, 5 into type 8
+            type_ = 8
         grade_ = int(filtered_data["GRAD"])
 
         inputs_ = [[dataset_path + file, model_path]]
