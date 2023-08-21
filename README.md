@@ -144,7 +144,7 @@ python /path/to/eval_histologic_subtype.py
 Convert model to .onnx for FastPathology
 ```
 pip install tf2onnx
-python -m tf2onnx.convert --saved-model output/models/model_060223_122342_unet_bs_32/ --output output/converted_models/model_060223_122342_unet_bs_32.onnx
+python -m tf2onnx.convert --saved-model output/models/model/ --output output/converted_models/model_name.onnx --opset 13
 ```
 ### Run model in FastPathology:
 Add models from disk: Press "add models from disk", find correct model and open.
