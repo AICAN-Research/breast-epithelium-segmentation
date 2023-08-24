@@ -169,50 +169,50 @@ if __name__ == "__main__":
             dice_grades[grade_ - 1][i].append(output[i])
     
     print("len 1: ", len(dice_types[0][0]), len(dice_types[0][1]), len(dice_types[0][2]),
-          " mu 1 inv: ", np.mean(dice_types[0][0]), " std 1 inv: ", np.std(dice_types[0][0]),
-          " mu 1 ben: ", np.mean(dice_types[0][1]), " std 1 ben: ", np.std(dice_types[0][1]),
-          " mu 1 ins: ", np.mean(dice_types[0][2]), " std 1 ins: ", np.std(dice_types[0][2]))
+          " mu 1 inv: ", np.mean(dice_types[0][0]), " std 1 inv: ", np.std(dice_types[0][0], ddof=1),
+          " mu 1 ben: ", np.mean(dice_types[0][1]), " std 1 ben: ", np.std(dice_types[0][1], ddof=1),
+          " mu 1 ins: ", np.mean(dice_types[0][2]), " std 1 ins: ", np.std(dice_types[0][2], ddof=1))
     print("len 2: ", len(dice_types[1][0]), len(dice_types[1][1]), len(dice_types[1][2]),
-          " mu 2 inv: ", np.mean(dice_types[1][0]), " std 2 inv: ", np.std(dice_types[1][0]),
-          " mu 2 ben: ", np.mean(dice_types[1][1]), " std 2 ben: ", np.std(dice_types[1][1]),
-          " mu 2 ins: ", np.mean(dice_types[1][2]), " std 2 ins: ", np.std(dice_types[1][2]))
+          " mu 2 inv: ", np.mean(dice_types[1][0]), " std 2 inv: ", np.std(dice_types[1][0], ddof=1),
+          " mu 2 ben: ", np.mean(dice_types[1][1]), " std 2 ben: ", np.std(dice_types[1][1], ddof=1),
+          " mu 2 ins: ", np.mean(dice_types[1][2]), " std 2 ins: ", np.std(dice_types[1][2], ddof=1))
     print("len 3: ", len(dice_types[2][0]), len(dice_types[2][1]), len(dice_types[2][2]),
-          " mu 3 inv: ", np.mean(dice_types[2][0]), " std 3 inv: ", np.std(dice_types[2][0]),
-          " mu 3 ben: ", np.mean(dice_types[2][1]), " std 3 ben: ", np.std(dice_types[2][1]),
-          " mu 3 ins: ", np.mean(dice_types[2][2]), " std 3 ins: ", np.std(dice_types[2][2]))
+          " mu 3 inv: ", np.mean(dice_types[2][0]), " std 3 inv: ", np.std(dice_types[2][0], ddof=1),
+          " mu 3 ben: ", np.mean(dice_types[2][1]), " std 3 ben: ", np.std(dice_types[2][1], ddof=1),
+          " mu 3 ins: ", np.mean(dice_types[2][2]), " std 3 ins: ", np.std(dice_types[2][2], ddof=1))
     print("len 4: ", len(dice_types[3][0]), len(dice_types[3][1]), len(dice_types[3][2]),
-          " mu 4 inv: ", np.mean(dice_types[3][0]), " std 4 inv: ", np.std(dice_types[3][0]),
-          " mu 4 ben: ", np.mean(dice_types[3][1]), " std 4 ben: ", np.std(dice_types[3][1]),
-          " mu 4 ins: ", np.mean(dice_types[3][2]), " std 4 ins: ", np.std(dice_types[3][2]))
+          " mu 4 inv: ", np.mean(dice_types[3][0]), " std 4 inv: ", np.std(dice_types[3][0], ddof=1),
+          " mu 4 ben: ", np.mean(dice_types[3][1]), " std 4 ben: ", np.std(dice_types[3][1], ddof=1),
+          " mu 4 ins: ", np.mean(dice_types[3][2]), " std 4 ins: ", np.std(dice_types[3][2], ddof=1))
     print("len 5: ", len(dice_types[4][0]), len(dice_types[4][1]), len(dice_types[4][2]),
-          " mu 5 inv: ", np.mean(dice_types[4][0]), " std 5 inv: ", np.std(dice_types[4][0]),
-          " mu 5 ben: ", np.mean(dice_types[4][1]), " std 5 ben: ", np.std(dice_types[4][1]),
-          " mu 5 ins: ", np.mean(dice_types[4][2]), " std 5 ins: ", np.std(dice_types[4][2]))
+          " mu 5 inv: ", np.mean(dice_types[4][0]), " std 5 inv: ", np.std(dice_types[4][0], ddof=1),
+          " mu 5 ben: ", np.mean(dice_types[4][1]), " std 5 ben: ", np.std(dice_types[4][1], ddof=1),
+          " mu 5 ins: ", np.mean(dice_types[4][2]), " std 5 ins: ", np.std(dice_types[4][2], ddof=1))
     print("len 6: ", len(dice_types[5][0]), len(dice_types[5][1]), len(dice_types[5][2]),
-          " mu 6 inv: ", np.mean(dice_types[5][0]), " std 6 inv: ", np.std(dice_types[5][0]),
-          " mu 6 ben: ", np.mean(dice_types[5][1]), " std 6 inv: ", np.std(dice_types[5][1]),
-          " mu 6 ins: ", np.mean(dice_types[5][2]), " std 6 ins: ", np.std(dice_types[5][2]))
+          " mu 6 inv: ", np.mean(dice_types[5][0]), " std 6 inv: ", np.std(dice_types[5][0], ddof=1),
+          " mu 6 ben: ", np.mean(dice_types[5][1]), " std 6 inv: ", np.std(dice_types[5][1], ddof=1),
+          " mu 6 ins: ", np.mean(dice_types[5][2]), " std 6 ins: ", np.std(dice_types[5][2], ddof=1))
     print("len 7: ", len(dice_types[6][0]), len(dice_types[6][1]), len(dice_types[6][2]),
-          " mu 7 inv: ", np.mean(dice_types[6][0]), " std 7 inv: ", np.std(dice_types[6][0]),
-          " mu 7 ben: ", np.mean(dice_types[6][1]), " std 7 ben: ", np.std(dice_types[6][1]),
-          " mu 7 ins: ", np.mean(dice_types[6][2]), " std 7 ins: ", np.std(dice_types[6][2]))
+          " mu 7 inv: ", np.mean(dice_types[6][0]), " std 7 inv: ", np.std(dice_types[6][0], ddof=1),
+          " mu 7 ben: ", np.mean(dice_types[6][1]), " std 7 ben: ", np.std(dice_types[6][1], ddof=1),
+          " mu 7 ins: ", np.mean(dice_types[6][2]), " std 7 ins: ", np.std(dice_types[6][2], ddof=1))
     print("len 8: ", len(dice_types[7][0]), len(dice_types[7][1]), len(dice_types[7][2]),
-          " mu 8 inv: ", np.mean(dice_types[7][0]), " std 8 inv: ", np.std(dice_types[7][0]),
-          " mu 8 ben: ", np.mean(dice_types[7][1]), " std 8 ben: ", np.std(dice_types[7][1]),
-          " mu 8 ins: ", np.mean(dice_types[7][2]), " std 8 ins: ", np.std(dice_types[7][2]))
+          " mu 8 inv: ", np.mean(dice_types[7][0]), " std 8 inv: ", np.std(dice_types[7][0], ddof=1),
+          " mu 8 ben: ", np.mean(dice_types[7][1]), " std 8 ben: ", np.std(dice_types[7][1], ddof=1),
+          " mu 8 ins: ", np.mean(dice_types[7][2]), " std 8 ins: ", np.std(dice_types[7][2], ddof=1))
     print()
     print("len 1: ", len(dice_grades[0][0]), len(dice_grades[0][1]), len(dice_grades[0][2]),
-          " mu 1 inv: ", np.mean(dice_grades[0][0]), " std 1 inv: ", np.std(dice_grades[0][0]),
-          " mu 1 ben: ", np.mean(dice_grades[0][1]), " std 1 ben: ", np.std(dice_grades[0][1]),
-          " mu 1 ins: ", np.mean(dice_grades[0][2]), " std 1 ins: ", np.std(dice_grades[0][2]))
+          " mu 1 inv: ", np.mean(dice_grades[0][0]), " std 1 inv: ", np.std(dice_grades[0][0], ddof=1),
+          " mu 1 ben: ", np.mean(dice_grades[0][1]), " std 1 ben: ", np.std(dice_grades[0][1], ddof=1),
+          " mu 1 ins: ", np.mean(dice_grades[0][2]), " std 1 ins: ", np.std(dice_grades[0][2], ddof=1))
     print("len 2: ", len(dice_grades[1][0]),
-          " mu 2 inv: ", np.mean(dice_grades[1][0]), " std 2 inv: ", np.std(dice_grades[1][0]),
-          " mu 2 ben: ", np.mean(dice_grades[1][1]), " std 2 ben: ", np.std(dice_grades[1][1]),
-          " mu 2 ins: ", np.mean(dice_grades[1][2]), " std 2 ins: ", np.std(dice_grades[1][2]))
+          " mu 2 inv: ", np.mean(dice_grades[1][0]), " std 2 inv: ", np.std(dice_grades[1][0], ddof=1),
+          " mu 2 ben: ", np.mean(dice_grades[1][1]), " std 2 ben: ", np.std(dice_grades[1][1], ddof=1),
+          " mu 2 ins: ", np.mean(dice_grades[1][2]), " std 2 ins: ", np.std(dice_grades[1][2], ddof=1))
     print("len 3: ", len(dice_grades[2][0]),
-          " mu 3 inv: ", np.mean(dice_grades[2][0]), " std 3 inv: ", np.std(dice_grades[2][0]),
-          " mu 3 ben: ", np.mean(dice_grades[2][1]), " std 3 ben: ", np.std(dice_grades[2][1]),
-          " mu 3 ins: ", np.mean(dice_grades[2][2]), " std 3 ins: ", np.std(dice_grades[2][2]))
+          " mu 3 inv: ", np.mean(dice_grades[2][0]), " std 3 inv: ", np.std(dice_grades[2][0], ddof=1),
+          " mu 3 ben: ", np.mean(dice_grades[2][1]), " std 3 ben: ", np.std(dice_grades[2][1], ddof=1),
+          " mu 3 ins: ", np.mean(dice_grades[2][2]), " std 3 ins: ", np.std(dice_grades[2][2], ddof=1))
 
 
 
