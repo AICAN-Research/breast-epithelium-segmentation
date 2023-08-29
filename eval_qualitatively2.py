@@ -63,18 +63,8 @@ def eval_patch(path, pred):
         image = np.asarray(f["input"])
         gt = np.asarray(f["output"])
 
-    print(gt.shape)
-    print(pred.shape)
-    print("np unique: ", np.unique(pred))
-
     pred = cv2.resize(pred.astype("uint8"), gt.shape[:2][::-1], interpolation=cv2.INTER_NEAREST)
-    print("pred shape: ", pred.shape)
-    print("gt shape: ", gt.shape)
-    print("images shape: ", image.shape)
     gt = np.argmax(gt, axis=-1).astype("uint8")
-
-    print(np.unique(pred))
-    print(np.unique(gt))
 
     # one-hot gt and pred
     gt_back = (gt == 0).astype("float32")
@@ -139,15 +129,6 @@ if __name__ == "__main__":
     seg = importer_seg.runAndGetOutputData()
     access_seg = seg.getAccess(fast.ACCESS_READ)
     annot_he = importer_he.runAndGetOutputData()
-
-    height_seg = seg.getLevelHeight(0)
-    width_seg = seg.getLevelWidth(0)
-
-    height_he_ = annot_he.getLevelHeight(level)
-    width_he_ = annot_he.getLevelWidth(level)
-
-    print(height_seg, width_seg)
-    print(height_he_, width_he_)
 
     # get HE TMA cores
     extractor = fast.TissueMicroArrayExtractor.create(level=level).connect(importer_he)
@@ -233,7 +214,6 @@ if __name__ == "__main__":
                                                                  he_tma_padded.shape[1])
                     he_tma_padded = he_tma_padded[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
                     ck_tma_padded_shifted = ck_tma_padded_shifted[int(start_h):int(stop_h), int(start_w):int(stop_w), :]
-
 
                     position_he_x /= (2 ** level)
                     position_he_y /= (2 ** level)
