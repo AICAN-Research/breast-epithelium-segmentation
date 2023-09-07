@@ -115,16 +115,18 @@ def eval_histological_subtype(path, model):
 if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
+    d_set = "external"
+
     # stata path, file which includes info on what subtype each case is
-    stata_path = '/data/Maren_P1/data/STATA/STATA_combined.dta'
+    stata_path = '.../STATA.dta' # path to data file to use
 
     # dataset path
-    dataset_path = './datasets_tma_cores/230623_110540_level_1_ds_4/ds_test/'
+    dataset_path = '.../dataset/'  # path to dataset to use, TMA cores level 1
     df = pd.read_stata(stata_path, convert_categoricals=False)  # @TODO: this gives a warning, why?
     # type_vals = df["GRAD"].to_numpy().astype(int) # @TODO why does this not work
 
     # model path
-    model_path = './output/converted_models/model_030623_224255_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx'
+    model_path = '.../model.onnx'  # path to model
 
     dice_types = [[[], [], []], [[], [], []], [[], [], []], [[], [], []], [[], [], []], [[], [], []], [[], [], []],
                   [[], [], []]]
@@ -133,19 +135,29 @@ if __name__ == "__main__":
     for file in os.listdir(dataset_path):
         file_front = file.split(".")[0]
         splits = file_front.split("_")
-        cohort = splits[3]
-        id_ = splits[4]
-        case = splits[5]
+        if d_set == "internal":
+            cohort = splits[3]
+            id_ = splits[4]
+            case = splits[5]
+        else:
+            id_ = splits[4][1:]
+            case = splits[7]
 
         # get matching case in stata file as TMA cylinder
-        filtered_data = df.loc[
-            (df["Maren_P1"] == 1)
-            & (df[str(cohort)] == 1)
-            & (df["slide"] == int(id_))
-            & (df["case"] == int(case))
-            ]
+        if d_set == "internal":
+            filtered_data = df.loc[
+                (df["Maren_P1"] == 1)
+                & (df[str(cohort)] == 1)
+                & (df["slide"] == int(id_))
+                & (df["case"] == int(case))
+                ]
+        else:
+            filtered_data = df.loc[
+                (df["slide_" + str(id_)] == 1)
+                & (df["case_" + str(id_)] == int(case))
+                ]
 
-        # needs to skip cylinders without information on histological subtype/grade:
+        # needs to skip cylinders without information (excluded in STATA-file):
         if len(filtered_data) == 0:
             continue
 
@@ -154,6 +166,10 @@ if __name__ == "__main__":
         if 8 > type_ > 2:  # combine type 3, 4, 5 into type 8
             type_ = 8
         grade_ = int(filtered_data["GRAD"])
+
+        # skip grade of types which are not 1-3 (grade) or 1, 2, 8 (type)
+        if grade_ < 1 or grade_ > 3 or type_ < 1 or type_ > 8:
+            continue
 
         inputs_ = [[dataset_path + file, model_path]]
         p = mp.Pool(1)
@@ -167,7 +183,7 @@ if __name__ == "__main__":
         for i, x in enumerate(class_names):
             dice_types[type_ - 1][i].append(output[i])
             dice_grades[grade_ - 1][i].append(output[i])
-    
+
     print("len 1: ", len(dice_types[0][0]), len(dice_types[0][1]), len(dice_types[0][2]),
           " mu 1 inv: ", np.mean(dice_types[0][0]), " std 1 inv: ", np.std(dice_types[0][0], ddof=1),
           " mu 1 ben: ", np.mean(dice_types[0][1]), " std 1 ben: ", np.std(dice_types[0][1], ddof=1),
