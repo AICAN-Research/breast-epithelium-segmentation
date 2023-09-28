@@ -3,18 +3,25 @@ Script for extracting the number of patients from a dataset divided into subtype
 """
 import os
 import pandas as pd
+import numpy as np
+import h5py
+import matplotlib.pyplot as plt
 
-level = 1  # level 1 = TMA-cylinder level, level 2 = patches
+level = 2  # level 1 = TMA-cylinder level, level 2 = patches
 
 if level == 1:
-    d_set = 2  # 1 or 2
-    path = ''
+    d_set = 3  # 1, 2 or 3
 
     ##
-    if d_set == 1:
-        stata_path = ''
-    else:
-        stata_path = ''
+    if d_set == 1:  # test set 1
+        path = '/path-to-dataset/'
+        stata_path = '/path-to-stata-dataset/'
+    elif d_set == 2:  # test set 2
+        path = '/path-to-dataset/'
+        stata_path = '/path-to-stata-dataset/'
+    elif d_set == 3:  # validation set at level 1
+        path = '/path-to-dataset/'
+        stata_path = '/path-to-stata-dataset/'
     df = pd.read_stata(stata_path, convert_categoricals=False)
 
     cylinders_paths = os.listdir(path)
@@ -25,7 +32,7 @@ if level == 1:
     id_participants_2 = []
     for path in cylinders_paths:
         split = path.split('.')[0]
-        if d_set == 1:
+        if d_set == 1 or d_set == 3:
             triplet_nbr = split.split('_')[5]
             id_ = split.split('_')[4]
         else:
@@ -36,13 +43,14 @@ if level == 1:
         N = len(checked_paths)
         include = True
         for checked_path in checked_paths:
-            if d_set == 1:
+            if d_set == 1 or d_set == 3:
                 checked_path_id = checked_path.split('_')[4]
                 checked_path_triplet = checked_path.split('_')[5]
             else:
                 checked_path_id = checked_path.split('_')[6]
                 checked_path_triplet = checked_path.split('_')[7]
             checked_path_triplet = checked_path_triplet.split('.')[0]
+            # skip cylinders where patient is already included due to same triplet number
             if cohort in checked_path and id_ == checked_path_id and triplet_nbr == checked_path_triplet:
                 include = False
                 continue
@@ -89,7 +97,7 @@ if level == 1:
     for file in checked_paths:
         file_front = file.split(".")[0]
         splits = file_front.split("_")
-        if d_set == 1:
+        if d_set == 1 or d_set == 3:
             cohort = splits[3]
             id_ = splits[4]
             case = splits[5]
@@ -98,7 +106,7 @@ if level == 1:
             case = splits[7]
 
         # get matching case in stata file as TMA cylinder
-        if d_set == 1:
+        if d_set == 1 or d_set == 3:
             filtered_data = df.loc[
                 (df["Maren_P1"] == 1)
                 & (df[str(cohort)] == 1)
@@ -113,15 +121,17 @@ if level == 1:
 
         # needs to skip cylinders without information (excluded in STATA-file):
         if len(filtered_data) == 0:
+            print("not included in grade/subtype, included in images: ", file)
             continue
 
         # some patients have more than one case, those have to be skipped:
-        if d_set == 1:
+        if d_set == 1 or d_set == 3:
             id_deltaker = filtered_data["ID_deltaker"]
             if cohort == "HUS":
                 id_deltaker = int(id_deltaker)
                 if id_deltaker in id_participants_1:
-                    print(id_deltaker)
+                    print("paticipant already included with different triplet nbr: ", id_deltaker)
+                    print(file)
                     continue
                 else:
                     id_participants_1.append(id_deltaker)
@@ -129,7 +139,8 @@ if level == 1:
             id_deltaker = filtered_data["ID_deltaker"]
             id_deltaker = int(id_deltaker)
             if id_deltaker in id_participants_2:
-                print(id_deltaker)
+                print("paticipant already included with different triplet nbr: ", id_deltaker)
+                print(file)
                 continue
             else:
                 id_participants_2.append(id_deltaker)
@@ -251,16 +262,18 @@ if level == 1:
     print("grade 3: ", grade_3_HPA)
 
 if level == 2:
-    path = ''
+    ds_ = 'ds_val'  # ds_train or ds_val
+    path = 'path-to-dataset' + ds_ + '/'
 
     ##
-    stata_path = ''
+    stata_path = 'path-to-stata-dataset'
     df = pd.read_stata(stata_path, convert_categoricals=False)
 
     set = os.listdir(path)  # benign, in situ or invasive
 
     nbr_patients = 0
     checked_paths = []
+    id_participants_1 = []
 
     all_paths = []
     for set_ in set:
@@ -268,8 +281,6 @@ if level == 2:
         cylinders_paths = os.listdir(cylinders_paths)
         for path_ in cylinders_paths:
             all_paths.append(path_)
-
-    print(len(all_paths))
 
     for path in all_paths:
         split = path.split('.')[0]
@@ -283,6 +294,7 @@ if level == 2:
             checked_path_id = checked_path.split('_')[6]
             checked_path_triplet = checked_path.split('_')[7]
             checked_path_triplet = checked_path_triplet.split('.')[0]
+            # skip cylinders where patient is already included due to same triplet number
             if cohort in checked_path and id_ == checked_path_id and triplet_nbr == checked_path_triplet:
                 include = False
                 continue
@@ -337,7 +349,19 @@ if level == 2:
 
         # needs to skip cylinders without information (excluded in STATA-file):
         if len(filtered_data) == 0:
+            print("not included in grade/subtype, included in images: ", file)
             continue
+
+        # skip participatns with multiple triplets
+        id_deltaker = filtered_data["ID_deltaker"]
+        if cohort == "HUS":
+            id_deltaker = int(id_deltaker)
+            if id_deltaker in id_participants_1:
+                print("paticipant already included with different triplet nbr: ", id_deltaker)
+                print(file)
+                continue
+            else:
+                id_participants_1.append(id_deltaker)
 
         # get histological subtype and grade for case
         type_ = int(filtered_data["type_six"])  # 1, 2, 3, 4, 5, 8, still need eight in dice_types
