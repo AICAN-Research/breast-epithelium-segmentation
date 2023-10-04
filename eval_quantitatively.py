@@ -200,7 +200,7 @@ def eval_patch(path, model):
     generator = fast.PatchGenerator.create(2048, 2048, overlapPercent=0.3).connect(0, data_fast)
     padder = PadderPO.create(width=2048, height=2048).connect(generator)
     network = fast.NeuralNetwork.create(modelFilename=model, inferenceEngine="OpenVINO", scaleFactor=0.00392156862) \
-        .connect(padder)
+        .connect(padder)  # @TODO: will the model automatically make the patch into 1024x1024 here?
     converter = fast.TensorToSegmentation.create(threshold=0.5).connect(0, network, 5)
     resizer = fast.ImageResizer.create(width=2048, height=2048, useInterpolation=False, preserveAspectRatio=True) \
         .connect(converter)
@@ -277,10 +277,10 @@ def eval_patch(path, model):
 
 
 def eval_on_dataset():
-    path = './datasets_tma_cores/150523_180206_level_1_ds_4/ds_val/'
-    model_name = './output/converted_models/model_240523_143808_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx'
+    path = './datasets_tma_cores/180823_102337_level_1/test_corrected/'
+    model_name = './output/converted_models/model_030623_224255_agunet_bs_8_opset13.onnx'
     dataframe_path = './output/eval/dataframes/'
-    name = 'model_' + '240523_143808' + '_ds_' + '150523_180206_positive_target'
+    name = 'model_' + '030623_224255_opset13' + '_ds_' + '180823_102337_positive_target'
 
     cylinders_paths = os.listdir(path)
     paths_ = np.array([path + x for x in cylinders_paths]).astype("U400")
