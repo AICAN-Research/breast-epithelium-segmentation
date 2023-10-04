@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 Segmentation of epithelial cells from Hematoxylin and Eosin (HE) stained slides using cytokeratin (CK) and pathologists' annotations
-as ground truth. A multiclass segmentation model which separates epithelium into invasive, benign and *in situ* lesions.
+as ground truth. A multiclass segmentation model which separates epithelium into benign epithelium, *in situ* lesions, and invasive epithelium.
 
 This repository includes the source code used for the model presented in (manuscript when published). 
 The final model presented in the paper has been integrated in [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) and can
@@ -31,7 +31,7 @@ QuPath:
 All groovy scripts are run in QuPath. Open QuPath-project. Go to Automate -> Project scripts -> Script name. In script
 editor go to Run -> Run for project. Select images to run script on.
    
-The code for dataset creation from tmas assumes a folder structure like: 
+The code for dataset creation from TMAs assumes a folder structure like: 
    
         └── path/to/data
              └── cohorts 
@@ -187,9 +187,14 @@ import_from_fastpathology.groovy
 ```
 
 ## Troubleshoot: 
-### QuPath: 
-Error when exporting annotations to geojson with QuPath script: 
-Make sure "Include default imports" under "Run" in Script Editor is toggled.
+   <details open>
+   <summary>
+
+   ### QuPath:</summary> 
+   Error when exporting annotations to geojson with QuPath script: 
+   Make sure "Include default imports" under "Run" in Script Editor is toggled.
+
+   </details>
 
 ## Acknowledgements
 Code for AGU-Net from:
