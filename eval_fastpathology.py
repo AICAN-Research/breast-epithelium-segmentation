@@ -1,14 +1,12 @@
 """
 Script for evaluating qualitatively the segmentations generated in FastPathology
+Plotting ground truth and segmentation on cylinder level.
 """
 import fast
 import cv2
 from skimage.exposure import equalize_hist
 from skimage.registration import phase_cross_correlation
 from scipy import ndimage as ndi
-"""
-Script to evaluate segmentations qualitatively. Plotting ground truth and segmentation on cylinder level.
-"""
 import os
 import numpy as np
 import h5py
@@ -22,7 +20,7 @@ def class_dice_(y_true, y_pred, class_val):
 
     intersection1 = tf.reduce_sum(output1 * gt1)
     union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(
-        gt1 * gt1)  # @TODO: why do we need output*output in reduce sum?
+        gt1 * gt1)
     if union1 == 0:
         dice = 1.
         dice_u = True
