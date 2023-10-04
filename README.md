@@ -101,12 +101,18 @@ The code for dataset creation from tmas assumes a folder structure like:
    </details>
 
 ## Train model:
-Train model (remember to change dataset name and pars argument values. Toggle/untoggle deep supervision/multiscale input/grad 
-accumulation when creating model) Use only tma, only wsi or both datasets:
-```
-python /path/to/train.py 
-```
+
    <details open>
+   <summary>
+
+   ### Train model</summary>
+   (remember to change dataset name and pars argument values. Toggle/untoggle deep supervision/multiscale input/grad 
+   accumulation when creating model) Use only tma, only wsi or both datasets:
+   ```
+   python /path/to/train.py 
+   ```
+   </details>
+   <details>
    <summary>
 
    ### Train network from terminal:</summary>
