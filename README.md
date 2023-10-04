@@ -79,7 +79,7 @@ python /path/to/divide_data_wsi.py
 
 Create train/val dataset from tma:
 ```
-python /path/to/create_data_new.py 
+python /path/to/create_data_tma.py 
 ```
 Create train/val dataset from wsi: 
 ```
