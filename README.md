@@ -131,7 +131,7 @@ Evaluate model on cylinder level with:
 
 (Make sure the correct model and dataset is used).
 ```
-python /path/to/eval3.py
+python /path/to/eval_quantitatively.py
 ```
 Evaluate model on histological subtype/grade with:
 
