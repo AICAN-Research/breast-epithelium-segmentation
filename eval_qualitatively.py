@@ -6,7 +6,23 @@ import numpy as np
 import h5py
 import multiprocessing as mp
 import matplotlib.pyplot as plt
+import tensorflow as tf
 
+def class_dice_(y_true, y_pred, class_val):
+    output1 = y_pred[..., class_val]
+    gt1 = y_true[..., class_val]
+
+    intersection1 = tf.reduce_sum(output1 * gt1)
+    union1 = tf.reduce_sum(output1 * output1) + tf.reduce_sum(
+        gt1 * gt1)
+    if union1 == 0:
+        dice = 1.
+        dice_u = True
+    else:
+        dice = (2. * intersection1) / union1
+        dice_u = False
+
+    return dice, dice_u
 
 def eval_wrapper(some_inputs_):
     return eval_patch(*some_inputs_)
@@ -44,10 +60,12 @@ def eval_patch(path, model):
     image = image.astype("uint8")
 
     data_fast = fast.Image.createFromArray(image)
-    generator = fast.PatchGenerator.create(2048, 2048, overlapPercent=0.3).connect(0, data_fast)
+    generator = fast.PatchGenerator.create(2048, 2048, overlapPercent=0.3, maskThreshold=0.02).connect(0, data_fast)
     padder = PadderPO.create(width=2048, height=2048).connect(generator)
+    patch_resizer = fast.ImageResizer.create(width=1024, height=1024, useInterpolation=False, preserveAspectRatio=True) \
+        .connect(padder)  # @TODO: this the NeuralNetwork PO should do, but adding it to the pipeline surprisingly yields different results
     network = fast.NeuralNetwork.create(modelFilename=model, inferenceEngine="OpenVINO", scaleFactor=0.00392156862) \
-        .connect(padder)
+        .connect(patch_resizer)
     converter = fast.TensorToSegmentation.create(threshold=0.5).connect(0, network, 5)
     resizer = fast.ImageResizer.create(width=2048, height=2048, useInterpolation=False, preserveAspectRatio=True) \
         .connect(converter)
@@ -57,7 +75,6 @@ def eval_patch(path, model):
         pass
 
     pred = stitcher.runAndGetOutputData()
-
     pred = np.asarray(pred)
 
     del data_fast, generator, padder, network, converter, resizer, stitcher
@@ -94,35 +111,60 @@ def eval_patch(path, model):
     ins = tp[:, :, 3] + fn[:, :, 3] + fp[:, :, 3]
     print(inv.shape)
 
-    plt.rcParams.update({'font.size': 28})
-    f, axes = plt.subplots(2, 2, figsize=(30, 30))
-    axes[0, 0].imshow(image[1500:2500, 1500:2500, :])
-    axes[0, 0].set_title("Image")
-    axes[0, 1].imshow(ben[1500:2500, 1500:2500])
-    axes[0, 1].set_title("Benign: tp = blue, fp = yellow, fn = green")
-    axes[1, 0].imshow(image[1500:2500, 1500:2500, :])
-    axes[1, 0].imshow(gt[1500:2500, 1500:2500, 2], alpha=0.5)
-    axes[1, 0].set_title("Benign: ground truth on image")
-    axes[1, 1].imshow(image[1500:2500, 1500:2500, :])
-    axes[1, 1].imshow(pred[1500:2500, 1500:2500, 2], alpha=0.5)
-    axes[1, 1].set_title("Benign: prediction on image")
-    plt.show()
+    if True:
+        plt.rcParams.update({'font.size': 28})
+        f, axes = plt.subplots(2, 2, figsize=(30, 30))
+        axes[0, 0].imshow(image)
+        axes[0, 0].set_title("Image")
+        axes[0, 1].imshow(ben[1500:2500, 1500:2500])
+        axes[0, 1].set_title("Benign: tp = blue, fp = yellow, fn = green")
+        axes[1, 0].imshow(image[1500:2500, 1500:2500, :])
+        axes[1, 0].imshow(gt[1500:2500, 1500:2500, 2], alpha=0.5)
+        axes[1, 0].set_title("Benign: ground truth on image")
+        axes[1, 1].imshow(image[1500:2500, 1500:2500, :])
+        axes[1, 1].imshow(pred[1500:2500, 1500:2500, 2], alpha=0.5)
+        axes[1, 1].set_title("Benign: prediction on image")
+        plt.show()
+
+    dice_scores = []
+    class_names = ["invasive", "benign", "insitu"]
+    for i, x in enumerate(class_names):
+        c_dice, union_d = class_dice_(gt, pred, class_val=i + 1)
+        dice_scores.append(c_dice)
+
+    if True:
+        plt.rcParams.update({'font.size': 28})
+        f, axes = plt.subplots(2, 2, figsize=(30, 30))
+        axes[0, 0].imshow(image)
+        axes[0, 0].imshow(gt[:, :, 1], cmap="gray", alpha=0.5)
+        axes[0, 0].set_title("Ground truth, invasive")
+        axes[0, 1].imshow(image)
+        axes[0, 1].imshow(pred[:, :, 1], cmap="gray", alpha=0.5)
+        axes[0, 1].set_title("Prediction, invasive, Dice score: " + str(np.asarray(dice_scores[0])))
+        axes[1, 0].imshow(image)
+        axes[1, 0].imshow(gt[:, :, 2], cmap="gray", alpha=0.5)
+        axes[1, 0].set_title("Ground truth, benign")
+        axes[1, 1].imshow(image)
+        axes[1, 1].imshow(pred[:, :, 2], cmap="gray", alpha=0.5)
+        axes[1, 1].set_title("Prediction, benign, Dice score: " + str(np.asarray(dice_scores[1])))
+        plt.show()
 
 
 if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    path = './datasets_tma_cores/230623_141305_level_1_ds_4/ds_test_external/'
-    model_name = './output/converted_models/model_030623_224255_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_0_ntb_160_nvb_40.onnx'
+    path = '/path/to/dataset'
+    model_name = '/path/to/model'
 
     cylinders_paths = os.listdir(path)
     paths_ = np.array([path + x for x in cylinders_paths]).astype("U400")
 
     for path in paths_:
-        inputs_ = [[path, model_name]]
-        p = mp.Pool(1)
-        p.map(eval_wrapper, inputs_)
-        p.terminate()
-        p.join()
-        del p, inputs_
+        if "file_name" in path:  # if specific file is wanted
+            inputs_ = [[path, model_name]]
+            p = mp.Pool(1)
+            p.map(eval_wrapper, inputs_)
+            p.terminate()
+            p.join()
+            del p, inputs_
 
 
