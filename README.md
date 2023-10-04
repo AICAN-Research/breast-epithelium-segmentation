@@ -216,3 +216,18 @@ and
   issn={2296-858X}
 }
 </pre>
+
+## How to cite
+Please consider citing our paper if you find it useful:
+<pre>
+@article{,
+  author={},
+  title={},
+  journal={},
+  volume={},
+  year={},
+  url={},
+  doi={},
+  issn={}
+}
+</pre>
