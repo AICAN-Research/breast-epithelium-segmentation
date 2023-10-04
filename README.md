@@ -25,103 +25,122 @@ modifications, and the new dataset needs to be created, in which case you would 
 To create the datasets you need five (for wsi) or six (for tma) images of each slide: he images (.vsi), ck images (.vsi), thresholded dab-channel (.tiff),
 manual annotations of benign/*in situ* lesions (.ome.tif), annotations of areas to remove (.ome.tif), 
 and triplet info (.ome.tif).
-
+   
 QuPath: 
-
+   
 All groovy scripts are run in QuPath. Open QuPath-project. Go to Automate -> Project scripts -> Script name. In script
 editor go to Run -> Run for project. Select images to run script on.
-
+   
 The code for dataset creation from tmas assumes a folder structure like: 
+   
+        └── path/to/data
+             └── cohorts 
+                 ├── cohort 1
+                 ├── cohort 2
+                 ├── ...
+                 └── cohort n
 
-     └── path/to/data
-          └── cohorts 
-              ├── cohort 1
-              ├── cohort 2
-              ├── ...
-              └── cohort n
+   <details open>
+   <summary>
 
-### Create epithelial mask from ck images:
-Create QuPath project and add CK images.
+   ### Create epithelial mask from ck images</summary>
+   Create QuPath project and add CK images.
+   
+   Threshold dab-channel in QuPath (uses pixel classifier dab_seg2.json):
+   
+   ```
+   dab_seg.groovy
+   ```
+   Export dab-channel annotations to geojson:
+   ```
+   geojson_exporter.groovy
+   ```
+   Convert geojson to tiff:
+   ```
+   convert_to_tiff.py
+   ```
+   </details>
 
-Threshold dab-channel in QuPath (uses pixel classifier dab_seg2.json):
+   <details>
+   <summary>
+   
+   ### Convert annotations to ome-tif</summary> 
+   Create QuPath projects for the different tasks (1-3). Add images and create annotations. 
+   
+   Convert manual annotations of benign/*in situ* lesions (1), cores to remove (2), and triplet info (3) to ome-tiff.
+   Remember to change annotation name depending on annotation category.
+   ```
+   ome_tif_exporter.groovy
+   ```
+   </details>
 
-```
-dab_seg.groovy
-```
-Export dab-channel annotations to geojson:
-```
-geojson_exporter.groovy
-```
-Convert geojson to tiff:
-```
-convert_to_tiff.py
-```
-### Convert annotations to ome-tif:
-Create QuPath projects for the different tasks (1-3). Add images and create annotations. 
+   <details>
+   <summary>
+   
+   ### Create datasets</summary>
+   
+   Split data into train, validation and test sets:
+   
+   for tma:
+   ```
+   python /path/to/divide_data.py 
+   ```
+   for wsi:
+   ```
+   python /path/to/divide_data_wsi.py 
+   ```
+   
+   Create train/val dataset from tma:
+   ```
+   python /path/to/create_data_tma.py 
+   ```
+   Create train/val dataset from wsi: 
+   ```
+   python /path/to/create_data_wsi.py 
+   ```
+   </details>
 
-Convert manual annotations of benign/*in situ* lesions (1), cores to remove (2), and triplet info (3) to ome-tiff.
-Remember to change annotation name depending on annotation category.
-```
-ome_tif_exporter.groovy
-```
-### Create datasets:
-
-Split data into train, validation and test sets:
-
-for tma:
-```
-python /path/to/divide_data.py 
-```
-for wsi:
-```
-python /path/to/divide_data_wsi.py 
-```
-
-Create train/val dataset from tma:
-```
-python /path/to/create_data_tma.py 
-```
-Create train/val dataset from wsi: 
-```
-python /path/to/create_data_wsi.py 
-```
 ## Train model:
 Train model (remember to change dataset name and pars argument values. Toggle/untoggle deep supervision/multiscale input/grad 
 accumulation when creating model) Use only tma, only wsi or both datasets:
 ```
 python /path/to/train.py 
 ```
+   <details open>
+   <summary>
 
-## Train network from terminal: 
+   ### Train network from terminal:</summary>
+      
+   Create a screen session: 
+   ```
+   screen -S session-name
+   ```
+   Reenter existing screen session: 
+   ```
+   screen -r session-name
+   ```
+   Activate virtual environment: 
+   ```
+   source environment-name/bin/activate
+   ```
+   Start training: 
+   ```
+   python /path/to/script.py
+   ```
+   If you want to change arguments in script that has argparse (from default) then f.ex do:
+   ```
+   python /path/to/script.py --batch_size 16 --learning_rate 0.001
+   ```
+   Exit screen session: 
+   ```
+   ctr ad
+   ```
+   Check if in screen session: 
+   ```
+   ctr at
+   ```
+   </details>
 
-Create a screen session: 
-```
-screen -S session-name
-```
-Reenter existing screen session: 
-```
-screen -r session-name
-```
-Activate virtual environment: 
-```
-source environment-name/bin/activate
-```
-Start training: 
-```
-python /path/to/script.py
-```
-If you want to change arguments in script that has argparse (from default) then f.ex do:
-```
-python /path/to/script.py --batch_size 16 --learning_rate 0.001
-```
-Exit screen session: 
-```
-ctr ad
-```
-Check if in screen session: 
-```
-ctr at
-```
 ## Evaluate model:
 Create tma-level dataset for evaluation: 
 ```
