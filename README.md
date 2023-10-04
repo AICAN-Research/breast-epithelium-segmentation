@@ -154,7 +154,7 @@ python /path/to/eval_quantitatively.py
 ```
 Evaluate model on histological subtype/grade with:
 
-(Make sure the correct model and dataset is used).
+(Make sure the correct model and dataset is used. For this evaluation you would need a data file containing histological subtype/grade).
 ```
 python /path/to/eval_histologic_subtype.py
 ```
