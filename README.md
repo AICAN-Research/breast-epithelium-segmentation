@@ -148,7 +148,7 @@ The code for dataset creation from TMAs assumes a folder structure like:
    </details>
 
 ## Evaluate model:
-Create tma-level dataset for evaluation: 
+Create tma-level dataset for evaluati 
 ```
 python /path/to/create_tma_pairs.py
 ```
