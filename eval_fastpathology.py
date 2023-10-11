@@ -1,6 +1,7 @@
 """
 Script for evaluating qualitatively the segmentations generated in FastPathology
 Plotting ground truth and segmentation on cylinder level.
+Specify which exact cylinder to evaluate
 """
 import fast
 import cv2
@@ -98,20 +99,20 @@ def eval_patch(path, pred):
         axes[0, 1].imshow(pred[:, :, 1], cmap="gray", alpha=0.5)
         axes[0, 1].set_title("Prediction, invasive, Dice score: " + str(np.asarray(dice_scores[0])))
         axes[1, 0].imshow(image)
-        axes[1, 0].imshow(gt[:, :, 3], cmap="gray", alpha=0.5)
-        axes[1, 0].set_title("Ground truth, in situ")
+        axes[1, 0].imshow(gt[:, :, 2], cmap="gray", alpha=0.5)
+        axes[1, 0].set_title("Ground truth, benign")
         axes[1, 1].imshow(image)
-        axes[1, 1].imshow(pred[:, :, 3], cmap="gray", alpha=0.5)
-        axes[1, 1].set_title("Prediction, in situ, Dice score: " + str(np.asarray(dice_scores[2])))
+        axes[1, 1].imshow(pred[:, :, 2], cmap="gray", alpha=0.5)
+        axes[1, 1].set_title("Prediction, benign, Dice score: " + str(np.asarray(dice_scores[1])))
         plt.show()
 
 
 if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    seg_path = '...fastpathology/projects/...'
-    he_path = ''
-    ck_path = ''
-    path = ''
+    seg_path = '/path/to/fastPathology-project/results/'  # path to tiff-result file in fp project
+    he_path = '/path/to/file'  # path to he vsi to evaluate
+    ck_path = '/path/to/file'  # path to ck vsi to evaluate
+    path = '/path/to/image-gt-file'  # path to corresponding hdf5 image and gt
 
     #level = 1
     dist_limit = 4000
@@ -150,7 +151,7 @@ if __name__ == "__main__":
 
     for he_counter in range(len(he_tmas)):
         for ck_counter in range(len(ck_tmas)):
-            if he_counter == 28:
+            if he_counter == 7:  # this number must match the cylinder you want to look at when extracting from slide with TMA extractor
                 he_tma = he_tmas[he_counter]
                 ck_tma = ck_tmas[ck_counter]
                 position_he = he_tma.getTransform().getTranslation()  # position of he_tma at level 0
