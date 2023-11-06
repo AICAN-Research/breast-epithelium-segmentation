@@ -197,6 +197,8 @@ import_from_fastpathology.groovy
    </details>
 
 ## Acknowledgements
+Thank you to Pete Bankhead and the QuPath team for their support in implementing the groovy scripts.
+
 Code for AGU-Net from:
 <pre>
 @misc{bouget2021meningioma,
@@ -223,7 +225,7 @@ and
 </pre>
 
 ## How to cite
-Please consider citing our paper if you find it useful:
+Please cite our paper if you find it useful:
 <pre>
 @article{,
   author={},
