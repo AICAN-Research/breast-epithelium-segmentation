@@ -1,4 +1,4 @@
-# ep-segmentation
+# Breast Epithelium Segmentation
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
