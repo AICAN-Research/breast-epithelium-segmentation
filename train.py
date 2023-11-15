@@ -39,8 +39,8 @@ def main(ret):
         str(ret.mixed_precision) + "_ntb_" + str(N_train_batches) + "_nvb_" + str(N_val_batches)
 
     # paths
-    dataset_path = '/mnt/EncryptedSSD1/maren/datasets/140523_165318_level_2_psize_1024_ds_4/'
-    dataset_path_wsi = '/mnt/EncryptedSSD1/maren/datasets/030623_205109_wsi_level_2_psize_1024_ds_4/'
+    dataset_path = '/'
+    dataset_path_wsi = '/'
     train_path = dataset_path + 'ds_train'
     train_path_wsi = dataset_path_wsi + 'ds_train'
     val_path = dataset_path + 'ds_val'
