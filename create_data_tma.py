@@ -501,14 +501,14 @@ if __name__ == "__main__":
     class_ = "multiclass"  # singleclass
     skip_percentage = 0.25
 
-    HE_CK_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
+    HE_CK_dir_path = '/path/to/images/'
 
     # paths to wsis included in train and validation sets
-    data_splits_path = "./data_splits/250123_093254/dataset_split.h5"
+    data_splits_path = "./path/to/datasplit/.h5"
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
-    dataset_path = "/mnt/EncryptedSSD1/maren/datasets/" + curr_date + "_" + curr_time + \
+    dataset_path = "/path/to/dataset/" + curr_date + "_" + curr_time + \
                    "_level_" + str(level) + \
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(downsample_factor) + "/"
@@ -540,13 +540,12 @@ if __name__ == "__main__":
             HE_path = HE_CK_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_HE_BC_' + str(id_) + '.vsi'
             CK_path = HE_CK_dir_path + str(file_front) + "/" + str(file_front) + '_EFI_CK_BC_' + str(id_) + '.vsi'
 
-            mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/' + str(file_front) + \
-                        '_EFI_CK_BC_' + str(id_) + '.tiff'
-            annot_path = '/data/Maren_P1/data/annotations_converted/TMA/' + str(file_front) + \
+            mask_path = '/path/to/masks/' + str(id_) + '.tiff'
+            annot_path = '/path/to/annotations/' + str(file_front) + \
                          '_EFI_HE_BC_' + str(id_) + '-labels.ome.tif'
-            remove_path = '/data/Maren_P1/data/annotations_converted/remove_TMA/' + str(file_front) \
+            remove_path = '/path/to/remove/cores/' + str(file_front) \
                           + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
-            triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
+            triplet_path = '/path/to/triplets/' + str(file_front) \
                            + '_EFI_CK_BC_' + str(id_) + '.vsi - EFI 40x-labels.ome.tif'
 
 
