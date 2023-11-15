@@ -1,6 +1,7 @@
 """
 Plot training/validation loss
 Remember to change history path
+Old script
 """
 
 import pandas as pd
@@ -8,31 +9,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-history_path = './output/history/history_310523_090803_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_1_ntb_160_nvb_40.csv'
-history_path_2 = './output/history/history_260523_140651_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_1_ntb_160_nvb_40.csv'
-#'./output/history/history_050523_155704_agunet_bs_8_as_1_lr_00001_d__bl_1_br_02_h__s_.csv' # path to history file
-# './output/history/history_050523_093552_agunet_bs_8_as_1_lr_0.0001_conv_[16, 32, 32, 64, 64, 128, 128, 256, 256]_d_None_bl_1_br_0.1_h_0.05_s_0.2.csv'
+history_path = './csv'
+history_path_2 = './.csv'
+
 data = pd.read_csv(history_path)
 data_2 = pd.read_csv(history_path_2)
-
-a = np.ones((3, 3))
-a[0,0] = 0
-b = np.ones((3, 3))
-b[0,0] = 0
-b[2,0] = 0
-b[1,0] = 0
-
-print(a)
-print(a.shape)
-print(b)
-print(b.shape)
-print()
-print(tf.reduce_sum(a))
-print(tf.reduce_sum(a*a))
-print(tf.reduce_sum(b))
-print(tf.reduce_sum(b*b))
-
-exit()
 
 print(data.shape)
 
