@@ -8,53 +8,111 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-
-history_path = './output/history/history_260423_093216_agunet_bs_8.csv'  # path to history file
-
+history_path = './output/history/history_310523_090803_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_1_ntb_160_nvb_40.csv'
+history_path_2 = './output/history/history_260523_140651_agunet_bs_8_as_1_lr_0.0005_d_None_bl_1_br_0.3_h_0.05_s_0.3_st_1.0_fl_1.0_rt_1.0_mp_1_ntb_160_nvb_40.csv'
+#'./output/history/history_050523_155704_agunet_bs_8_as_1_lr_00001_d__bl_1_br_02_h__s_.csv' # path to history file
+# './output/history/history_050523_093552_agunet_bs_8_as_1_lr_0.0001_conv_[16, 32, 32, 64, 64, 128, 128, 256, 256]_d_None_bl_1_br_0.1_h_0.05_s_0.2.csv'
 data = pd.read_csv(history_path)
+data_2 = pd.read_csv(history_path_2)
+
+a = np.ones((3, 3))
+a[0,0] = 0
+b = np.ones((3, 3))
+b[0,0] = 0
+b[2,0] = 0
+b[1,0] = 0
+
+print(a)
+print(a.shape)
+print(b)
+print(b.shape)
+print()
+print(tf.reduce_sum(a))
+print(tf.reduce_sum(a*a))
+print(tf.reduce_sum(b))
+print(tf.reduce_sum(b*b))
+
+exit()
 
 print(data.shape)
+
 
 net = "agunet"
 nbr = 54
 epochs = data.shape[0]
+epochs2 = data_2.shape[0]
 
 if net == "agunet":
     loss = data['conv2d_' + str(nbr) +'_loss']
+    loss_2 = data_2['conv2d_' + str(nbr) + '_loss']
     val_loss = data['val_conv2d_' + str(nbr) + '_loss']
+    val_loss_2 = data_2['val_conv2d_' + str(nbr) + '_loss']
+
 
     benign = data['conv2d_' + str(nbr) +'_benign']
     inSitu = data['conv2d_' + str(nbr) +'_insitu']
     invasive = data['conv2d_' + str(nbr) +'_invasive']
 
+    benign_2 = data_2['conv2d_' + str(nbr) + '_benign']
+    inSitu_2 = data_2['conv2d_' + str(nbr) + '_insitu']
+    invasive_2 = data_2['conv2d_' + str(nbr) + '_invasive']
+
     val_benign = data['val_conv2d_' + str(nbr) +'_benign']
     val_inSitu = data['val_conv2d_' + str(nbr) +'_insitu']
     val_invasive = data['val_conv2d_' + str(nbr) +'_invasive']
 
+    val_benign_2 = data_2['val_conv2d_' + str(nbr) + '_benign']
+    val_inSitu_2 = data_2['val_conv2d_' + str(nbr) + '_insitu']
+    val_invasive_2 = data_2['val_conv2d_' + str(nbr) + '_invasive']
+
     # train loss
-    epochs = range(1, epochs + 1)
-    plt.plot(epochs, benign, '-', label='Train benign loss')
-    plt.plot(epochs, inSitu, '-', label='Train insitu loss')
-    plt.plot(epochs, invasive, '-', label='Train invasive loss')
+    epochs_1 = range(1, epochs + 1)
+    epochs_2 = range(1, epochs2 + 1)
+
+    #plt.plot(epochs, benign, '-', label='Train benign loss')
+    plt.plot(epochs_1, inSitu, '-', label='Train insitu loss aug + drop')
+    plt.plot(epochs_1, val_inSitu, '-', label='Val insitu loss aug + drop')
+    plt.plot(epochs_2, inSitu_2, '-', label='Train insitu loss aug')
+    plt.plot(epochs_2, val_inSitu_2, '-', label='Val insitu loss aug')
+    #plt.plot(epochs_1, invasive, '-', label='Train invasive loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
+    plt.grid(True)
     plt.legend()
     plt.show()
-
+    
     # validation loss
-    plt.plot(epochs, val_benign, '-', label='Val benign loss')
-    plt.plot(epochs, val_inSitu, '-', label='Val insitu loss')
-    plt.plot(epochs, val_invasive, '-', label='Val invasive loss')
+    plt.plot(epochs_1, benign, '-', label='Train benign loss aug + drop')
+    plt.plot(epochs_1, val_benign, '-', label='Val benign loss aug + drop')
+    plt.plot(epochs_2, benign_2, '-', label='Train benign loss aug')
+    plt.plot(epochs_2, val_benign_2, '-', label='Val benign loss aug')
+    #plt.plot(epochs, val_inSitu, '-', label='Val insitu loss')
+    #plt.plot(epochs, val_invasive, '-', label='Val invasive loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+    
+    # validation loss
+    plt.plot(epochs_1, invasive, '-', label='Train invasive loss aug + drop')
+    plt.plot(epochs_1, val_invasive, '-', label='Val invasive loss aug + drop')
+    plt.plot(epochs_2, invasive_2, '-', label='Train invasive loss aug')
+    plt.plot(epochs_2, val_invasive_2, '-', label='Val invasive loss aug')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.grid(True)
     plt.legend()
     plt.show()
 
     # train and validation loss
-    plt.plot(epochs, loss, '-', label='Training loss')
-    plt.plot(epochs, val_loss, '-', label='Validation loss')
+    plt.plot(epochs_1, loss, '-', label='Training loss aug + drop')
+    plt.plot(epochs_1, val_loss, '-', label='Validation loss aug + drop')
+    plt.plot(epochs_2, loss_2, '-', label='Training loss aug')
+    plt.plot(epochs_2, val_loss_2, '-', label='Validation loss aug')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
+    plt.grid(True)
     plt.legend()
     plt.show()
 
@@ -102,4 +160,5 @@ elif net == "unet":
 # get the lowest train, validation loss
 print(np.amin(loss))
 print(np.amin(val_loss))
-
+print("loss drop: ", np.amin(loss_2))
+print("val loss drop: ", np.amin(val_loss_2))
