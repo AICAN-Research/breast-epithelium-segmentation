@@ -165,18 +165,18 @@ if __name__ == "__main__":
     dataset_path = "./datasets_tma_cores/" + curr_date + "_" + curr_time + \
                    "_level_" + str(level) + "/"
 
-    he_dir_path = '/data/Maren_P1/data/TMA_eval/'
-    remove_path_ = '/data/Maren_P1/data/annotations_converted/remove_TMA/'
+    he_dir_path = '/path/to/he/'
+    remove_path_ = '/path/to/remove/'
 
     for file in os.listdir(he_dir_path):
         if ".vsi" in file and "Overview" not in file:
             print("file: ", file)
             file_front = file.split(".vsi")[0]
             he_path = he_dir_path + str(file)
-            mask_path = '/data/Maren_P1/data/annotations_converted/annotations_eval_corrected/' + str(file_front) \
+            mask_path = '/path/to/mask//' + str(file_front) \
                         + '.vsi - EFI 40x-labels.ome.tif'
             remove_path = remove_path_ + str(file_front) + '.vsi - EFI 40x-remove.ome.tif'
-            triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
+            triplet_path = '/path/to/triplets/' + str(file_front) \
                            + '.vsi - EFI 40x-labels.ome.tif'
 
             print(he_path)
