@@ -20,7 +20,7 @@ def get_nbr_slides(path_):
 
 if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    path = '/mnt/EncryptedSSD1/maren/datasets/140523_165318_level_2_psize_1024_ds_4/ds_val/invasive/'
+    path = '/path/to/dataset/'
     tma_ids = []
     wsi_ids = get_nbr_slides(path)
     df = pd.DataFrame(np.array(np.zeros((1, len(wsi_ids)), dtype=int)), columns=wsi_ids)
