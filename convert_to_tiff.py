@@ -23,10 +23,10 @@ log_config = os.path.join(os.path.split(__file__)[0], "resources", "log4j.proper
 level = 0  # image pyramid level to get size from
 
 # Need to run this script once for every folder with CK paths
-cohorts_path = "/data/Maren_P1/data/TMA/cohorts/"
-geojson_path = "/data/Maren_P1/data/annotations_converted/blue_channel_tumor_only/"
-tmp_path = "/data/Maren_P1/data/annotations_converted/blue_channel_tumor_only/blue_channel_temp/"
-output_path = "/data/Maren_P1/data/annotations_converted/blue_channel_tiff/"
+cohorts_path = "/path/to/cohorts/"
+geojson_path = "/path/to/geojson/"
+tmp_path = "/tmp/path/"
+output_path = "/tiff/output/path/"
 
 # delete folders
 if os.path.exists(tmp_path):
