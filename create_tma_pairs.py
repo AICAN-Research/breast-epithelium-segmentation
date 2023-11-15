@@ -338,7 +338,7 @@ if __name__ == "__main__":
     he_ck_dir_path = '/data/Maren_P1/data/TMA/cohorts/'
 
     # paths to wsis included in train and validation sets
-    data_splits_path = "./data_splits/250123_093254/dataset_split.h5"
+    data_splits_path = "./path/to/datasplit.h5"
 
     # path to wsis included in test set
 
@@ -359,10 +359,10 @@ if __name__ == "__main__":
         print("n_test: ", n_test)
         HE_add = '_EFI_HE_BC_'
         CK_add = '_EFI_CK_BC_'
-        remove_path_ = '/data/Maren_P1/data/annotations_converted/remove_TMA/'
+        remove_path_ = '/path/to/remove/'
     else:
         external_files = []
-        external_paths = '/data/Maren_P1/data/annotations_converted/remove_TMA_external/'
+        external_paths = '/remove/external/path/'
         for file_ in os.listdir(external_paths):
             external_files.append(file_)
         set_ = external_files
@@ -373,7 +373,7 @@ if __name__ == "__main__":
         print("n_test: ", n_external_test)
         HE_add = '_EFI_HE_'
         CK_add = '_EFI_CK_'
-        remove_path_ = '/data/Maren_P1/data/annotations_converted/remove_TMA_external/'
+        remove_path_ = '/remove/external/path'
 
     for file in tqdm(set_, "WSI"):
 
@@ -388,13 +388,13 @@ if __name__ == "__main__":
         he_path = he_ck_dir_path + str(file_front) + "/" + str(file_front) + HE_add + str(id_) + '.vsi'
         ck_path = he_ck_dir_path + str(file_front) + "/" + str(file_front) + CK_add+ str(id_) + '.vsi'
 
-        mask_path = '/data/Maren_P1/data/annotations_converted/blue_channel_tiff/' + str(file_front) + \
+        mask_path = '/path/do/mask/' + str(file_front) + \
                      CK_add + str(id_) + '.tiff'
-        annot_path = '/data/Maren_P1/data/annotations_converted/TMA/' + str(file_front) + \
+        annot_path = '/path/to/annot' + str(file_front) + \
                       HE_add + str(id_) + '-labels.ome.tif'
         remove_path = remove_path_ + str(file_front) \
                        + CK_add + str(id_) + '.vsi - EFI 40x-remove.ome.tif'
-        triplet_path = '/data/Maren_P1/data/annotations_converted/triplets_TMA_id/' + str(file_front) \
+        triplet_path = '/path/to/triplets/' + str(file_front) \
                            + CK_add + str(id_) + '.vsi - EFI 40x-labels.ome.tif'
 
 
