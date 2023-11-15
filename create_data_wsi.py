@@ -334,20 +334,20 @@ if __name__ == "__main__":
 
     curr_date = "".join(date.today().strftime("%d/%m").split("/")) + date.today().strftime("%Y")[2:]
     curr_time = "".join(str(datetime.now()).split(" ")[1].split(".")[0].split(":"))
-    dataset_path = "/mnt/EncryptedSSD1/maren/datasets/" + curr_date + "_" + curr_time + \
+    dataset_path = "/path/to/dataset/" + curr_date + "_" + curr_time + \
                    "_wsi" + \
                    "_level_" + str(level) + \
                    "_psize_" + str(patch_size) + \
                    "_ds_" + str(ds_factor) + "/"
 
     # go through files in train/val/test -> create_dataset()
-    he_path_ = '/data/Maren_P1/data/WSI/'
-    ck_path_ = '/data/Maren_P1/data/WSI/'
-    roi_annot_path_ = '/data/Maren_P1/data/annotations_converted/patches_WSI/'
-    annot_path_ = '/data/Maren_P1/data/annotations_converted/WSI/'
-    dab_path_ = '/data/Maren_P1/data/annotations_converted/dab_channel_WSI_tiff/'
-    wsi1_split_path = './wsi_splits1/190423_151444/dataset_split.h5'
-    wsi2_split_path = './wsi_splits2/190423_151451/dataset_split.h5'
+    he_path_ = '/path/to/he/'
+    ck_path_ = '/path/to/ck/'
+    roi_annot_path_ = '/path/to/patches/wsi/annot/'
+    annot_path_ = '/path/to/annots/'
+    dab_path_ = '/path/to/dab/'
+    wsi1_split_path = './path/to/datasplit/h5'
+    wsi2_split_path = './path/to/datasplit/h5'
 
     # define datasets (train/val/test) - always uses predefined dataset
     with h5py.File(wsi1_split_path, "r") as f:
