@@ -277,10 +277,10 @@ def eval_patch(path, model):
 
 
 def eval_on_dataset():
-    path = './datasets_tma_cores/180823_102337_level_1/test_corrected/'
-    model_name = './output/converted_models/model_030623_224255_agunet_bs_8_opset13.onnx'
+    path = '/path/to/dataset/'
+    model_name = './path/to/model/'
     dataframe_path = './output/eval/dataframes/'
-    name = 'model_' + '030623_224255_opset13' + '_ds_' + '180823_102337_positive_target'
+    name = 'model_' + '' + '_ds_' + ''
 
     cylinders_paths = os.listdir(path)
     paths_ = np.array([path + x for x in cylinders_paths]).astype("U400")
