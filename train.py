@@ -38,7 +38,7 @@ def main(ret):
         "_fl_" + str(ret.flip) + "_rt_" + str(ret.rot) + "_mp_" + \
         str(ret.mixed_precision) + "_ntb_" + str(N_train_batches) + "_nvb_" + str(N_val_batches)
 
-    # paths
+    #  paths
     dataset_path = '/'
     dataset_path_wsi = '/'
     train_path = dataset_path + 'ds_train'
