@@ -196,4 +196,3 @@ class AttentionUnet:
             x = recons_list[::-1]
 
         return Model(inputs=input_layer, outputs=x)
-

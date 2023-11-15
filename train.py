@@ -5,12 +5,12 @@ from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, EarlyStopping
 from datetime import datetime, date
 from source.augment import random_brightness, random_rot90, random_flipud, \
     random_fliplr, random_hue, random_saturation, random_shift, random_blur
+from source.losses import get_dice_loss, class_dice_loss
+from source.networks import AttentionUnet
 from source.utils import normalize_img, patchReader, get_random_path_from_random_class, \
      create_multiscale_input, get_random_path
-from source.losses import get_dice_loss, class_dice_loss
 from argparse import ArgumentParser
 import sys
-from AttentionUNet import AttentionUnet
 from gradient_accumulator import GradientAccumulateModel
 from tensorflow.keras import mixed_precision
 import numpy as np
