@@ -6,10 +6,42 @@ Segmentation of epithelial cells from Hematoxylin and Eosin (HE) stained slides 
 as ground truth. A multiclass segmentation model which separates epithelium into benign epithelium, *in situ* lesions, and invasive epithelium.
 
 This repository includes the source code used for the model presented in (manuscript when published). 
-The final model presented in the paper has been integrated in [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) and can
-be run on new HE tissue slides.
 
-## Preliminaries
+
+## Using the trained model
+
+### With FastPathology
+
+The trained model is available in the [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) software.
+Select "Download models & pipelines" from the main menu and look for the "Breast Epithelium Segmentation" and press download.
+Then you can load your own WSI data and apply the model without doing any programming.
+
+### From the command line using pyFAST
+
+You can run the model on your own WSI data from the command line after installing [FAST for Python (aka pyfast)](https://fast.eriksmistad.no/install.html).
+
+```bash
+pip install pyfast
+runPipeline --datahub breast-epithelium-segmentation --file /path/to/your/WSI
+```
+
+### From Python using pyFAST
+First install [FAST for Python (aka pyfast)](https://fast.eriksmistad.no/install.html).
+```bash
+pip install pyfast
+```
+Note there are some requirements to be installed for Ubuntu Linux and Mac. Windows should work out of the box.
+
+Then from Python you can do:
+```python
+import fast
+
+pipeline = fast.Pipeline.fromDataHub('breast-epithelium-segmentation', {'file': '/path/to/your/WSI'})
+pipeline.run()
+```
+See the [documentation for more info on how to work with WSI data with pyFAST](https://fast.eriksmistad.no/python-tutorial-wsi.html).
+
+## Training Preliminaries
 
 **Disclaimer:** The source code includes hard-coded solutions. To train the model on a new dataset, the code requires
 modifications, and the new dataset needs to be created, in which case you would need:
