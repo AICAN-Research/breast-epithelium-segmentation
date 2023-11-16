@@ -2,6 +2,7 @@
 Script to convert annotations from geoJSON to geoTIFF, then pyramidal TIFF
 Get shape of CK image
 Requires numpy version above 1.22.0 (upgrade numpy before running this script)
+Also required bftools (BioFormats Tools)
 """
 import os
 import fast

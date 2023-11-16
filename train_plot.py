@@ -17,7 +17,6 @@ data_2 = pd.read_csv(history_path_2)
 
 print(data.shape)
 
-
 net = "agunet"
 nbr = 54
 epochs = data.shape[0]
@@ -136,6 +135,9 @@ elif net == "unet":
     plt.ylabel('Loss')
     plt.legend()
     plt.show()
+
+else: 
+    raise ValueError(f"Supported networks are 'agunet' or 'unet', but {net} was chosen.")
 
 
 # get the lowest train, validation loss
