@@ -39,6 +39,20 @@ import fast
 pipeline = fast.Pipeline.fromDataHub('breast-epithelium-segmentation', {'file': '/path/to/your/WSI'})
 pipeline.run()
 ```
+This will visualize the output of the model. 
+
+You can also export the segmentation to a pyramidal TIFF like so:
+```python
+import fast
+
+pipeline = fast.Pipeline.fromDataHub('breast-epithelium-segmentation', {'file': '/path/to/your/WSI'})
+pipeline.parse(visualization=False)
+output = pipeline.getPipelineOutputData('segmentation')
+fast.TIFFImagePyramidExporter.create('segmentation.tiff')\
+	.connect(output)\
+	.run()
+```
+
 See the [documentation for more info on how to work with WSI data with pyFAST](https://fast.eriksmistad.no/python-tutorial-wsi.html).
 
 ## Training Preliminaries
