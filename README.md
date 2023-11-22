@@ -7,6 +7,7 @@ as ground truth. A multiclass segmentation model which separates epithelium into
 
 This repository includes the source code used for the model presented in (manuscript when published). 
 
+![bilde_github](https://github.com/AICAN-Research/breast-epithelium-segmentation/assets/89521132/e7a13473-a7c5-43c1-83ad-e219c7ec9ec7)
 
 
 ## Using the trained model
