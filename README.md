@@ -241,25 +241,22 @@ See the script header for more details on how to use it.
 <summary>
 
 ### QuPath</summary> 
+	
+**Q:** Error when exporting annotations to GeoJSON with QuPath script
 
-    **Q:** Error when exporting annotations to GeoJSON with QuPath script
-    **A:** Make sure `Include default imports` under `Run` in Script Editor is enabled.
+**A:** Make sure `Include default imports` under `Run` in Script Editor is enabled.
 
 </details>
 
-## How to cite
-
 Please cite our paper if you find it useful:
 ```
-   @article{,
-   author={},
-   title={},
-   journal={},
-   volume={},
-   year={},
-   url={},
-   doi={},
-   issn={}
+@misc{hoibo2023immunohistochemistry,
+    title={Immunohistochemistry guided segmentation of benign epithelial cells, in situ lesions, and invasive epithelial cells in breast cancer slides}, 
+    author={Maren Høibø and André Pedersen and Vibeke Grotnes Dale and Sissel Marie Berget and Borgny Ytterhus and Cecilia Lindskog and Elisabeth Wik and Lars A. Akslen and Ingerid Reinertsen and Erik Smistad and Marit Valla},
+    year={2023},
+    eprint={2311.13261},
+    archivePrefix={arXiv},
+    primaryClass={eess.IV}
 }
 ```
 
