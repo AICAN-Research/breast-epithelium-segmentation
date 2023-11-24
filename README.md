@@ -267,7 +267,10 @@ See the script header for more details on how to use it.
 
 </details>
 
-Please cite our paper if you find it useful:
+## How to cite
+
+
+Please, cite our research article if you found this repository useful:
 ```
 @misc{hoibo2023immunohistochemistry,
     title={Immunohistochemistry guided segmentation of benign epithelial cells, in situ lesions, and invasive epithelial cells in breast cancer slides}, 
