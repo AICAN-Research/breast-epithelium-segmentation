@@ -118,15 +118,15 @@ if __name__ == "__main__":
     d_set = "external"
 
     # stata path, file which includes info on what subtype each case is
-    stata_path = '.../STATA.dta' # path to data file to use
+    stata_path = '/stata/path'
 
     # dataset path
-    dataset_path = '.../dataset/'  # path to dataset to use, TMA cores level 1
+    dataset_path = '/dataset/path/'
     df = pd.read_stata(stata_path, convert_categoricals=False)  # @TODO: this gives a warning, why?
     # type_vals = df["GRAD"].to_numpy().astype(int) # @TODO why does this not work
 
     # model path
-    model_path = '.../model.onnx'  # path to model
+    model_path = '/model/path/'
 
     dice_types = [[[], [], []], [[], [], []], [[], [], []], [[], [], []], [[], [], []], [[], [], []], [[], [], []],
                   [[], [], []]]
