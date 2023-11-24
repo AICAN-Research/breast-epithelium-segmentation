@@ -1,38 +1,55 @@
 # Breast Epithelium Segmentation
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![arXiv](https://img.shields.io/badge/arXiv-2311.13261-firebrick?logo=arxiv&logoColor=red)](https://arxiv.org/abs/2311.13261)
+[![Demo](https://img.shields.io/badge/demo-FastPathology-blue?logo=arxiv&logoColor=blue)](https://github.com/AICAN-Research/FAST-Pathology)
 
-Segmentation of epithelial cells from Hematoxylin and Eosin (HE) stained slides using cytokeratin (CK) and pathologists' annotations
-as ground truth. A multiclass segmentation model which separates epithelium into benign epithelium, *in situ* lesions, and invasive epithelium.
+This repository includes the source code related to the preprint [_"Immunohistochemistry guided segmentation of benign epithelial cells, in situ lesions, and invasive epithelial cells in breast cancer slides"_](https://arxiv.org/abs/2311.13261).
 
-This repository includes the source code used for the model presented in (manuscript when published). 
+## Summary
+
+> An immunohistochemistry (IHC) restaining technique was used to facilitate the annotation process of both whole slide images (WSIs) and tissue microarrays (TMAs). An algorithm was then used to post-process the cytokeratin (CK) images to produce binary segmentations and form HE-CK pairs. From these proposals, a pathologist distinguished between invasive and epithelial cells and _in situ_ lesions. A convolutional neural network was then trained to perform semantic segmentation. The model was made more robust through tailored data augmentation techniques, utilizing a multi-scale network architecture, and introducing patches from WSIs in addition to the TMA pairs. The final model was then made available in [FastPathology](https://ieeexplore.ieee.org/document/9399433).
 
 ![bilde_github](https://github.com/AICAN-Research/breast-epithelium-segmentation/assets/89521132/e7a13473-a7c5-43c1-83ad-e219c7ec9ec7)
 
 
 ## Using the trained model
 
-### With FastPathology
+<details>
+<summary>
+
+### With FastPathology</summary>
 
 The trained model is available in the [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) software.
 Select "Download models & pipelines" from the main menu and look for the "Breast Epithelium Segmentation" and press download.
 Then you can load your own WSI data and apply the model without doing any programming.
 
-### From the command line using pyFAST
+</details>
+
+<details open>
+<summary>
+
+### From the command line using pyFAST</summary>
 
 You can run the model on your own WSI data from the command line after installing [FAST for Python (aka pyfast)](https://fast.eriksmistad.no/install.html).
 
 ```bash
 pip install pyfast
-runPipeline --datahub breast-epithelium-segmentation --file /path/to/your/WSI
+
+runPipeline --datahub breast-epithelium-segmentation --file /path/to/WSI
 ```
 
-### From Python using pyFAST
+</details>
+
+<details>
+<summary>
+
+### From Python using pyFAST</summary> 
 First install [FAST for Python (aka pyfast)](https://fast.eriksmistad.no/install.html).
 ```bash
 pip install pyfast
 ```
-Note there are some requirements to be installed for Ubuntu Linux and Mac. Windows should work out of the box.
+> **Note:** There are some requirements to be installed for Ubuntu Linux and macOS (see [here](https://fast.eriksmistad.no/install-ubuntu-linux.html) and [here](https://fast.eriksmistad.no/install-mac.html), respectively). Windows should work out of the box.
 
 Then from Python you can do:
 ```python
@@ -56,6 +73,8 @@ fast.TIFFImagePyramidExporter.create('segmentation.tiff')\
 ```
 
 See the [documentation for more info on how to work with WSI data with pyFAST](https://fast.eriksmistad.no/python-tutorial-wsi.html).
+
+</details>
 
 ## Training Preliminaries
 
@@ -278,7 +297,7 @@ AGU-Net implementation for histopathological image segmentation:
 }
 ```
 
-Which was adapted from MRI meningioma segmentation:
+Which was adapted from the 3D AGU-Net architecture proposed in:
 ```
 @article{bouget2021agunet,
    title={{Meningioma Segmentation in T1-Weighted MRI Leveraging Global Context and Attention Mechanisms}},
