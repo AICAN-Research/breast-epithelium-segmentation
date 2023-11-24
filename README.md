@@ -15,7 +15,7 @@ This repository includes the source code related to the preprint [_"Immunohistoc
 
 ## Using the trained model
 
-<details>
+<details open>
 <summary>
 
 ### With FastPathology</summary>
