@@ -1,4 +1,4 @@
-# Breast Epithelium Segmentation
+# [Breast Epithelium Segmentation](https://github.com/AICAN-Research/breast-epithelium-segmentation#breast-epithelium-segmentation)
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![arXiv](https://img.shields.io/badge/arXiv-2311.13261-firebrick?logo=arxiv&logoColor=red)](https://arxiv.org/abs/2311.13261)
@@ -6,19 +6,18 @@
 
 This repository includes the source code related to the preprint [_"Immunohistochemistry guided segmentation of benign epithelial cells, in situ lesions, and invasive epithelial cells in breast cancer slides"_](https://arxiv.org/abs/2311.13261).
 
-## Summary
+## [Summary](https://github.com/AICAN-Research/breast-epithelium-segmentation#summary)
 
 > An immunohistochemistry (IHC) restaining technique was used to facilitate the annotation process of both whole slide images (WSIs) and tissue microarrays (TMAs). An algorithm was then used to post-process the cytokeratin (CK) images to produce binary segmentations and form HE-CK pairs. From these proposals, a pathologist distinguished between invasive and epithelial cells and _in situ_ lesions. A convolutional neural network was then trained to perform semantic segmentation. The model was made more robust through tailored data augmentation techniques, utilizing a multi-scale network architecture, and introducing patches from WSIs in addition to the TMA pairs. The final model was then made available in [FastPathology](https://ieeexplore.ieee.org/document/9399433).
 
 ![bilde_github](https://github.com/AICAN-Research/breast-epithelium-segmentation/assets/89521132/e7a13473-a7c5-43c1-83ad-e219c7ec9ec7)
 
-
-## Using the trained model
+## [Testing model](https://github.com/AICAN-Research/breast-epithelium-segmentation#testing-model)
 
 <details open>
 <summary>
 
-### With FastPathology</summary>
+### [With FastPathology](https://github.com/AICAN-Research/breast-epithelium-segmentation#with-fastpathology)</summary>
 
 The trained model is available in the [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) software.
 Select "Download models & pipelines" from the main menu and look for the "Breast Epithelium Segmentation" and press download.
@@ -29,7 +28,7 @@ Then you can load your own WSI data and apply the model without doing any progra
 <details open>
 <summary>
 
-### From the command line using pyFAST</summary>
+### [From command line with pyFAST](https://github.com/AICAN-Research/breast-epithelium-segmentation#from-command-line-with-pyfast)</summary>
 
 You can run the model on your own WSI data from the command line after installing [FAST for Python (aka pyfast)](https://fast.eriksmistad.no/install.html).
 
@@ -44,7 +43,7 @@ runPipeline --datahub breast-epithelium-segmentation --file /path/to/WSI
 <details>
 <summary>
 
-### From Python using pyFAST</summary> 
+### [From Python with pyFAST](https://github.com/AICAN-Research/breast-epithelium-segmentation#from-python-with-pyfast)</summary>
 First install [FAST for Python (aka pyfast)](https://fast.eriksmistad.no/install.html).
 ```bash
 pip install pyfast
@@ -76,7 +75,7 @@ See the [documentation for more info on how to work with WSI data with pyFAST](h
 
 </details>
 
-## Training Preliminaries
+## [Training preliminaries](https://github.com/AICAN-Research/breast-epithelium-segmentation#training-preliminaries)
 
 **Disclaimer:** The source code includes hard-coded solutions. To train the model on a new dataset, the code requires
 modifications, and the new dataset needs to be created, in which case you would need:
@@ -98,10 +97,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Create dataset
+## [Create dataset](https://github.com/AICAN-Research/breast-epithelium-segmentation#create-dataset)
+
 To create the datasets you need five (for WSI) or six (for TMA) images of each slide: HE images (`.vsi`), CK images (`.vsi`), thresholded DAB-channel (`.tiff`), manual annotations of benign/*in situ* lesions (`.ome.tif`), annotations of areas to remove (`.ome.tif`), and triplet info (`.ome.tif`).
    
-### QuPath
+### [QuPath](https://github.com/AICAN-Research/breast-epithelium-segmentation#qupath)
    
 All groovy scripts are run in QuPath. To run a script on a batch of WSIs:
 
@@ -125,7 +125,7 @@ The code for dataset creation from TMAs assumes a folder structure like below:
 <details>
 <summary>
 
-### Create epithelial mask from CK images</summary>
+### [Create epithelial mask from CK images](https://github.com/AICAN-Research/breast-epithelium-segmentation#create-epithelial-mask-from-ck-images)</summary>
 
 * Create QuPath project and add CK images.
 
@@ -148,7 +148,7 @@ convert_to_tiff.py
 <details>
 <summary>
 
-### Convert annotations to OME-TIFF</summary> 
+### [Convert annotations to OME-TIFF](https://github.com/AICAN-Research/breast-epithelium-segmentation#convert-annotations-to-ome-tiff)</summary>
 
 * Create QuPath projects for the different tasks (1-3).
 * Add images and create annotations. 
@@ -161,7 +161,7 @@ _**NOTE:**_ Remember to change annotation name depending on annotation category.
 <details>
 <summary>
 
-### Create datasets</summary>
+### [Create datasets](https://github.com/AICAN-Research/breast-epithelium-segmentation#create-datasets)</summary>
 
 Split data into train, validation, and test sets:
 
@@ -191,7 +191,7 @@ python /path/to/create_data_wsi.py
 <details open>
 <summary>
 
-## Train model</summary> 
+## [Train model](https://github.com/AICAN-Research/breast-epithelium-segmentation#train-model)</summary> 
 
 Remember to change dataset name and pairs argument values. Toggle/untoggle deep supervision/multiscale input/grad 
 accumulation when creating model. Use only TMA, only WSI, or both datasets.
@@ -215,7 +215,7 @@ python /path/to/script.py --batch_size 16 --learning_rate 0.001
 <details>
 <summary>
 
-## Evaluate model</summary> 
+## [Evaluate model](https://github.com/AICAN-Research/breast-epithelium-segmentation#evaluate-model)</summary> 
 
 Create TMA-level dataset for evaluation: 
 ```
@@ -241,7 +241,7 @@ _**NOTE:**_ Make sure that the correct model and dataset are used. For this eval
 <details>
 <summary>
 
-## Deploy custom model in FastPathology</summary> 
+## [Deploy custom model in FastPathology](https://github.com/AICAN-Research/breast-epithelium-segmentation#train-model)</summary> 
 
 Given that you have trained your own model, you may want to use [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) to enable the model to be used through a simple graphical user interface (GUI).
 
@@ -262,7 +262,7 @@ python -m tf2onnx.convert --saved-model /path/to/saved_model/ --output /path/to/
 <details>
 <summary>
 
-## Import segmentation from FastPathology to QuPath</summary> 
+## [Import segmentation from FastPathology to QuPath](https://github.com/AICAN-Research/breast-epithelium-segmentation#Import-segmentation-from-FastPathology-to-QuPath)</summary> 
 
 This can be performed by using this groovy script:
 ```
@@ -276,9 +276,9 @@ See the script header for more details on how to use it.
 <details>
 <summary>
 
-## Troubleshooting</summary> 
+## [Troubleshooting](https://github.com/AICAN-Research/breast-epithelium-segmentation#troubleshooting)</summary> 
 
-### QuPath
+### [QuPath export error](https://github.com/AICAN-Research/breast-epithelium-segmentation#qupath-export-error)
 	
 **Q:** Error when exporting annotations to GeoJSON with QuPath script
 
@@ -286,8 +286,7 @@ See the script header for more details on how to use it.
 
 </details>
 
-## How to cite
-
+## [How to cite](https://github.com/AICAN-Research/breast-epithelium-segmentation#how-to-cite)
 
 Please, cite our research article if you found this repository useful:
 ```
@@ -301,7 +300,7 @@ Please, cite our research article if you found this repository useful:
 }
 ```
 
-## Acknowledgements
+## [Acknowledgements](https://github.com/AICAN-Research/breast-epithelium-segmentation#acknowledgements)
 
 Thank you to @petebankhead and the [QuPath](https://qupath.github.io/) team for their invaluable support in implementing the groovy scripts.
 
