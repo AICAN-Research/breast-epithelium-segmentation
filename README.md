@@ -122,10 +122,10 @@ The code for dataset creation from TMAs assumes a folder structure like below:
       └── cohort_n/
 ```
 
-<details open>
+<details>
 <summary>
 
-### Create epithelial mask from ck images</summary>
+### Create epithelial mask from CK images</summary>
 
 * Create QuPath project and add CK images.
 
@@ -188,7 +188,10 @@ python /path/to/create_data_wsi.py
 ```
 </details>
 
-## Train model
+<details open>
+<summary>
+
+## Train model</summary> 
 
 Remember to change dataset name and pairs argument values. Toggle/untoggle deep supervision/multiscale input/grad 
 accumulation when creating model. Use only TMA, only WSI, or both datasets.
@@ -209,7 +212,10 @@ python /path/to/script.py --batch_size 16 --learning_rate 0.001
 ```
 </details>
 
-## Evaluate model
+<details>
+<summary>
+
+## Evaluate model</summary> 
 
 Create TMA-level dataset for evaluation: 
 ```
@@ -230,7 +236,12 @@ python /path/to/eval_histologic_subtype.py
 
 _**NOTE:**_ Make sure that the correct model and dataset are used. For this evaluation you would need an external data file containing the histological subtype/grade.
 
-## Deploy custom model in FastPathology
+</details>
+
+<details>
+<summary>
+
+## Deploy custom model in FastPathology</summary> 
 
 Given that you have trained your own model, you may want to use [FastPathology](https://github.com/AICAN-Research/FAST-Pathology) to enable the model to be used through a simple graphical user interface (GUI).
 
@@ -246,7 +257,12 @@ python -m tf2onnx.convert --saved-model /path/to/saved_model/ --output /path/to/
 
 4. In order to make the FPL file compatible with your custom model, you will need to change the model name in the FPL file. You can do this by choosing the pipeline from the `Process` widget, clicking `"Edit pipeline` and changing the model name you chose in step 1 when converting it (see `NeuralNetwork` process object in the FPL).
 
-## Import segmentation from FastPathology to QuPath
+</details>
+
+<details>
+<summary>
+
+## Import segmentation from FastPathology to QuPath</summary> 
 
 This can be performed by using this groovy script:
 ```
@@ -255,11 +271,14 @@ import_from_fastpathology.groovy
 
 See the script header for more details on how to use it.
 
-## Troubleshooting
-<details open>
+</details>
+
+<details>
 <summary>
 
-### QuPath</summary> 
+## Troubleshooting</summary> 
+
+### QuPath
 	
 **Q:** Error when exporting annotations to GeoJSON with QuPath script
 
