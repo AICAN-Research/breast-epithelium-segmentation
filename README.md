@@ -302,7 +302,7 @@ Please, cite our research article if you found this repository useful:
 
 ## [Acknowledgements](https://github.com/AICAN-Research/breast-epithelium-segmentation#acknowledgements)
 
-Thank you to @petebankhead and the [QuPath](https://qupath.github.io/) team for their invaluable support in implementing the groovy scripts.
+Thank you to [@petebankhead](https://github.com/petebankhead) and the [QuPath](https://qupath.github.io/) team for their invaluable support in implementing the groovy scripts.
 
 AGU-Net implementation for histopathological image segmentation:
 ```
